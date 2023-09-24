@@ -1,0 +1,13 @@
+ARG INCLUDED_ARG=abc
+
+included.all: included.target
+
+included.toolchain:
+    DAKE-KEEPCONTEXT
+    FROM alpine
+    COPY file.txt .
+    RUN echo "included.toolchain"
+
+included-target:
+    FROM included.toolchain
+    RUN echo "included.target"
