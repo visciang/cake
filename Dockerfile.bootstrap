@@ -1,0 +1,22 @@
+ARG ELIXIR_VERSION=1.15.7
+ARG ELIXIR_ERLANG_VERSION=26.1.2
+ARG ELIXIR_ALPINE_VERSION=3.18.4
+
+FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} as build
+WORKDIR /code
+RUN apk add --no-cache git build-base
+RUN mix local.rebar --force && mix local.hex --force
+COPY mix.exs mix.lock ./
+RUN mix deps.get
+RUN mix deps.compile
+COPY config ./config
+COPY test ./test
+COPY lib ./lib
+COPY .*.exs ./
+RUN mix escript.build
+
+FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} as dake.app
+RUN apk add --no-cache bash git docker-cli-buildx
+COPY priv/dake_cmd.sh /usr/bin/
+COPY --from=build /code/dake /dake
+ENTRYPOINT [ "/dake" ]

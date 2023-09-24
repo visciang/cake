@@ -1,0 +1,11 @@
+TODO
+
+- supportare include path: local, http, git
+- secrets mount
+- "service tests"
+    docker compose like (build --network ?)
+- local task
+- Dakefile FROM DOCKERFILE
+- run against a private buildkit instance
+- dot
+? private targets (.target)

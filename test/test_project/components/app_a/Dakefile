@@ -1,0 +1,5 @@
+app:
+    @output /out
+    FROM alpine
+    COPY a /out/a
+    CMD ["cat", "/out/a"]
