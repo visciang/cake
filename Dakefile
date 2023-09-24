@@ -1,6 +1,6 @@
 DAKE_INCLUDE --INCLUDED_ARG=xyz ./include/XXXFile
 
-ARG ELIXIR_VERSION=1.15.5
+ARG ELIXIR_VERSION=1.15.6
 ARG ELIXIR_ERLANG_VERSION=26.0.2
 ARG ELIXIR_ALPINE_VERSION=3.18.2
 
@@ -73,7 +73,6 @@ elixir.escript:
     FROM +elixir.compile
     ARG ESCRIPT_NAME
     RUN mix escript.build
-    RUN ls /code/dake
 
 elixir.xxx-example-push:
     DAKE_PUSH
@@ -82,5 +81,6 @@ elixir.xxx-example-push:
 
 dake.docker_image:
     FROM +elixir.base
-    COPY --from=+elixir.escript /code/dake /
+    ARG ESCRIPT_NAME
+    COPY --from=+elixir.escript /code/${ESCRIPT_NAME} /
     

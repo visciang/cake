@@ -42,7 +42,7 @@ defmodule Dake do
     case arg do
       %CliArgs.Ls{tree: true} -> Cmd.Ls.tree(dakefile, graph)
       %CliArgs.Ls{} -> Cmd.Ls.list(dakefile, graph)
-      %CliArgs.Run{} -> Cmd.Run.exec(dakefile, graph)
+      %CliArgs.Run{target: target, args: args} -> Cmd.Run.exec(dakefile, graph, target, args)
     end
 
     :ok

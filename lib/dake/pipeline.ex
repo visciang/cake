@@ -12,7 +12,7 @@ defmodule Dake.Pipeline do
 
   @typep pipeline_target :: {target :: String.t(), [Docker.Command.t()]}
 
-  @spec build(Dakefile.t()) :: :ok
+  @spec build(Dakefile.t()) :: Path.t()
   def build(%Dakefile{} = dakefile) do
     pipeline_args = pipeline_args(dakefile.args)
 
@@ -29,7 +29,9 @@ defmodule Dake.Pipeline do
       |> pipeline_aliases()
       |> pipeline_add_targets_done()
 
-    IO.puts("""
+    dockerfile_path = "Dockerfile"
+
+    dockerfile = """
     # ==== pipeline ARGs ====
 
     #{fmt_pipeline_args(pipeline_args)}
@@ -42,9 +44,11 @@ defmodule Dake.Pipeline do
     # ==== pipeline aliases ====
 
     #{fmt_pipeline_targets(pipeline_alias_targets)}
-    """)
+    """
 
-    :ok
+    File.write!(dockerfile_path, dockerfile)
+
+    dockerfile_path
   end
 
   @spec pipeline_args([Docker.Arg.t()]) :: [Docker.Arg.t()]
@@ -113,7 +117,7 @@ defmodule Dake.Pipeline do
             %Docker.Command{instruction: "#", arguments: "TODO DAKE_PUSH"}
 
           %Docker.DakeOutput{} = output ->
-            arguments = "mkdir -p #{@dake_ouput_path} && mv #{output.dir} #{@dake_ouput_path}/"
+            arguments = "mkdir -p #{@dake_ouput_path} && cp -r #{output.dir} #{@dake_ouput_path}/"
             %Docker.Command{instruction: "RUN", arguments: arguments}
         end)
 
