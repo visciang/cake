@@ -121,8 +121,8 @@ defmodule Dake.Parser do
     ignore(indent)
     |> choice([
       dake_command,
-      command,
       arg,
+      command,
       ignore(comment),
       ignore(empty())
     ])

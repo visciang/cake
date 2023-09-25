@@ -71,7 +71,6 @@ elixir.release:
 
 elixir.escript:
     FROM +elixir.compile
-    ARG ESCRIPT_NAME
     RUN mix escript.build
 
 elixir.xxx-example-push:
@@ -83,4 +82,3 @@ dake.docker_image:
     FROM +elixir.base
     ARG ESCRIPT_NAME
     COPY --from=+elixir.escript /code/${ESCRIPT_NAME} /
-    
