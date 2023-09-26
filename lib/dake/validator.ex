@@ -11,6 +11,7 @@ defmodule Dake.Validator do
   @spec check(Dakefile.t(), Dag.graph()) :: result()
   def check(%Dakefile{} = dakefile, graph) do
     with :ok <- check_alias_targets(dakefile, graph),
+         :ok <- check_push_targets(dakefile, graph),
          :ok <- check_only_one_from_per_target(dakefile),
          :ok <- check_from_as(dakefile, graph) do
       :ok
@@ -64,6 +65,27 @@ defmodule Dake.Validator do
     else
       bad_targets = Enum.to_list(bad_targets)
       {:error, "alias targets #{inspect(bad_targets)} cannot be referenced in FROM/COPY instructions"}
+    end
+  end
+
+  @spec check_push_targets(Dakefile.t(), Dag.graph()) :: result()
+  defp check_push_targets(%Dakefile{} = dakefile, graph) do
+    push_targets =
+      Enum.filter(dakefile.targets, fn
+        %Target.Docker{} = docker ->
+          Enum.any?(docker.commands, &match?(%Docker.DakePush{}, &1))
+
+        _ ->
+          false
+      end)
+
+    bad_targets = Enum.filter(push_targets, &(Dag.downstream_targets(graph, &1.target) != []))
+
+    if bad_targets == [] do
+      :ok
+    else
+      targets = Enum.map(bad_targets, & &1.target)
+      {:error, "push targets #{inspect(targets)} can be only terminal target"}
     end
   end
 

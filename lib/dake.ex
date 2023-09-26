@@ -32,18 +32,7 @@ defmodule Dake do
     Validator.check(dakefile, graph)
     |> exit_on_validation_error()
 
-    cmd(args, dakefile, graph)
-
-    :ok
-  end
-
-  @spec cmd(CliArgs.arg(), Dakefile.t(), Dag.graph()) :: :ok
-  def cmd(arg, %Dakefile{} = dakefile, graph) do
-    case arg do
-      %CliArgs.Ls{tree: true} -> Cmd.Ls.tree(dakefile, graph)
-      %CliArgs.Ls{} -> Cmd.Ls.list(dakefile, graph)
-      %CliArgs.Run{target: target, args: args} -> Cmd.Run.exec(dakefile, graph, target, args)
-    end
+    Cmd.exec(args, dakefile, graph)
 
     :ok
   end

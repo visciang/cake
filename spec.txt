@@ -11,9 +11,8 @@
         X DAKE_OUTPUT
             X introdurre taget addizionale "target.output from scratch" per estrarre gli output
         - DAKE_PUSH
-            - non deve essere dipendenza di un target (ammesso in target group)
-            - deve essere incluso solo se invocato `--push`
-            - non puo' esere dipendenza di un altro target (esclusi group target)
+            X non deve essere dipendenza di un target
+            X deve essere incluso solo se invocato `--push`
             - docker buildx build --no-cache-filter=<TARGET_NAME> ...
 
 - include:
@@ -25,6 +24,9 @@
    locazione di origine, utile per le toolchain
    -> necessario processare tutti i COPY (senza --from) e qualificare le <src> con il path
       del contesto originario. Il contesto deve essere copiato localmente in una subdirectory insieme al file incluso
+
+- "service tests"
+    docker compose like (build --network ?)
 
 - cli:
     log: da --progress=plain e qualcosa di tty colorato e raggruppato per target

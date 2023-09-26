@@ -75,7 +75,7 @@ elixir.escript:
 
 elixir.xxx-example-push:
     DAKE_PUSH
-    FROM +elixir.toolchain
+    FROM +elixir.base
     RUN echo "side-effect"
 
 dake.docker_image:

@@ -1,8 +1,9 @@
-defmodule Dake.Cmd.Ls do
+defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
   @moduledoc """
   ls Command.
   """
 
+  alias Dake.CliArgs.Ls
   alias Dake.Dag
   alias Dake.Parser.Dakefile
   alias Dake.Parser.Docker.Arg
@@ -10,26 +11,8 @@ defmodule Dake.Cmd.Ls do
 
   @typep target_args :: %{(target :: String.t()) => [Arg.t()]}
 
-  @spec list(Dakefile.t(), Dag.graph()) :: :ok
-  def list(%Dakefile{} = dakefile, graph) do
-    global_args = dakefile.args
-    target_args = target_args(dakefile)
-
-    if global_args != [] do
-      IO.puts(["  ", Enum.map_join(global_args, ", ", &fmt_arg(&1)), "\n"])
-    end
-
-    graph
-    |> Dag.targets()
-    |> Enum.sort()
-    |> Enum.map(&fmt_target(&1, target_args))
-    |> Enum.each(&IO.puts("  #{&1}"))
-
-    :ok
-  end
-
-  @spec tree(Dakefile.t(), Dag.graph()) :: :ok
-  def tree(%Dakefile{} = dakefile, graph) do
+  @spec exec(Ls.t(), Dakefile.t(), Dag.graph()) :: :ok
+  def exec(%Ls{tree: true}, %Dakefile{} = dakefile, graph) do
     global_args = dakefile.args
     target_args = target_args(dakefile)
 
@@ -46,6 +29,23 @@ defmodule Dake.Cmd.Ls do
 
     tree_alias(graph, alias_targets)
     tree_docker(graph, docker_targets, target_args, 1)
+  end
+
+  def exec(%Ls{}, %Dakefile{} = dakefile, graph) do
+    global_args = dakefile.args
+    target_args = target_args(dakefile)
+
+    if global_args != [] do
+      IO.puts(["  ", Enum.map_join(global_args, ", ", &fmt_arg(&1)), "\n"])
+    end
+
+    graph
+    |> Dag.targets()
+    |> Enum.sort()
+    |> Enum.map(&fmt_target(&1, target_args))
+    |> Enum.each(&IO.puts("  #{&1}"))
+
+    :ok
   end
 
   @spec tree_alias(Dag.graph(), [target :: String.t()]) :: :ok

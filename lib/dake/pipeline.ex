@@ -12,14 +12,14 @@ defmodule Dake.Pipeline do
 
   @typep pipeline_target :: {target :: String.t(), [Docker.Command.t()]}
 
-  @spec build(Dakefile.t()) :: Path.t()
-  def build(%Dakefile{} = dakefile) do
+  @spec build(Dakefile.t(), push :: boolean()) :: Path.t()
+  def build(%Dakefile{} = dakefile, push) do
     pipeline_args = pipeline_args(dakefile.args)
 
     pipeline_docker_targets =
       dakefile.targets
       |> Enum.filter(&match?(%Target.Docker{}, &1))
-      |> pipeline_targets()
+      |> pipeline_targets(push)
       |> pipeline_add_default_target()
       |> pipeline_add_targets_done()
 
@@ -68,6 +68,53 @@ defmodule Dake.Pipeline do
     end)
   end
 
+  @spec pipeline_targets([Target.Docker.t()], push :: boolean()) :: [pipeline_target()]
+  defp pipeline_targets(docker_targets, push) do
+    docker_targets =
+      if push do
+        docker_targets
+      else
+        Enum.reject(docker_targets, fn %Target.Docker{} = docker ->
+          Enum.any?(docker.commands, &match?(%Docker.DakePush{}, &1))
+        end)
+      end
+
+    Enum.flat_map(docker_targets, fn %Target.Docker{} = docker ->
+      target = pipeline_target(docker)
+      target_output = pipeline_target_output(docker)
+
+      [target, target_output]
+    end)
+  end
+
+  @spec pipeline_target(Target.Docker.t()) :: pipeline_target()
+  defp pipeline_target(%Target.Docker{} = docker) do
+    commands =
+      docker.commands
+      |> Enum.reject(&match?(%Docker.DakePush{}, &1))
+      |> Enum.map(fn
+        %Docker.Command{instruction: "FROM"} = command ->
+          pipeline_from_as(command, docker.target)
+
+        %Docker.Command{instruction: "COPY"} = command ->
+          pipeline_copy_from(command)
+
+        %Docker.Command{} = command ->
+          command
+
+        %Docker.Arg{} = arg ->
+          argument = fmt_docker_arg_arguments(arg)
+
+          %Docker.Command{instruction: "ARG", arguments: argument}
+
+        %Docker.DakeOutput{} = output ->
+          arguments = "mkdir -p #{@dake_ouput_path} && cp -r #{output.dir} #{@dake_ouput_path}/"
+          %Docker.Command{instruction: "RUN", arguments: arguments}
+      end)
+
+    {docker.target, commands}
+  end
+
   @spec pipeline_target_output(Target.Docker.t()) :: pipeline_target()
   defp pipeline_target_output(%Target.Docker{} = docker) do
     commands = [
@@ -90,41 +137,6 @@ defmodule Dake.Pipeline do
       end
 
     {t_output(docker.target), commands}
-  end
-
-  @spec pipeline_targets([Target.Docker.t()]) :: [pipeline_target()]
-  defp pipeline_targets(docker_targets) do
-    Enum.flat_map(docker_targets, fn %Target.Docker{} = docker ->
-      base_target_commands =
-        docker.commands
-        |> Enum.map(fn
-          %Docker.Command{instruction: "FROM"} = command ->
-            pipeline_from_as(command, docker.target)
-
-          %Docker.Command{instruction: "COPY"} = command ->
-            pipeline_copy_from(command)
-
-          %Docker.Command{} = command ->
-            command
-
-          %Docker.Arg{} = arg ->
-            argument = fmt_docker_arg_arguments(arg)
-
-            %Docker.Command{instruction: "ARG", arguments: argument}
-
-          %Docker.DakePush{} ->
-            # TODO
-            %Docker.Command{instruction: "#", arguments: "TODO DAKE_PUSH"}
-
-          %Docker.DakeOutput{} = output ->
-            arguments = "mkdir -p #{@dake_ouput_path} && cp -r #{output.dir} #{@dake_ouput_path}/"
-            %Docker.Command{instruction: "RUN", arguments: arguments}
-        end)
-
-      target_output = pipeline_target_output(docker)
-
-      [{docker.target, base_target_commands}, target_output]
-    end)
   end
 
   @spec pipeline_add_default_target([pipeline_target()]) :: [pipeline_target()]

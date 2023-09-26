@@ -2,6 +2,7 @@ defmodule Dake.CliArgs do
   @moduledoc """
   CLI argument parser
   """
+
   defmodule Ls do
     @moduledoc false
     defstruct [:tree]
@@ -13,12 +14,14 @@ defmodule Dake.CliArgs do
 
   defmodule Run do
     @moduledoc false
-    @enforce_keys [:target, :args]
+    @enforce_keys [:target, :args, :push]
     defstruct @enforce_keys
 
+    @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
             target: String.t(),
-            args: Keyword.t(String.t())
+            args: [arg()],
+            push: boolean()
           }
   end
 
@@ -32,17 +35,18 @@ defmodule Dake.CliArgs do
         {opts, []} = OptionParser.parse!(args, strict: [tree: :boolean])
         {:ok, struct!(Ls, opts)}
 
-      ["run", target | target_args] ->
-        case parse_target_args(target_args) do
-          {:ok, target_args} ->
-            {:ok, struct!(Run, target: target, args: target_args)}
+      ["run" | run_args] ->
+        with {run_options, [target | target_args]} <- OptionParser.parse_head!(run_args, switches: [push: :boolean]),
+             {:ok, target_args} <- parse_target_args(target_args) do
+          push = run_options[:push] || false
+          {:ok, struct!(Run, target: target, args: target_args, push: push)}
+        else
+          {_, _} ->
+            {:error, "missing target"}
 
           {:error, _reason} = error ->
             error
         end
-
-      ["run"] ->
-        {:error, "missing target"}
 
       _ ->
         {:error, "unknow command"}
