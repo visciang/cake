@@ -12,7 +12,7 @@ defmodule Dake.Validator do
   def check(%Dakefile{} = dakefile, graph) do
     with :ok <- check_alias_targets(dakefile, graph),
          :ok <- check_push_targets(dakefile, graph),
-         :ok <- check_only_one_from_per_target(dakefile),
+         :ok <- check_exactly_one_from_per_target(dakefile),
          :ok <- check_from_as(dakefile, graph) do
       :ok
     end
@@ -89,8 +89,8 @@ defmodule Dake.Validator do
     end
   end
 
-  @spec check_only_one_from_per_target(Dakefile.t()) :: result()
-  defp check_only_one_from_per_target(%Dakefile{} = dakefile) do
+  @spec check_exactly_one_from_per_target(Dakefile.t()) :: result()
+  defp check_exactly_one_from_per_target(%Dakefile{} = dakefile) do
     dakefile.targets
     |> Enum.filter(&match?(%Target.Docker{}, &1))
     |> Enum.reduce_while(:ok, fn %Target.Docker{target: target, commands: commands}, :ok ->

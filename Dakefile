@@ -78,6 +78,11 @@ elixir.xxx-example-push:
     FROM +elixir.base
     RUN echo "side-effect"
 
+elixir.xxx-example-push2:
+    DAKE_PUSH
+    FROM +elixir.base
+    RUN echo "side-effect"
+
 dake.docker_image:
     FROM +elixir.base
     ARG ESCRIPT_NAME

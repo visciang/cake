@@ -57,33 +57,37 @@ defmodule Dake.Pipeline do
   @spec pipeline_aliases([Target.Alias.t()]) :: [pipeline_target()]
   defp pipeline_aliases(aliases) do
     Enum.map(aliases, fn %Target.Alias{} = alias_ ->
+      from = %Docker.Command{instruction: "FROM", arguments: "scratch AS #{alias_.target}"}
       commands = Enum.map(alias_.targets, fn target -> command_copy_done(target) end)
 
-      commands = [
-        %Docker.Command{instruction: "FROM", arguments: "scratch AS #{alias_.target}"}
-        | commands
-      ]
-
-      {alias_.target, commands}
+      {alias_.target, [from | commands]}
     end)
   end
 
   @spec pipeline_targets([Target.Docker.t()], push :: boolean()) :: [pipeline_target()]
   defp pipeline_targets(docker_targets, push) do
-    docker_targets =
-      if push do
-        docker_targets
-      else
-        Enum.reject(docker_targets, fn %Target.Docker{} = docker ->
-          Enum.any?(docker.commands, &match?(%Docker.DakePush{}, &1))
-        end)
-      end
+    push_targets = push_targets_set(docker_targets)
 
     Enum.flat_map(docker_targets, fn %Target.Docker{} = docker ->
-      target = pipeline_target(docker)
-      target_output = pipeline_target_output(docker)
+      docker =
+        if push and MapSet.member?(push_targets, docker) do
+          commands = Enum.reject(docker.commands, &match?(%Docker.DakePush{}, &1))
+          from_idx = Enum.find_index(commands, &match?(%Docker.Command{instruction: "FROM"}, &1))
+          force_push_arg = %Docker.Arg{name: String.upcase(docker.target)}
+          commands = List.insert_at(commands, from_idx + 1, force_push_arg)
+          %Target.Docker{docker | commands: commands}
+        else
+          docker
+        end
 
-      [target, target_output]
+      if not push and MapSet.member?(push_targets, docker) do
+        []
+      else
+        target = pipeline_target(docker)
+        target_output = pipeline_target_output(docker)
+
+        [target, target_output]
+      end
     end)
   end
 
@@ -104,7 +108,6 @@ defmodule Dake.Pipeline do
 
         %Docker.Arg{} = arg ->
           argument = fmt_docker_arg_arguments(arg)
-
           %Docker.Command{instruction: "ARG", arguments: argument}
 
         %Docker.DakeOutput{} = output ->
@@ -203,6 +206,19 @@ defmodule Dake.Pipeline do
       end)
 
     %Docker.Command{command | options: options}
+  end
+
+  @spec push_targets_set([Target.Docker.t()]) :: MapSet.t(Target.Docker.t())
+  defp push_targets_set(docker_targets) do
+    docker_targets
+    |> Enum.filter(fn
+      %Target.Docker{} = docker ->
+        Enum.any?(docker.commands, &match?(%Docker.DakePush{}, &1))
+
+      _ ->
+        false
+    end)
+    |> MapSet.new()
   end
 
   @spec command_copy_done(from :: String.t()) :: Docker.Command.t()
