@@ -13,7 +13,7 @@
         - DAKE_PUSH
             X non deve essere dipendenza di un target
             X deve essere incluso solo se invocato `--push`
-            - docker buildx build --no-cache-filter=<TARGET_NAME> ...
+            X force run via random ARG
 
 - include:
   - espansione testuale semplice (come C #include <>)
