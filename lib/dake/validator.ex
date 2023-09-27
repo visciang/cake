@@ -12,8 +12,7 @@ defmodule Dake.Validator do
   def check(%Dakefile{} = dakefile, graph) do
     with :ok <- check_alias_targets(dakefile, graph),
          :ok <- check_push_targets(dakefile, graph),
-         :ok <- check_exactly_one_from_per_target(dakefile),
-         :ok <- check_from_as(dakefile, graph) do
+         :ok <- check_from(dakefile, graph) do
       :ok
     end
   end
@@ -32,8 +31,8 @@ defmodule Dake.Validator do
 
     targets_referenced_in_from =
       all_commands
-      |> Enum.filter(&match?(%Docker.Command{instruction: "FROM"}, &1))
-      |> Enum.map(&hd(String.split(&1.arguments)))
+      |> Enum.filter(&match?(%Docker.From{}, &1))
+      |> Enum.map(& &1.image)
 
     targets_referenced_in_copy =
       all_commands
@@ -89,49 +88,21 @@ defmodule Dake.Validator do
     end
   end
 
-  @spec check_exactly_one_from_per_target(Dakefile.t()) :: result()
-  defp check_exactly_one_from_per_target(%Dakefile{} = dakefile) do
+  @spec check_from(Dakefile.t(), Dag.graph()) :: result()
+  defp check_from(%Dakefile{} = dakefile, _graph) do
     dakefile.targets
     |> Enum.filter(&match?(%Target.Docker{}, &1))
     |> Enum.reduce_while(:ok, fn %Target.Docker{target: target, commands: commands}, :ok ->
-      from_commands = Enum.filter(commands, &match?(%Docker.Command{instruction: "FROM"}, &1))
+      case commands do
+        [%Docker.From{as: as} | _] when as != nil ->
+          {:halt, {:error, "'FROM .. AS ..' form is not allowed, please remove the AS argument under #{target}"}}
 
-      case length(from_commands) do
-        0 -> {:halt, {:error, "target #{target} should have 1 FROM instruction"}}
-        1 -> {:cont, :ok}
-        _ -> {:halt, {:error, "target #{target} should have no more than 1 FROM instruction"}}
-      end
-    end)
-  end
-
-  @spec check_from_as(Dakefile.t(), Dag.graph()) :: result()
-  defp check_from_as(%Dakefile{} = dakefile, _graph) do
-    targets_with_from_as =
-      dakefile.targets
-      |> Enum.flat_map(fn
-        %Target.Docker{target: target, commands: commands} ->
-          if find_from_as_command(commands), do: [target], else: []
+        [%Docker.From{} | _] ->
+          {:cont, :ok}
 
         _ ->
-          []
-      end)
-
-    if targets_with_from_as == [] do
-      :ok
-    else
-      {:error,
-       "'FROM .. AS ..' form is not allowed, please remove the AS argument under targets #{inspect(targets_with_from_as)}"}
-    end
-  end
-
-  @spec find_from_as_command([Docker.Command.t()]) :: nil | Docker.Command.t()
-  defp find_from_as_command(commands) do
-    Enum.find(commands, fn
-      %Docker.Command{instruction: "FROM", arguments: arguments} ->
-        "AS" in String.split(arguments, " ")
-
-      _ ->
-        false
+          {:halt, {:error, "#{target} doesn't start with a FROM command"}}
+      end
     end)
   end
 end

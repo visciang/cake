@@ -14,6 +14,9 @@
             X non deve essere dipendenza di un target
             X deve essere incluso solo se invocato `--push`
             X force run via random ARG
+- private targets ?: .target
+- target output
+- target docker image output
 
 - include:
   - espansione testuale semplice (come C #include <>)

@@ -29,6 +29,11 @@ defmodule Dake.Parser do
     |> utf8_string([?A..?Z], min: 1)
     |> reduce({List, :to_string, []})
 
+  target_id =
+    utf8_char([?a..?z])
+    |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?., ?-, ?_], min: 1))
+    |> reduce({List, :to_string, []})
+
   command_id =
     choice([
       dake_command_id,
@@ -97,6 +102,22 @@ defmodule Dake.Parser do
     |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
     |> reduce({List, :to_string, []})
 
+  image_ref =
+    utf8_string([not: ?\n], min: 1)
+
+  from =
+    ignore(string("FROM"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(image_ref, :image)
+    |> optional(
+      ignore(spaces)
+      |> ignore(string("AS"))
+      |> ignore(spaces)
+      |> unwrap_and_tag(target_id, :as)
+    )
+    |> wrap()
+    |> map({:cast, [Docker.From]})
+
   arg =
     ignore(string("ARG"))
     |> ignore(spaces)
@@ -112,16 +133,12 @@ defmodule Dake.Parser do
     |> wrap()
     |> map({:cast, [Docker.Arg]})
 
-  target_id =
-    utf8_char([?a..?z])
-    |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?., ?-, ?_], min: 1))
-    |> reduce({List, :to_string, []})
-
   target_body_command =
     ignore(indent)
     |> choice([
       dake_command,
       arg,
+      from,
       command,
       ignore(comment),
       ignore(empty())

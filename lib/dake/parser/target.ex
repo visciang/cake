@@ -28,6 +28,7 @@ defmodule Dake.Parser.Target do
 
     @type command ::
             Dake.Parser.Docker.Arg.t()
+            | Dake.Parser.Docker.From.t()
             | Dake.Parser.Docker.Command.t()
             | Dake.Parser.Docker.DakeOutput.t()
             | Dake.Parser.Docker.DakePush.t()

@@ -74,14 +74,14 @@ elixir.escript:
     RUN mix escript.build
 
 elixir.xxx-example-push:
-    DAKE_PUSH
     FROM +elixir.base
     RUN echo "side-effect"
+    DAKE_PUSH
 
 elixir.xxx-example-push2:
-    DAKE_PUSH
     FROM +elixir.base
     RUN echo "side-effect"
+    DAKE_PUSH
 
 dake.docker_image:
     FROM +elixir.base

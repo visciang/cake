@@ -32,6 +32,19 @@ defmodule Dake.Parser.Docker do
     @type t :: %__MODULE__{}
   end
 
+  defmodule From do
+    @moduledoc """
+    Docker `FROM <image> [AS <as>]`.
+    """
+    @enforce_keys [:image]
+    defstruct @enforce_keys ++ [:as]
+
+    @type t :: %__MODULE__{
+            image: String.t(),
+            as: nil | String.t()
+          }
+  end
+
   defmodule Arg do
     @moduledoc """
     Docker `ARG <name>[=<default_value>]`.

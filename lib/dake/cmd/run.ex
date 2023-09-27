@@ -18,8 +18,6 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Run do
     cmd_args =
       ["buildx", "build", "--file", dockerfile, "--target", run.target] ++ build_args ++ force_push_build_args ++ ["."]
 
-    IO.puts(inspect(cmd_args))
-
     System.cmd("docker", cmd_args)
 
     :ok

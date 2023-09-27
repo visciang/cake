@@ -78,14 +78,8 @@ defmodule Dake.Dag do
   @spec add_command_edges(:digraph.graph(), [Target.Docker.command()], String.t()) :: :ok
   defp add_command_edges(graph, commands, downstream_target) do
     Enum.each(commands, fn
-      %Docker.Command{instruction: "FROM", arguments: arguments} ->
-        case String.split(arguments, " ") do
-          ["+" <> upstream_target | _] ->
-            add_edge(graph, upstream_target, downstream_target)
-
-          _ ->
-            :ok
-        end
+      %Docker.From{image: "+" <> upstream_target} ->
+        add_edge(graph, upstream_target, downstream_target)
 
       %Docker.Command{instruction: "COPY", options: options} ->
         case Docker.Command.find_option(options, "from") do
