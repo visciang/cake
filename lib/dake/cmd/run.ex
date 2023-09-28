@@ -16,7 +16,7 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Run do
     force_push_build_args = if run.push, do: push_targets_build_args(dakefile), else: []
 
     cmd_args =
-      ["buildx", "build", "--file", dockerfile, "--target", run.target] ++ build_args ++ force_push_build_args ++ ["."]
+      ["buildx", "build", "--file", dockerfile, "--target", run.tgid] ++ build_args ++ force_push_build_args ++ ["."]
 
     System.cmd("docker", cmd_args)
 
@@ -29,7 +29,7 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Run do
     |> Enum.filter(fn target ->
       match?(%Target.Docker{}, target) and Enum.any?(target.commands, &match?(%Docker.DakePush{}, &1))
     end)
-    |> Enum.map(&{String.upcase(&1.target), inspect(make_ref())})
+    |> Enum.map(&{String.upcase(&1.tgid), inspect(make_ref())})
     |> build_args()
   end
 

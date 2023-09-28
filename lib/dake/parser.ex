@@ -152,7 +152,7 @@ defmodule Dake.Parser do
     )
 
   target_docker =
-    unwrap_and_tag(target_id, :target)
+    unwrap_and_tag(target_id, :tgid)
     |> ignore(string(":"))
     |> ignore(nl)
     |> tag(target_commands, :commands)
@@ -167,10 +167,10 @@ defmodule Dake.Parser do
     )
 
   target_alias =
-    unwrap_and_tag(target_id, :target)
+    unwrap_and_tag(target_id, :tgid)
     |> ignore(string(":"))
     |> ignore(spaces)
-    |> tag(alias_targets, :targets)
+    |> tag(alias_targets, :tgids)
     |> wrap()
     |> map({:cast, [Target.Alias]})
 
@@ -199,7 +199,7 @@ defmodule Dake.Parser do
   dake_include =
     ignore(string("DAKE_INCLUDE"))
     |> ignore(spaces)
-    |> tag(line, :target)
+    |> tag(line, :tgid)
     |> wrap()
     |> map({:cast, [Docker.DakeInclude]})
 

@@ -12,12 +12,14 @@ defmodule Dake do
 
   @spec main([String.t()]) :: :ok
   def main(args) do
+    dakefile_content =
+      File.read("Dakefile")
+      |> exit_on_dakefile_read_error()
+
     args =
       args
       |> CliArgs.parse()
       |> exit_on_cli_args_error()
-
-    dakefile_content = read_dakefile()
 
     dakefile =
       dakefile_content
@@ -37,16 +39,12 @@ defmodule Dake do
     :ok
   end
 
-  @spec read_dakefile :: String.t()
-  defp read_dakefile do
-    case File.read("Dakefile") do
-      {:ok, data} ->
-        data
+  @spec exit_on_dakefile_read_error({:ok, data} | {:error, File.posix()}) :: data when data: String.t()
+  defp exit_on_dakefile_read_error({:ok, data}), do: data
 
-      {:error, _} ->
-        IO.puts(:stderr, "\nCannot read Dakefile")
-        System.halt(1)
-    end
+  defp exit_on_dakefile_read_error({:error, reason}) do
+    IO.puts(:stderr, "\nCannot open Dakefile: (#{:file.format_error(reason)})")
+    System.halt(1)
   end
 
   @spec exit_on_cli_args_error(CliArgs.result()) :: CliArgs.arg()

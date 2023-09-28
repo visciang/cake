@@ -8,8 +8,9 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
   alias Dake.Parser.Dakefile
   alias Dake.Parser.Docker.Arg
   alias Dake.Parser.Target
+  alias Dake.Type
 
-  @typep target_args :: %{(target :: String.t()) => [Arg.t()]}
+  @typep target_args :: %{Type.tgid() => [Arg.t()]}
 
   @spec exec(Ls.t(), Dakefile.t(), Dag.graph()) :: :ok
   def exec(%Ls{tree: true}, %Dakefile{} = dakefile, graph) do
@@ -24,7 +25,7 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
       dakefile.targets
       |> Enum.group_by(
         fn %target_type{} -> target_type end,
-        fn %_{target: target} -> target end
+        fn %_{tgid: tgid} -> tgid end
       )
 
     tree_alias(graph, alias_targets)
@@ -40,7 +41,7 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
     end
 
     graph
-    |> Dag.targets()
+    |> Dag.tgids()
     |> Enum.sort()
     |> Enum.map(&fmt_target(&1, target_args))
     |> Enum.each(&IO.puts("  #{&1}"))
@@ -48,35 +49,35 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
     :ok
   end
 
-  @spec tree_alias(Dag.graph(), [target :: String.t()]) :: :ok
-  defp tree_alias(graph, targets) do
-    Enum.each(targets, fn target ->
-      downstream_targets =
-        Dag.downstream_targets(graph, target)
+  @spec tree_alias(Dag.graph(), [Type.tgid()]) :: :ok
+  defp tree_alias(graph, tgids) do
+    Enum.each(tgids, fn tgid ->
+      downstream_tgids =
+        Dag.downstream_tgids(graph, tgid)
         |> Enum.sort()
         |> Enum.map_join(" ", &fmt_target(&1, %{}, false))
 
       IO.puts("""
-        → #{fmt_target(target, %{})}
-          #{downstream_targets}\
+        → #{fmt_target(tgid, %{})}
+          #{downstream_tgids}\
       """)
     end)
   end
 
-  @spec tree_docker(Dag.graph(), [target :: String.t()], target_args(), non_neg_integer()) :: :ok
+  @spec tree_docker(Dag.graph(), [Type.tgid()], target_args(), non_neg_integer()) :: :ok
   defp tree_docker(_graph, [], _target_args, _level), do: :ok
 
-  defp tree_docker(graph, targets, target_args, level) do
-    targets
+  defp tree_docker(graph, tgids, target_args, level) do
+    tgids
     |> Enum.sort()
-    |> Enum.each(fn target ->
+    |> Enum.each(fn tgid ->
       indent = String.duplicate(" ", level * 2)
       indent = if level == 1, do: "#{indent}", else: indent
       arrow = if level == 1, do: "→", else: "↳"
       target_args = if level == 1, do: target_args, else: %{}
-      IO.puts("#{indent}#{arrow} #{fmt_target(target, target_args, level == 1)}")
+      IO.puts("#{indent}#{arrow} #{fmt_target(tgid, target_args, level == 1)}")
 
-      tree_docker(graph, Dag.downstream_targets(graph, target), target_args, level + 1)
+      tree_docker(graph, Dag.downstream_tgids(graph, tgid), target_args, level + 1)
     end)
   end
 
@@ -85,7 +86,7 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
     dakefile.targets
     |> Enum.filter(&match?(%Target.Docker{}, &1))
     |> Map.new(fn %Target.Docker{} = docker ->
-      {docker.target, Enum.filter(docker.commands, &match?(%Arg{}, &1))}
+      {docker.tgid, Enum.filter(docker.commands, &match?(%Arg{}, &1))}
     end)
   end
 
@@ -98,15 +99,15 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
     end
   end
 
-  @spec fmt_target(String.t(), target_args(), color :: boolean()) :: IO.chardata()
-  defp fmt_target(target, target_args, color \\ true) do
-    args = Map.get(target_args, target, [])
+  @spec fmt_target(Type.tgid(), target_args(), color :: boolean()) :: IO.chardata()
+  defp fmt_target(tgid, target_args, color \\ true) do
+    args = Map.get(target_args, tgid, [])
     args = Enum.map_join(args, ", ", &fmt_arg(&1))
 
     if color do
-      IO.ANSI.format([:green, target, :reset, "  ", args])
+      IO.ANSI.format([:green, tgid, :reset, "  ", args])
     else
-      [target, " ", args]
+      [tgid, " ", args]
     end
   end
 end

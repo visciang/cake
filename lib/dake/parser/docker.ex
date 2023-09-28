@@ -3,11 +3,14 @@ defmodule Dake.Parser.Docker do
     @moduledoc """
     Docker `DAKE_INCLUDE <target>`.
     """
-    @enforce_keys [:target]
+
+    alias Dake.Type
+
+    @enforce_keys [:tgid]
     defstruct @enforce_keys
 
     @type t :: %__MODULE__{
-            target: String.t()
+            tgid: Type.tgid()
           }
   end
 

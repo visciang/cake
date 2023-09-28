@@ -9,6 +9,7 @@ defmodule Dake.Dag do
   end
 
   alias Dake.Parser.{Dakefile, Docker, Target}
+  alias Dake.Type
 
   @opaque graph :: :digraph.graph()
   @type result :: {:ok, graph()} | {:error, reason :: term()}
@@ -32,29 +33,29 @@ defmodule Dake.Dag do
   end
 
   @doc """
-  Return the targets.
+  Return the targets ids.
   """
-  @spec targets(graph()) :: [target :: String.t()]
-  def targets(graph) do
+  @spec tgids(graph()) :: [Type.tgid()]
+  def tgids(graph) do
     :digraph.vertices(graph)
   end
 
   @doc """
   Return the downstream (dependant) targets of a specific target.
   """
-  @spec downstream_targets(graph(), target :: String.t()) :: [target :: String.t()]
-  def downstream_targets(graph, vertex) do
+  @spec downstream_tgids(graph(), Type.tgid()) :: [Type.tgid()]
+  def downstream_tgids(graph, vertex) do
     :digraph.out_neighbours(graph, vertex)
   end
 
   @spec add_vertices(:digraph.graph(), Dakefile.t()) :: :ok
   defp add_vertices(graph, %Dakefile{} = dakefile) do
     Enum.each(dakefile.targets, fn
-      %Target.Docker{target: target} ->
-        :digraph.add_vertex(graph, target)
+      %Target.Docker{tgid: tgid} ->
+        :digraph.add_vertex(graph, tgid)
 
-      %Target.Alias{target: target} ->
-        :digraph.add_vertex(graph, target)
+      %Target.Alias{tgid: tgid} ->
+        :digraph.add_vertex(graph, tgid)
     end)
 
     :ok
@@ -63,28 +64,28 @@ defmodule Dake.Dag do
   @spec add_edges(:digraph.graph(), Dakefile.t()) :: :ok
   defp add_edges(graph, %Dakefile{} = dakefile) do
     Enum.each(dakefile.targets, fn
-      %Target.Docker{target: downstream_target, commands: commands} ->
-        add_command_edges(graph, commands, downstream_target)
+      %Target.Docker{tgid: downstream_tgid, commands: commands} ->
+        add_command_edges(graph, commands, downstream_tgid)
 
-      %Target.Alias{target: upstream_target, targets: downstream_targets} ->
-        Enum.each(downstream_targets, fn downstream_target ->
-          add_edge(graph, upstream_target, downstream_target)
+      %Target.Alias{tgid: upstream_tgid, tgids: downstream_tgids} ->
+        Enum.each(downstream_tgids, fn downstream_tgid ->
+          add_edge(graph, upstream_tgid, downstream_tgid)
         end)
     end)
 
     :ok
   end
 
-  @spec add_command_edges(:digraph.graph(), [Target.Docker.command()], String.t()) :: :ok
-  defp add_command_edges(graph, commands, downstream_target) do
+  @spec add_command_edges(:digraph.graph(), [Target.Docker.command()], Type.tgid()) :: :ok
+  defp add_command_edges(graph, commands, downstream_tgid) do
     Enum.each(commands, fn
-      %Docker.From{image: "+" <> upstream_target} ->
-        add_edge(graph, upstream_target, downstream_target)
+      %Docker.From{image: "+" <> upstream_tgid} ->
+        add_edge(graph, upstream_tgid, downstream_tgid)
 
       %Docker.Command{instruction: "COPY", options: options} ->
         case Docker.Command.find_option(options, "from") do
-          %Docker.Command.Option{value: "+" <> upstream_target} ->
-            add_edge(graph, upstream_target, downstream_target)
+          %Docker.Command.Option{value: "+" <> upstream_tgid} ->
+            add_edge(graph, upstream_tgid, downstream_tgid)
 
           _ ->
             :ok
@@ -95,16 +96,16 @@ defmodule Dake.Dag do
     end)
   end
 
-  @spec add_edge(:digraph.graph(), String.t(), String.t()) :: :ok
-  defp add_edge(graph, upstream_target, downstream_target) do
-    case :digraph.add_edge(graph, upstream_target, downstream_target) do
+  @spec add_edge(:digraph.graph(), Type.tgid(), Type.tgid()) :: :ok
+  defp add_edge(graph, upstream_tgid, downstream_tgid) do
+    case :digraph.add_edge(graph, upstream_tgid, downstream_tgid) do
       {:error, {:bad_edge, path}} ->
         cycle_path = Enum.map_join(path, " -> ", & &1.id)
 
         raise Error, "Targets cycle detected: #{cycle_path}"
 
-      {:error, {:bad_vertex, target}} ->
-        raise Error, "Unknown target: #{target}"
+      {:error, {:bad_vertex, tgid}} ->
+        raise Error, "Unknown target: #{tgid}"
 
       _ ->
         :ok

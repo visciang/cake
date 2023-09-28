@@ -6,11 +6,12 @@ defmodule Dake.Pipeline do
   alias Dake.Parser.Dakefile
   alias Dake.Parser.Docker
   alias Dake.Parser.Target
+  alias Dake.Type
 
   @dake_done_path "/.dake_done"
   @dake_ouput_path "/.dake_output"
 
-  @typep pipeline_target :: {target :: String.t(), [Docker.From.t() | Docker.Arg.t() | Docker.Command.t()]}
+  @typep pipeline_target :: {Type.tgid(), [Docker.From.t() | Docker.Arg.t() | Docker.Command.t()]}
 
   @spec build(Dakefile.t(), push :: boolean()) :: Path.t()
   def build(%Dakefile{} = dakefile, push) do
@@ -57,10 +58,10 @@ defmodule Dake.Pipeline do
   @spec pipeline_aliases([Target.Alias.t()]) :: [pipeline_target()]
   defp pipeline_aliases(aliases) do
     Enum.map(aliases, fn %Target.Alias{} = alias_ ->
-      from = %Docker.From{image: "scratch", as: alias_.target}
-      commands = Enum.map(alias_.targets, fn target -> command_copy_done(target) end)
+      from = %Docker.From{image: "scratch", as: alias_.tgid}
+      commands = Enum.map(alias_.tgids, fn tgid -> command_copy_done(tgid) end)
 
-      {alias_.target, [from | commands]}
+      {alias_.tgid, [from | commands]}
     end)
   end
 
@@ -72,7 +73,7 @@ defmodule Dake.Pipeline do
       docker =
         if push and MapSet.member?(push_targets, docker) do
           commands = Enum.reject(docker.commands, &match?(%Docker.DakePush{}, &1))
-          force_push_arg = %Docker.Arg{name: String.upcase(docker.target)}
+          force_push_arg = %Docker.Arg{name: String.upcase(docker.tgid)}
           [from | rest_commands] = commands
           commands = [from, force_push_arg | rest_commands]
           %Target.Docker{docker | commands: commands}
@@ -99,7 +100,7 @@ defmodule Dake.Pipeline do
       |> Enum.map(fn
         %Docker.From{} = from ->
           image = String.trim_leading(from.image, "+")
-          %Docker.From{image: image, as: docker.target}
+          %Docker.From{image: image, as: docker.tgid}
 
         %Docker.Command{instruction: "COPY"} = command ->
           pipeline_copy_from(command)
@@ -115,14 +116,14 @@ defmodule Dake.Pipeline do
           %Docker.Command{instruction: "RUN", arguments: arguments}
       end)
 
-    {docker.target, commands}
+    {docker.tgid, commands}
   end
 
   @spec pipeline_target_output(Target.Docker.t()) :: pipeline_target()
   defp pipeline_target_output(%Target.Docker{} = docker) do
     commands = [
-      %Docker.From{image: "scratch", as: t_output(docker.target)},
-      command_copy_done(docker.target)
+      %Docker.From{image: "scratch", as: t_output(docker.tgid)},
+      command_copy_done(docker.tgid)
     ]
 
     commands =
@@ -131,7 +132,7 @@ defmodule Dake.Pipeline do
           [
             %Docker.Command{
               instruction: "COPY",
-              options: [%Docker.Command.Option{name: "from", value: docker.target}],
+              options: [%Docker.Command.Option{name: "from", value: docker.tgid}],
               arguments: "#{@dake_ouput_path} /"
             }
           ]
@@ -139,23 +140,23 @@ defmodule Dake.Pipeline do
         commands
       end
 
-    {t_output(docker.target), commands}
+    {t_output(docker.tgid), commands}
   end
 
   @spec pipeline_add_default_target([pipeline_target()]) :: [pipeline_target()]
   defp pipeline_add_default_target(targets) do
     commands =
       targets
-      |> Enum.reject(fn {target, _} -> String.starts_with?(target, "output.") end)
-      |> Enum.map(fn {target, _commands} -> command_copy_done(target) end)
+      |> Enum.reject(fn {tgid, _} -> String.starts_with?(tgid, "output.") end)
+      |> Enum.map(fn {tgid, _commands} -> command_copy_done(tgid) end)
 
     output_commands =
       targets
-      |> Enum.filter(fn {target, _} -> String.starts_with?(target, "output.") end)
-      |> Enum.map(fn {output_target, _commands} ->
+      |> Enum.filter(fn {tgid, _} -> String.starts_with?(tgid, "output.") end)
+      |> Enum.map(fn {output_tgid, _commands} ->
         %Docker.Command{
           instruction: "COPY",
-          options: [%Docker.Command.Option{name: "from", value: output_target}],
+          options: [%Docker.Command.Option{name: "from", value: output_tgid}],
           arguments: "/ ."
         }
       end)
@@ -175,10 +176,10 @@ defmodule Dake.Pipeline do
 
   @spec pipeline_add_targets_done([pipeline_target()]) :: [[pipeline_target()]]
   defp pipeline_add_targets_done(pipeline_targets) do
-    Enum.map(pipeline_targets, fn {target, commands} ->
+    Enum.map(pipeline_targets, fn {tgid, commands} ->
       commands = commands ++ [command_copy_done("base")]
 
-      {target, commands}
+      {tgid, commands}
     end)
   end
 
@@ -186,8 +187,8 @@ defmodule Dake.Pipeline do
   defp pipeline_copy_from(%Docker.Command{instruction: "COPY", options: options} = command) do
     options =
       Enum.map(options || [], fn
-        %Docker.Command.Option{name: "from", value: "+" <> target} = option ->
-          %Docker.Command.Option{option | value: target}
+        %Docker.Command.Option{name: "from", value: "+" <> tgid} = option ->
+          %Docker.Command.Option{option | value: tgid}
 
         option ->
           option
@@ -209,7 +210,7 @@ defmodule Dake.Pipeline do
     |> MapSet.new()
   end
 
-  @spec command_copy_done(from :: String.t()) :: Docker.Command.t()
+  @spec command_copy_done(from :: Type.tgid()) :: Docker.Command.t()
   defp command_copy_done(from) do
     %Docker.Command{
       instruction: "COPY",
@@ -271,8 +272,8 @@ defmodule Dake.Pipeline do
     "#{command.instruction} #{options} #{command.arguments}"
   end
 
-  @spec t_output(target :: String.t()) :: String.t()
-  defp t_output(target) do
-    "output.#{target}"
+  @spec t_output(Type.tgid()) :: Type.tgid()
+  defp t_output(tgid) do
+    "output.#{tgid}"
   end
 end

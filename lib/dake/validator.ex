@@ -19,22 +19,22 @@ defmodule Dake.Validator do
 
   @spec check_alias_targets(Dakefile.t(), Dag.graph()) :: result()
   defp check_alias_targets(%Dakefile{} = dakefile, _graph) do
-    alias_targets =
+    alias_tgids =
       dakefile.targets
       |> Enum.filter(&match?(%Target.Alias{}, &1))
-      |> MapSet.new(& &1.target)
+      |> MapSet.new(& &1.tgid)
 
     all_commands =
       dakefile.targets
       |> Enum.filter(&match?(%Target.Docker{}, &1))
       |> Enum.flat_map(& &1.commands)
 
-    targets_referenced_in_from =
+    tgids_referenced_in_from =
       all_commands
       |> Enum.filter(&match?(%Docker.From{}, &1))
       |> Enum.map(& &1.image)
 
-    targets_referenced_in_copy =
+    tgids_referenced_in_copy =
       all_commands
       |> Enum.reduce([], fn
         %Docker.Command{instruction: "COPY", options: options}, acc ->
@@ -50,20 +50,20 @@ defmodule Dake.Validator do
           acc
       end)
 
-    targets_referenced =
-      (targets_referenced_in_from ++ targets_referenced_in_copy)
+    tgids_referenced =
+      (tgids_referenced_in_from ++ tgids_referenced_in_copy)
       |> Enum.filter(&String.starts_with?(&1, "+"))
       |> Enum.map(&String.trim_leading(&1, "+"))
       |> MapSet.new()
 
-    bad_targets =
-      MapSet.intersection(alias_targets, targets_referenced)
+    bad_tgids =
+      MapSet.intersection(alias_tgids, tgids_referenced)
 
-    if MapSet.size(bad_targets) == 0 do
+    if MapSet.size(bad_tgids) == 0 do
       :ok
     else
-      bad_targets = Enum.to_list(bad_targets)
-      {:error, "alias targets #{inspect(bad_targets)} cannot be referenced in FROM/COPY instructions"}
+      bad_tgids = Enum.to_list(bad_tgids)
+      {:error, "alias targets #{inspect(bad_tgids)} cannot be referenced in FROM/COPY instructions"}
     end
   end
 
@@ -78,13 +78,13 @@ defmodule Dake.Validator do
           false
       end)
 
-    bad_targets = Enum.filter(push_targets, &(Dag.downstream_targets(graph, &1.target) != []))
+    bad_targets = Enum.filter(push_targets, &(Dag.downstream_tgids(graph, &1.tgid) != []))
 
     if bad_targets == [] do
       :ok
     else
-      targets = Enum.map(bad_targets, & &1.target)
-      {:error, "push targets #{inspect(targets)} can be only terminal target"}
+      bad_tgids = Enum.map(bad_targets, & &1.tgid)
+      {:error, "push targets #{inspect(bad_tgids)} can be only terminal target"}
     end
   end
 
@@ -92,16 +92,17 @@ defmodule Dake.Validator do
   defp check_from(%Dakefile{} = dakefile, _graph) do
     dakefile.targets
     |> Enum.filter(&match?(%Target.Docker{}, &1))
-    |> Enum.reduce_while(:ok, fn %Target.Docker{target: target, commands: commands}, :ok ->
+    |> Enum.reduce_while(:ok, fn %Target.Docker{tgid: tgid, commands: commands}, :ok ->
       case commands do
         [%Docker.From{as: as} | _] when as != nil ->
-          {:halt, {:error, "'FROM .. AS ..' form is not allowed, please remove the AS argument under #{target}"}}
+          reason = "'FROM .. AS ..' form is not allowed, please remove the AS argument under #{tgid}"
+          {:halt, {:error, reason}}
 
         [%Docker.From{} | _] ->
           {:cont, :ok}
 
         _ ->
-          {:halt, {:error, "#{target} doesn't start with a FROM command"}}
+          {:halt, {:error, "#{tgid} doesn't start with a FROM command"}}
       end
     end)
   end

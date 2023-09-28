@@ -3,6 +3,8 @@ defmodule Dake.CliArgs do
   CLI argument parser
   """
 
+  alias Dake.Type
+
   defmodule Ls do
     @moduledoc false
     defstruct [:tree]
@@ -14,12 +16,12 @@ defmodule Dake.CliArgs do
 
   defmodule Run do
     @moduledoc false
-    @enforce_keys [:target, :args, :push]
+    @enforce_keys [:tgid, :args, :push]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
-            target: String.t(),
+            tgid: Type.tgid(),
             args: [arg()],
             push: boolean()
           }
@@ -36,10 +38,10 @@ defmodule Dake.CliArgs do
         {:ok, struct!(Ls, opts)}
 
       ["run" | run_args] ->
-        with {run_options, [target | target_args]} <- OptionParser.parse_head!(run_args, switches: [push: :boolean]),
+        with {run_options, [tgid | target_args]} <- OptionParser.parse_head!(run_args, switches: [push: :boolean]),
              {:ok, target_args} <- parse_target_args(target_args) do
           push = run_options[:push] || false
-          {:ok, struct!(Run, target: target, args: target_args, push: push)}
+          {:ok, struct!(Run, tgid: tgid, args: target_args, push: push)}
         else
           {_, _} ->
             {:error, "missing target"}

@@ -1,29 +1,36 @@
 defmodule Dake.Parser.Target do
   defmodule Alias do
     @moduledoc """
-    Target alias group `alias: <target>+`.
+    Alias target group `alias: <target>+`.
     """
-    @enforce_keys [:target, :targets]
+
+    alias Dake.Type
+
+    @enforce_keys [:tgid, :tgids]
     defstruct @enforce_keys
 
     @type t :: %__MODULE__{
-            target: String.t(),
-            targets: [String.t(), ...]
+            tgid: Type.tgid(),
+            tgids: [Type.tgid(), ...]
           }
   end
 
   defmodule Docker do
     @moduledoc """
-    Target docker:
+    Docker target:
 
     ```
     target:
-        DAKE_OUTPUT output/
         FROM image
+        ARG X=1
         RUN ...
+        DAKE_OUTPUT output/
     ```
     """
-    @enforce_keys [:target, :commands]
+
+    alias Dake.Type
+
+    @enforce_keys [:tgid, :commands]
     defstruct @enforce_keys
 
     @type command ::
@@ -34,7 +41,7 @@ defmodule Dake.Parser.Target do
             | Dake.Parser.Docker.DakePush.t()
 
     @type t :: %__MODULE__{
-            target: String.t(),
+            tgid: Type.tgid(),
             commands: [command]
           }
   end
