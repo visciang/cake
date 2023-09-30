@@ -16,8 +16,9 @@ defmodule Dake.Parser.Docker do
 
   defmodule DakeOutput do
     @moduledoc """
-    Docker `DAKE_OUTPUT <dir>`.
+    `@output <dir>`.
     """
+
     @enforce_keys [:dir]
     defstruct @enforce_keys
 
@@ -28,8 +29,9 @@ defmodule Dake.Parser.Docker do
 
   defmodule DakePush do
     @moduledoc """
-    Docker `DAKE_PUSH`.
+    `@push`.
     """
+
     defstruct []
 
     @type t :: %__MODULE__{}
@@ -39,6 +41,7 @@ defmodule Dake.Parser.Docker do
     @moduledoc """
     Docker `FROM <image> [AS <as>]`.
     """
+
     @enforce_keys [:image]
     defstruct @enforce_keys ++ [:as]
 
@@ -52,6 +55,7 @@ defmodule Dake.Parser.Docker do
     @moduledoc """
     Docker `ARG <name>[=<default_value>]`.
     """
+
     @enforce_keys [:name]
     defstruct @enforce_keys ++ [:default_value]
 
@@ -70,6 +74,7 @@ defmodule Dake.Parser.Docker do
       @moduledoc """
       Generic Docker option.
       """
+
       @enforce_keys [:name, :value]
       defstruct @enforce_keys
 
@@ -80,16 +85,15 @@ defmodule Dake.Parser.Docker do
     end
 
     @enforce_keys [:instruction, :arguments]
-    defstruct @enforce_keys ++ [:options]
+    defstruct @enforce_keys ++ [options: []]
 
-    @type options :: nil | [Option.t(), ...]
     @type t :: %__MODULE__{
             instruction: String.t(),
-            options: options(),
+            options: [Option.t(), ...],
             arguments: String.t()
           }
 
-    @spec find_option(options(), String.t()) :: nil | Option.t()
+    @spec find_option([Option.t()], String.t()) :: nil | Option.t()
     def find_option(nil, _name), do: nil
 
     def find_option(options, name) do

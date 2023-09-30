@@ -16,63 +16,118 @@ defmodule Dake.CliArgs do
 
   defmodule Run do
     @moduledoc false
-    @enforce_keys [:tgid, :args, :push]
+    @enforce_keys [:tgid, :args, :push, :output]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
             tgid: Type.tgid(),
             args: [arg()],
-            push: boolean()
+            push: boolean(),
+            output: boolean()
           }
   end
 
   @type arg :: Ls.t() | Run.t()
   @type result :: {:ok, arg()} | {:error, reason :: String.t()}
 
+  @version Mix.Project.config()[:version]
+
   @spec parse([String.t()]) :: result()
   def parse(args) do
-    case args do
-      ["ls" | args] ->
-        {opts, []} = OptionParser.parse!(args, strict: [tree: :boolean])
-        {:ok, struct!(Ls, opts)}
+    optimus = optimus()
 
-      ["run" | run_args] ->
-        with {run_options, [tgid | target_args]} <- OptionParser.parse_head!(run_args, switches: [push: :boolean]),
-             {:ok, target_args} <- parse_target_args(target_args) do
-          push = run_options[:push] || false
-          {:ok, struct!(Run, tgid: tgid, args: target_args, push: push)}
-        else
-          {_, _} ->
-            {:error, "missing target"}
+    case Optimus.parse(optimus, args) do
+      {:ok, [:ls], cli} ->
+        {:ok, %Ls{tree: cli.flags.tree}}
 
-          {:error, _reason} = error ->
-            error
-        end
+      {:ok, [:run], cli} ->
+        parse_run(cli)
 
-      _ ->
-        {:error, "unknow command"}
+      {:error, _} = error ->
+        error
+
+      :version ->
+        IO.puts("dake v#{@version}")
+        System.halt()
+
+      :help ->
+        {:error, Optimus.help(optimus)}
+
+      {:help, subcommand_path} ->
+        {optimus_subcommand, _} = Optimus.fetch_subcommand(optimus, subcommand_path)
+        {:error, Optimus.help(optimus_subcommand)}
     end
-  rescue
-    error in [OptionParser.ParseError] ->
-      {:error, Exception.message(error)}
+  end
+
+  @spec optimus :: Optimus.t()
+  defp optimus do
+    Optimus.new!(
+      name: "dake",
+      description: "Docker-Make pipeline",
+      subcommands: [
+        run: [
+          name: "run",
+          about: "Run the pipeline",
+          allow_unknown_args: true,
+          args: [
+            target: [
+              value_name: "TARGET",
+              help: "The target of the pipeline. If not specified all targets are executed",
+              required: false
+            ]
+          ],
+          flags: [
+            push: [
+              short: "-p",
+              long: "--push",
+              help: "Includes push targets (ref. DAKE_PUSH) in the pipeline run"
+            ],
+            output: [
+              short: "-o",
+              long: "--output",
+              help: "Output the target artifacts (ref. DAKE_SAVE_OUTPUT) under ./.dake_ouput directory"
+            ]
+          ]
+        ],
+        ls: [
+          name: "ls",
+          about: "List targets",
+          flags: [
+            tree: [
+              short: "-t",
+              long: "--tree",
+              help: "Show the pipeline originating from each target"
+            ]
+          ]
+        ]
+      ]
+    )
+  end
+
+  @spec parse_target_args(Optimus.ParseResult.t()) :: result()
+  defp parse_run(cli) do
+    case parse_target_args(cli.unknown) do
+      {:ok, target_args} ->
+        tgid = cli.args.target || "default"
+        {:ok, %Run{tgid: tgid, args: target_args, push: cli.flags.push, output: cli.flags.output}}
+
+      {:error, _} = error ->
+        error
+    end
   end
 
   @spec parse_target_args([String.t()]) ::
           {:ok, [{name :: String.t(), value :: String.t()}]} | {:error, reason :: String.t()}
   defp parse_target_args(args) do
-    Enum.reduce_while(args, {:ok, []}, fn
-      "--" <> arg, {:ok, acc} ->
-        case String.split(arg, "=", parts: 2) do
-          [name, value] ->
-            {:cont, {:ok, acc ++ [{name, value}]}}
+    Enum.reduce_while(args, {:ok, []}, fn arg, {:ok, acc} ->
+      case String.split(arg, "=", parts: 2) do
+        [name, value] ->
+          {:cont, {:ok, acc ++ [{name, value}]}}
 
-          [bad_arg] ->
-            {:halt, {:error, "bad target argument: #{bad_arg}"}}
-        end
-
-      bad_arg, {:ok, _acc} ->
-        {:halt, {:error, "bad target argument: #{bad_arg}"}}
+        [bad_arg] ->
+          {:halt, {:error, "bad target argument: #{bad_arg}"}}
+      end
     end)
   end
 end

@@ -24,21 +24,13 @@ defmodule Dake.Parser do
   ignorable_line =
     choice([nl, comment])
 
-  dake_command_id =
-    string("DAKE_")
-    |> utf8_string([?A..?Z], min: 1)
-    |> reduce({List, :to_string, []})
-
   target_id =
     utf8_char([?a..?z])
     |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?., ?-, ?_], min: 1))
     |> reduce({List, :to_string, []})
 
   command_id =
-    choice([
-      dake_command_id,
-      utf8_string([?A..?Z], min: 1)
-    ])
+    utf8_string([?A..?Z], min: 1)
 
   command_args =
     repeat(
@@ -79,24 +71,6 @@ defmodule Dake.Parser do
     |> wrap()
     |> map({:cast, [Docker.Command]})
 
-  dake_command_output =
-    ignore(string("DAKE_OUTPUT"))
-    |> ignore(spaces)
-    |> unwrap_and_tag(line, :dir)
-    |> wrap()
-    |> map({:cast, [Docker.DakeOutput]})
-
-  dake_command_push =
-    ignore(string("DAKE_PUSH"))
-    |> wrap()
-    |> map({:cast, [Docker.DakePush]})
-
-  dake_command =
-    choice([
-      dake_command_output,
-      dake_command_push
-    ])
-
   arg_name =
     utf8_char([?a..?z, ?A..?Z])
     |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
@@ -136,7 +110,6 @@ defmodule Dake.Parser do
   target_body_command =
     ignore(indent)
     |> choice([
-      dake_command,
       arg,
       from,
       command,
@@ -151,8 +124,37 @@ defmodule Dake.Parser do
       |> concat(target_body_command)
     )
 
+  output_directive =
+    ignore(string("@output"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(line, :dir)
+    |> wrap()
+    |> map({:cast, [Docker.DakeOutput]})
+
+  push_directive =
+    ignore(string("@push"))
+    |> wrap()
+    |> map({:cast, [Docker.DakePush]})
+
+  target_directive =
+    choice([
+      output_directive,
+      push_directive
+    ])
+
+  target_directives =
+    target_directive
+    |> repeat(
+      ignore(nl)
+      |> concat(target_directive)
+    )
+
   target_docker =
-    unwrap_and_tag(target_id, :tgid)
+    optional(
+      tag(target_directives, :directives)
+      |> ignore(nl)
+    )
+    |> unwrap_and_tag(target_id, :tgid)
     |> ignore(string(":"))
     |> ignore(nl)
     |> tag(target_commands, :commands)
@@ -196,24 +198,30 @@ defmodule Dake.Parser do
       |> concat(target)
     )
 
-  dake_include =
-    ignore(string("DAKE_INCLUDE"))
+  include_directive =
+    ignore(string("@include"))
     |> ignore(spaces)
     |> tag(line, :tgid)
     |> wrap()
     |> map({:cast, [Docker.DakeInclude]})
 
-  dake_includes =
-    dake_include
+  include_directives =
+    include_directive
     |> repeat(
       ignore(nl)
       |> ignore(repeat(ignorable_line))
-      |> concat(dake_include)
+      |> concat(include_directive)
     )
 
   dakefile =
     ignore(repeat(ignorable_line))
-    |> tag(optional(dake_includes), :includes)
+    |> tag(
+      optional(
+        include_directives
+        |> ignore(nl)
+      ),
+      :includes
+    )
     |> ignore(repeat(ignorable_line))
     |> tag(optional(global_args), :args)
     |> ignore(repeat(ignorable_line))

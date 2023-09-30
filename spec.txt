@@ -8,15 +8,15 @@
 - target body
     X niente FROM **AS**
     - DAKE_COMMAND estensioni
-        X DAKE_OUTPUT
+        X DAKE_SAVE_OUTPUT
             X introdurre taget addizionale "target.output from scratch" per estrarre gli output
         - DAKE_PUSH
             X non deve essere dipendenza di un target
             X deve essere incluso solo se invocato `--push`
             X force run via random ARG
-- private targets ?: .target
-- target output
+X target output
 - target docker image output
+- private targets ?: .target
 
 - include:
   - espansione testuale semplice (come C #include <>)
@@ -30,6 +30,8 @@
 
 - "service tests"
     docker compose like (build --network ?)
+
+- run against a private buildkit instance
 
 - cli:
     log: da --progress=plain e qualcosa di tty colorato e raggruppato per target

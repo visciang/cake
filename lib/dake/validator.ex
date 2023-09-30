@@ -72,7 +72,7 @@ defmodule Dake.Validator do
     push_targets =
       Enum.filter(dakefile.targets, fn
         %Target.Docker{} = docker ->
-          Enum.any?(docker.commands, &match?(%Docker.DakePush{}, &1))
+          Enum.any?(docker.directives, &match?(%Docker.DakePush{}, &1))
 
         _ ->
           false

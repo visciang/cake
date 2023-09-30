@@ -26,5 +26,5 @@ dake-*.tar
 /tmp/
 
 /dake
-
 _release
+/.dake_output

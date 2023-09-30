@@ -51,7 +51,7 @@ defmodule Dake do
   defp exit_on_cli_args_error({:ok, arg}), do: arg
 
   defp exit_on_cli_args_error({:error, reason}) do
-    IO.puts(:stderr, "\nargument error:\n#{reason}")
+    IO.puts(:stderr, "\n#{reason}")
     System.halt(1)
   end
 

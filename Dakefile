@@ -1,4 +1,4 @@
-DAKE_INCLUDE --INCLUDED_ARG=xyz ./include/XXXFile
+@include --INCLUDED_ARG=xyz ./include/XXXFile
 
 ARG ELIXIR_VERSION=1.15.6
 ARG ELIXIR_ERLANG_VERSION=26.0.2
@@ -53,17 +53,17 @@ elixir.credo:
     COPY mix.exs .credo.exs* .
     RUN mix credo ${ELIXIR_CREDO_OPTS}
 
+@output cover
 elixir.test:
     FROM +elixir.compile
     ARG ELIXIR_TEST_CMD="coveralls.html"
     RUN mix ${ELIXIR_TEST_CMD}
-    DAKE_OUTPUT cover
 
+@output doc
 elixir.docs:
     FROM +elixir.compile
     COPY README.md ./
     RUN mix docs --formatter=html
-    DAKE_OUTPUT doc
 
 elixir.release:
     FROM +elixir.compile
@@ -73,15 +73,15 @@ elixir.escript:
     FROM +elixir.compile
     RUN mix escript.build
 
+@push
 elixir.xxx-example-push:
     FROM +elixir.base
     RUN echo "side-effect"
-    DAKE_PUSH
 
+@push
 elixir.xxx-example-push2:
     FROM +elixir.base
     RUN echo "side-effect"
-    DAKE_PUSH
 
 dake.docker_image:
     FROM +elixir.base

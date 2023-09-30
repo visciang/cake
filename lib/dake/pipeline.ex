@@ -72,9 +72,8 @@ defmodule Dake.Pipeline do
     Enum.flat_map(docker_targets, fn %Target.Docker{} = docker ->
       docker =
         if push and MapSet.member?(push_targets, docker) do
-          commands = Enum.reject(docker.commands, &match?(%Docker.DakePush{}, &1))
           force_push_arg = %Docker.Arg{name: String.upcase(docker.tgid)}
-          [from | rest_commands] = commands
+          [from | rest_commands] = docker.commands
           commands = [from, force_push_arg | rest_commands]
           %Target.Docker{docker | commands: commands}
         else
@@ -96,7 +95,6 @@ defmodule Dake.Pipeline do
   defp pipeline_target(%Target.Docker{} = docker) do
     commands =
       docker.commands
-      |> Enum.reject(&match?(%Docker.DakePush{}, &1))
       |> Enum.map(fn
         %Docker.From{} = from ->
           image = String.trim_leading(from.image, "+")
@@ -110,13 +108,17 @@ defmodule Dake.Pipeline do
 
         %Docker.Arg{} = arg ->
           arg
-
-        %Docker.DakeOutput{} = output ->
-          arguments = "mkdir -p #{@dake_ouput_path} && cp -r #{output.dir} #{@dake_ouput_path}/"
-          %Docker.Command{instruction: "RUN", arguments: arguments}
       end)
 
-    {docker.tgid, commands}
+    output_commands =
+      docker.directives
+      |> Enum.filter(&match?(%Docker.DakeOutput{}, &1))
+      |> Enum.map(fn %Docker.DakeOutput{} = output ->
+        arguments = "mkdir -p #{@dake_ouput_path} && cp -r #{output.dir} #{@dake_ouput_path}/"
+        %Docker.Command{instruction: "RUN", arguments: arguments}
+      end)
+
+    {docker.tgid, commands ++ output_commands}
   end
 
   @spec pipeline_target_output(Target.Docker.t()) :: pipeline_target()
@@ -127,7 +129,7 @@ defmodule Dake.Pipeline do
     ]
 
     commands =
-      if Enum.any?(docker.commands, &match?(%Docker.DakeOutput{}, &1)) do
+      if Enum.any?(docker.directives, &match?(%Docker.DakeOutput{}, &1)) do
         commands ++
           [
             %Docker.Command{
@@ -186,7 +188,7 @@ defmodule Dake.Pipeline do
   @spec pipeline_copy_from(Docker.Command.t()) :: Docker.Command.t()
   defp pipeline_copy_from(%Docker.Command{instruction: "COPY", options: options} = command) do
     options =
-      Enum.map(options || [], fn
+      Enum.map(options, fn
         %Docker.Command.Option{name: "from", value: "+" <> tgid} = option ->
           %Docker.Command.Option{option | value: tgid}
 
@@ -202,7 +204,7 @@ defmodule Dake.Pipeline do
     docker_targets
     |> Enum.filter(fn
       %Target.Docker{} = docker ->
-        Enum.any?(docker.commands, &match?(%Docker.DakePush{}, &1))
+        Enum.any?(docker.directives, &match?(%Docker.DakePush{}, &1))
 
       _ ->
         false
@@ -268,7 +270,7 @@ defmodule Dake.Pipeline do
 
   @spec fmt(Docker.Command.t()) :: String.t()
   defp fmt(%Docker.Command{} = command) do
-    options = Enum.map_join(command.options || [], " ", &"--#{&1.name}=#{&1.value}")
+    options = Enum.map_join(command.options, " ", &"--#{&1.name}=#{&1.value}")
     "#{command.instruction} #{options} #{command.arguments}"
   end
 
