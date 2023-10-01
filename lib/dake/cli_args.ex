@@ -65,6 +65,7 @@ defmodule Dake.CliArgs do
     Optimus.new!(
       name: "dake",
       description: "Docker-Make pipeline",
+      version: @version,
       subcommands: [
         run: [
           name: "run",
@@ -81,12 +82,12 @@ defmodule Dake.CliArgs do
             push: [
               short: "-p",
               long: "--push",
-              help: "Includes push targets (ref. DAKE_PUSH) in the pipeline run"
+              help: "Includes push targets (ref. @push directive) in the pipeline run"
             ],
             output: [
               short: "-o",
               long: "--output",
-              help: "Output the target artifacts (ref. DAKE_SAVE_OUTPUT) under ./.dake_ouput directory"
+              help: "Output the target artifacts (ref. @output directive) under ./.dake_ouput directory"
             ]
           ]
         ],
