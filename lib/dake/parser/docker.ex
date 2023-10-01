@@ -1,7 +1,7 @@
 defmodule Dake.Parser.Docker do
   defmodule DakeInclude do
     @moduledoc """
-    Docker `DAKE_INCLUDE <target>`.
+    Docker `@include <target>`.
     """
 
     alias Dake.Type

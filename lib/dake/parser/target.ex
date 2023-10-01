@@ -20,11 +20,11 @@ defmodule Dake.Parser.Target do
     Docker target:
 
     ```
+    @output output/
     target:
         FROM image
         ARG X=1
         RUN ...
-        DAKE_SAVE_OUTPUT output/
     ```
     """
 
