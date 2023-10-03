@@ -1,19 +1,4 @@
 defmodule Dake.Parser.Docker do
-  defmodule DakeInclude do
-    @moduledoc """
-    Docker `@include <target>`.
-    """
-
-    alias Dake.Type
-
-    @enforce_keys [:tgid]
-    defstruct @enforce_keys
-
-    @type t :: %__MODULE__{
-            tgid: Type.tgid()
-          }
-  end
-
   defmodule DakeOutput do
     @moduledoc """
     `@output <dir>`.
@@ -24,6 +9,19 @@ defmodule Dake.Parser.Docker do
 
     @type t :: %__MODULE__{
             dir: Path.t()
+          }
+  end
+
+  defmodule DakeImage do
+    @moduledoc """
+    `@image <name>`.
+    """
+
+    @enforce_keys [:name]
+    defstruct @enforce_keys
+
+    @type t :: %__MODULE__{
+            name: String.t()
           }
   end
 

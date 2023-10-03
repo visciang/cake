@@ -36,6 +36,7 @@ defmodule Dake.Parser.Target do
     @type directive ::
             Dake.Parser.Docker.DakeOutput.t()
             | Dake.Parser.Docker.DakePush.t()
+            | Dake.Parser.Docker.DakeImage.t()
 
     @type command ::
             Dake.Parser.Docker.Arg.t()

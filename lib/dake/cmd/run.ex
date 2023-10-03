@@ -23,11 +23,12 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Run do
     build_args = build_args(run.args) ++ force_push_build_args
 
     {tgid, outdir_opt} = prepare_target_and_output(run)
+    tag_opt = if run.tag, do: ["--tag", run.tag], else: []
 
-    cmd_args =
-      ["buildx", "build", "--file", dockerfile, "--target", tgid] ++ outdir_opt ++ build_args ++ ["."]
-
-    System.cmd("docker", cmd_args)
+    System.cmd(
+      "docker",
+      ["buildx", "build", "--file", dockerfile, "--target", tgid] ++ outdir_opt ++ tag_opt ++ build_args ++ ["."]
+    )
 
     :ok
   end

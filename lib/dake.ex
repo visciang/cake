@@ -3,21 +3,17 @@ defmodule Dake do
   Dake escript.
   """
 
-  alias Dake.CliArgs
-  alias Dake.Cmd
-  alias Dake.Dag
-  alias Dake.Parser
+  alias Dake.{CliArgs, Cmd, Dag, Parser, Preprocessor, Validator}
   alias Dake.Parser.Dakefile
-  alias Dake.Validator
 
   @spec main([String.t()]) :: :ok
-  def main(args) do
+  def main(cli_args) do
     dakefile_content =
       File.read("Dakefile")
       |> exit_on_dakefile_read_error()
 
-    args =
-      args
+    cmd =
+      cli_args
       |> CliArgs.parse()
       |> exit_on_cli_args_error()
 
@@ -26,18 +22,36 @@ defmodule Dake do
       |> Parser.parse()
       |> exit_on_parse_error()
 
+    args = args(dakefile, cmd)
+
+    dakefile =
+      dakefile
+      |> Preprocessor.expand(args)
+      |> exit_on_preprocessor_error()
+
     graph =
       dakefile
       |> Dag.extract()
       |> exit_on_dag_error()
 
-    Validator.check(dakefile, graph)
+    dakefile
+    |> Validator.check(graph)
     |> exit_on_validation_error()
 
-    Cmd.exec(args, dakefile, graph)
+    Cmd.exec(cmd, dakefile, graph)
 
     :ok
   end
+
+  @spec args(Dakefile.t(), Cmd.t()) :: Preprocessor.args()
+  defp args(%Dakefile{} = dakefile, %CliArgs.Run{} = run) do
+    args = Map.new(dakefile.args, &{&1.name, &1.default_value})
+    run_args = Map.new(run.args)
+
+    Map.merge(args, run_args)
+  end
+
+  defp args(_dakefile, _cmd), do: %{}
 
   @spec exit_on_dakefile_read_error({:ok, data} | {:error, File.posix()}) :: data when data: String.t()
   defp exit_on_dakefile_read_error({:ok, data}), do: data
@@ -47,8 +61,8 @@ defmodule Dake do
     System.halt(1)
   end
 
-  @spec exit_on_cli_args_error(CliArgs.result()) :: CliArgs.arg()
-  defp exit_on_cli_args_error({:ok, arg}), do: arg
+  @spec exit_on_cli_args_error(CliArgs.result()) :: Cmd.t()
+  defp exit_on_cli_args_error({:ok, cmd}), do: cmd
 
   defp exit_on_cli_args_error({:error, reason}) do
     IO.puts(:stderr, "\n#{reason}")
@@ -81,6 +95,9 @@ defmodule Dake do
     IO.puts(:stderr, inspect(reason))
     System.halt(1)
   end
+
+  @spec exit_on_preprocessor_error(Preprocessor.result()) :: Dakefile.t()
+  defp exit_on_preprocessor_error({:ok, %Dakefile{} = dakefile}), do: dakefile
 
   @spec dakefile_error_context(String.t(), pos_integer(), pos_integer()) :: String.t()
   defp dakefile_error_context(dakefile_content, line, column) do

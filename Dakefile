@@ -1,8 +1,10 @@
-@include --INCLUDED_ARG=xyz ./include/XXXFile
-
+ARG VERSION
+ARG ESCRIPT_NAME
 ARG ELIXIR_VERSION=1.15.6
 ARG ELIXIR_ERLANG_VERSION=26.0.2
 ARG ELIXIR_ALPINE_VERSION=3.18.2
+
+@include ./include/Dakefile INCLUDED_ARG=xyz
 
 elixir.lint: elixir.dialyzer elixir.format elixir.credo
 
@@ -50,7 +52,7 @@ elixir.format:
 elixir.credo:
     FROM +elixir.compile
     ARG ELIXIR_CREDO_OPTS="--strict --all"
-    COPY mix.exs .credo.exs* .
+    COPY mix.exs .credo.exs* ./
     RUN mix credo ${ELIXIR_CREDO_OPTS}
 
 @output cover
@@ -83,6 +85,7 @@ elixir.xxx-example-push2:
     FROM +elixir.base
     RUN echo "side-effect"
 
+@image ${ESCRIPT_NAME}:${VERSION:-latest}
 dake.docker_image:
     FROM +elixir.base
     ARG ESCRIPT_NAME

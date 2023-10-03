@@ -3,7 +3,7 @@ defmodule Dake.CliArgs do
   CLI argument parser
   """
 
-  alias Dake.Type
+  alias Dake.{Cmd, Type}
 
   defmodule Ls do
     @moduledoc false
@@ -16,7 +16,7 @@ defmodule Dake.CliArgs do
 
   defmodule Run do
     @moduledoc false
-    @enforce_keys [:tgid, :args, :push, :output]
+    @enforce_keys [:tgid, :args, :push, :output, :tag]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
@@ -24,12 +24,12 @@ defmodule Dake.CliArgs do
             tgid: Type.tgid(),
             args: [arg()],
             push: boolean(),
-            output: boolean()
+            output: boolean(),
+            tag: nil | String.t()
           }
   end
 
-  @type arg :: Ls.t() | Run.t()
-  @type result :: {:ok, arg()} | {:error, reason :: String.t()}
+  @type result :: {:ok, Cmd.t()} | {:error, reason :: String.t()}
 
   @version Mix.Project.config()[:version]
 
@@ -47,8 +47,11 @@ defmodule Dake.CliArgs do
       {:error, _} = error ->
         error
 
+      {:error, _subcommand_path, err} ->
+        {:error, err}
+
       :version ->
-        IO.puts("dake v#{@version}")
+        IO.puts(Optimus.Title.title(optimus))
         System.halt()
 
       :help ->
@@ -64,7 +67,7 @@ defmodule Dake.CliArgs do
   defp optimus do
     Optimus.new!(
       name: "dake",
-      description: "Docker-Make pipeline",
+      description: "dake (Docker-mAKE pipeline)",
       version: @version,
       subcommands: [
         run: [
@@ -89,6 +92,14 @@ defmodule Dake.CliArgs do
               long: "--output",
               help: "Output the target artifacts (ref. @output directive) under ./.dake_ouput directory"
             ]
+          ],
+          options: [
+            tag: [
+              short: "-t",
+              long: "--tag",
+              value_name: "TAG",
+              help: "Tag the target's docker image"
+            ]
           ]
         ],
         ls: [
@@ -111,7 +122,16 @@ defmodule Dake.CliArgs do
     case parse_target_args(cli.unknown) do
       {:ok, target_args} ->
         tgid = cli.args.target || "default"
-        {:ok, %Run{tgid: tgid, args: target_args, push: cli.flags.push, output: cli.flags.output}}
+
+        run = %Run{
+          tgid: tgid,
+          args: target_args,
+          push: cli.flags.push,
+          output: cli.flags.output,
+          tag: cli.options.tag
+        }
+
+        {:ok, run}
 
       {:error, _} = error ->
         error

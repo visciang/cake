@@ -136,10 +136,18 @@ defmodule Dake.Parser do
     |> wrap()
     |> map({:cast, [Docker.DakePush]})
 
+  image_directive =
+    ignore(string("@image"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(line, :name)
+    |> wrap()
+    |> map({:cast, [Docker.DakeImage]})
+
   target_directive =
     choice([
       output_directive,
-      push_directive
+      push_directive,
+      image_directive
     ])
 
   target_directives =
@@ -198,12 +206,13 @@ defmodule Dake.Parser do
       |> concat(target)
     )
 
+  # TODO path and args
   include_directive =
     ignore(string("@include"))
     |> ignore(spaces)
-    |> tag(line, :tgid)
+    |> tag(line, :path)
     |> wrap()
-    |> map({:cast, [Docker.DakeInclude]})
+    |> map({:cast, [Dakefile.Include]})
 
   include_directives =
     include_directive
@@ -215,6 +224,8 @@ defmodule Dake.Parser do
 
   dakefile =
     ignore(repeat(ignorable_line))
+    |> tag(optional(global_args), :args)
+    |> ignore(repeat(ignorable_line))
     |> tag(
       optional(
         include_directives
@@ -222,8 +233,6 @@ defmodule Dake.Parser do
       ),
       :includes
     )
-    |> ignore(repeat(ignorable_line))
-    |> tag(optional(global_args), :args)
     |> ignore(repeat(ignorable_line))
     |> tag(targets, :targets)
     |> ignore(repeat(ignorable_line))

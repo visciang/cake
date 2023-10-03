@@ -130,14 +130,13 @@ defmodule Dake.Pipeline do
 
     commands =
       if Enum.any?(docker.directives, &match?(%Docker.DakeOutput{}, &1)) do
-        commands ++
-          [
-            %Docker.Command{
-              instruction: "COPY",
-              options: [%Docker.Command.Option{name: "from", value: docker.tgid}],
-              arguments: "#{@dake_ouput_path} /"
-            }
-          ]
+        copy_output_command = %Docker.Command{
+          instruction: "COPY",
+          options: [%Docker.Command.Option{name: "from", value: docker.tgid}],
+          arguments: "#{@dake_ouput_path} /"
+        }
+
+        commands ++ [copy_output_command]
       else
         commands
       end
