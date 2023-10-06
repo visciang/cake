@@ -12,19 +12,6 @@ defmodule Dake.Parser.Docker do
           }
   end
 
-  defmodule DakeImage do
-    @moduledoc """
-    `@image <name>`.
-    """
-
-    @enforce_keys [:name]
-    defstruct @enforce_keys
-
-    @type t :: %__MODULE__{
-            name: String.t()
-          }
-  end
-
   defmodule DakePush do
     @moduledoc """
     `@push`.

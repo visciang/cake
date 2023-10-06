@@ -30,7 +30,7 @@ defmodule Dake.Pipeline do
       |> pipeline_aliases()
       |> pipeline_add_targets_done()
 
-    dockerfile_path = "Dockerfile"
+    dockerfile_path = Path.join(".dake", "Dockerfile")
 
     dockerfile = """
     # ==== pipeline ARGs ====

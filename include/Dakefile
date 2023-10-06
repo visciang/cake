@@ -1,13 +1,13 @@
 ARG INCLUDED_ARG=abc
 
-included.all: included.target
+xxx.all: xxx.target
 
-included.toolchain:
-    DAKE-KEEPCONTEXT
+xxx.toolchain:
     FROM alpine
-    COPY file.txt .
-    RUN echo "included.toolchain"
+    COPY .dake/xxx/file.txt .
+    RUN echo "xxx.toolchain"
 
-included-target:
-    FROM included.toolchain
-    RUN echo "included.target"
+@output /xxx
+xxx.target:
+    FROM xxx.toolchain
+    RUN mkdir xxx/ && echo "xxx" > /xxx/target

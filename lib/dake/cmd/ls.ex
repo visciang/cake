@@ -93,7 +93,7 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
   @spec fmt_arg(Arg.t()) :: String.t()
   defp fmt_arg(%Arg{} = arg) do
     if arg.default_value do
-      "#{arg.name}=#{arg.default_value}"
+      "#{arg.name}=#{inspect(arg.default_value)}"
     else
       arg.name
     end

@@ -8,26 +8,16 @@ defmodule Dake do
 
   @spec main([String.t()]) :: :ok
   def main(cli_args) do
-    dakefile_content =
-      File.read("Dakefile")
-      |> exit_on_dakefile_read_error()
-
     cmd =
       cli_args
       |> CliArgs.parse()
       |> exit_on_cli_args_error()
 
-    dakefile =
-      dakefile_content
-      |> Parser.parse()
-      |> exit_on_parse_error()
+    File.rm_rf!(".dake")
+    File.mkdir!(".dake")
 
-    args = args(dakefile, cmd)
-
-    dakefile =
-      dakefile
-      |> Preprocessor.expand(args)
-      |> exit_on_preprocessor_error()
+    dakefile = load_and_parse_dakefile("Dakefile")
+    dakefile = Preprocessor.expand(dakefile, args(dakefile, cmd))
 
     graph =
       dakefile
@@ -43,6 +33,15 @@ defmodule Dake do
     :ok
   end
 
+  @spec load_and_parse_dakefile(Path.t()) :: Dakefile.t()
+  def load_and_parse_dakefile(path) do
+    path
+    |> File.read()
+    |> exit_on_dakefile_read_error(path)
+    |> Parser.parse()
+    |> exit_on_parse_error(path)
+  end
+
   @spec args(Dakefile.t(), Cmd.t()) :: Preprocessor.args()
   defp args(%Dakefile{} = dakefile, %CliArgs.Run{} = run) do
     args = Map.new(dakefile.args, &{&1.name, &1.default_value})
@@ -53,11 +52,11 @@ defmodule Dake do
 
   defp args(_dakefile, _cmd), do: %{}
 
-  @spec exit_on_dakefile_read_error({:ok, data} | {:error, File.posix()}) :: data when data: String.t()
-  defp exit_on_dakefile_read_error({:ok, data}), do: data
+  @spec exit_on_dakefile_read_error({:ok, data} | {:error, File.posix()}, Path.t()) :: data when data: String.t()
+  defp exit_on_dakefile_read_error({:ok, data}, _path), do: data
 
-  defp exit_on_dakefile_read_error({:error, reason}) do
-    IO.puts(:stderr, "\nCannot open Dakefile: (#{:file.format_error(reason)})")
+  defp exit_on_dakefile_read_error({:error, reason}, path) do
+    IO.puts(:stderr, "\nCannot open #{path}: (#{:file.format_error(reason)})")
     System.halt(1)
   end
 
@@ -69,11 +68,11 @@ defmodule Dake do
     System.halt(1)
   end
 
-  @spec exit_on_parse_error(Parser.result()) :: Dakefile.t()
-  defp exit_on_parse_error({:ok, dakefile}), do: dakefile
+  @spec exit_on_parse_error(Parser.result(), Path.t()) :: Dakefile.t()
+  defp exit_on_parse_error({:ok, dakefile}, _path), do: dakefile
 
-  defp exit_on_parse_error({:error, {content, line, column}}) do
-    IO.puts(:stderr, "\nDakefile syntax error at #{line}:#{column}")
+  defp exit_on_parse_error({:error, {content, line, column}}, path) do
+    IO.puts(:stderr, "\nDakefile syntax error at #{path}:#{line}:#{column}")
     IO.puts(:stderr, dakefile_error_context(content, line, column))
     System.halt(1)
   end
@@ -95,9 +94,6 @@ defmodule Dake do
     IO.puts(:stderr, inspect(reason))
     System.halt(1)
   end
-
-  @spec exit_on_preprocessor_error(Preprocessor.result()) :: Dakefile.t()
-  defp exit_on_preprocessor_error({:ok, %Dakefile{} = dakefile}), do: dakefile
 
   @spec dakefile_error_context(String.t(), pos_integer(), pos_integer()) :: String.t()
   defp dakefile_error_context(dakefile_content, line, column) do

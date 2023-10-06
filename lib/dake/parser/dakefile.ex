@@ -5,14 +5,14 @@ defmodule Dake.Parser.Dakefile do
 
   defmodule Include do
     @moduledoc """
-    `@include <path> [<arg>, ...]`.
+    `@include <ref> [<arg>, ...]`.
     """
 
-    @enforce_keys [:path]
+    @enforce_keys [:ref]
     defstruct @enforce_keys ++ [args: []]
 
     @type t :: %__MODULE__{
-            path: Path.t(),
+            ref: String.t(),
             args: [Dake.Parser.Docker.Arg.t()]
           }
   end

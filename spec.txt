@@ -8,23 +8,22 @@
 - target body
     X niente FROM **AS**
     - DAKE_COMMAND estensioni
-        X DAKE_SAVE_OUTPUT
+        X @ouput
             X introdurre taget addizionale "target.output from scratch" per estrarre gli output
-        - DAKE_PUSH
+        - @push
             X non deve essere dipendenza di un target
             X deve essere incluso solo se invocato `--push`
             X force run via random ARG
 X target output
-- target docker image output
+X target docker image output (--tag)
 - private targets ?: .target
 
 - include:
   - espansione testuale semplice (come C #include <>)
   - supportare path: local, http, git
   - supportare include ricorsivi (fare detection di loop)
-  - DAKE_INCLUDE --ARG=___
-  - DAKE-KEEPCONTEXT per i target con contesto di build associato alla
-   locazione di origine, utile per le toolchain
+  - @include path/Dakefile ARG=___
+  - gestire contesto di build associato alla locazione di origine
    -> necessario processare tutti i COPY (senza --from) e qualificare le <src> con il path
       del contesto originario. Il contesto deve essere copiato localmente in una subdirectory insieme al file incluso
 

@@ -24,6 +24,27 @@ defmodule Dake.Parser do
   ignorable_line =
     choice([nl, comment])
 
+  quoted_literal_value =
+    ignore(string("\""))
+    |> repeat(
+      lookahead_not(string("\""))
+      |> choice([
+        string(~S(\")) |> replace("\""),
+        utf8_char([])
+      ])
+    )
+    |> ignore(string("\""))
+    |> reduce({List, :to_string, []})
+
+  non_quoted_literal_value =
+    utf8_string([not: ?\s, not: ?\n], min: 1)
+
+  literal_value =
+    choice([
+      quoted_literal_value,
+      non_quoted_literal_value
+    ])
+
   target_id =
     utf8_char([?a..?z])
     |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?., ?-, ?_], min: 1))
@@ -42,12 +63,16 @@ defmodule Dake.Parser do
     )
     |> reduce({List, :to_string, []})
 
+  command_option_id =
+    utf8_char([?a..?z])
+    |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
+    |> reduce({List, :to_string, []})
+
   command_option =
     ignore(string("--"))
-    |> unwrap_and_tag(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1), :name)
+    |> unwrap_and_tag(command_option_id, :name)
     |> ignore(string("="))
-    # TODO: value is more that just [^ ]+
-    |> unwrap_and_tag(utf8_string([not: ?\s], min: 1), :value)
+    |> unwrap_and_tag(literal_value, :value)
     |> wrap()
     |> map({:cast, [Docker.Command.Option]})
 
@@ -76,6 +101,10 @@ defmodule Dake.Parser do
     |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
     |> reduce({List, :to_string, []})
 
+  arg_value =
+    ignore(string("="))
+    |> concat(literal_value)
+
   image_ref =
     utf8_string([not: ?\n], min: 1)
 
@@ -96,14 +125,7 @@ defmodule Dake.Parser do
     ignore(string("ARG"))
     |> ignore(spaces)
     |> unwrap_and_tag(arg_name, :name)
-    |> optional(
-      ignore(
-        repeat(space)
-        |> string("=")
-        |> repeat(space)
-      )
-      |> unwrap_and_tag(line, :default_value)
-    )
+    |> optional(unwrap_and_tag(arg_value, :default_value))
     |> wrap()
     |> map({:cast, [Docker.Arg]})
 
@@ -136,18 +158,10 @@ defmodule Dake.Parser do
     |> wrap()
     |> map({:cast, [Docker.DakePush]})
 
-  image_directive =
-    ignore(string("@image"))
-    |> ignore(spaces)
-    |> unwrap_and_tag(line, :name)
-    |> wrap()
-    |> map({:cast, [Docker.DakeImage]})
-
   target_directive =
     choice([
       output_directive,
-      push_directive,
-      image_directive
+      push_directive
     ])
 
   target_directives =
@@ -206,11 +220,24 @@ defmodule Dake.Parser do
       |> concat(target)
     )
 
-  # TODO path and args
+  include_ref =
+    utf8_string([not: ?\s], min: 1)
+
+  include_args =
+    repeat(
+      ignore(spaces)
+      |> unwrap_and_tag(arg_name, :name)
+      |> optional(unwrap_and_tag(arg_value, :default_value))
+      |> wrap()
+      |> map({:cast, [Docker.Arg]})
+    )
+
+  # TODO ref and args
   include_directive =
     ignore(string("@include"))
     |> ignore(spaces)
-    |> tag(line, :path)
+    |> unwrap_and_tag(include_ref, :ref)
+    |> tag(optional(include_args), :args)
     |> wrap()
     |> map({:cast, [Dakefile.Include]})
 
