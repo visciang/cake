@@ -54,8 +54,7 @@ defmodule Dake.CliArgs do
         {:error, err}
 
       :version ->
-        IO.puts(Optimus.Title.title(optimus))
-        System.halt()
+        Dake.System.halt(:ok, Optimus.Title.title(optimus))
 
       :help ->
         {:error, Optimus.help(optimus)}

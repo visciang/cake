@@ -13,8 +13,7 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Run do
     tgids = ["default" | Dag.tgids(graph)]
 
     unless run.tgid in tgids do
-      IO.puts(:stderr, "Unknown target '#{run.tgid}'")
-      System.halt(1)
+      Dake.System.halt(:error, "Unknown target '#{run.tgid}'")
     end
 
     dockerfile = Pipeline.build(dakefile, run.push)

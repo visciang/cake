@@ -53,43 +53,38 @@ defmodule Dake do
   defp exit_on_dakefile_read_error({:ok, data}, _path), do: data
 
   defp exit_on_dakefile_read_error({:error, reason}, path) do
-    IO.puts(:stderr, "\nCannot open #{path}: (#{:file.format_error(reason)})")
-    System.halt(1)
+    Dake.System.halt(:error, "\nCannot open #{path}: (#{:file.format_error(reason)})")
   end
 
   @spec exit_on_cli_args_error(CliArgs.result()) :: Cmd.t()
   defp exit_on_cli_args_error({:ok, cmd}), do: cmd
 
   defp exit_on_cli_args_error({:error, reason}) do
-    IO.puts(:stderr, "\n#{reason}")
-    System.halt(1)
+    Dake.System.halt(:error, "\n#{reason}")
   end
 
   @spec exit_on_parse_error(Parser.result(), Path.t()) :: Dakefile.t()
   defp exit_on_parse_error({:ok, dakefile}, _path), do: dakefile
 
   defp exit_on_parse_error({:error, {content, line, column}}, path) do
-    IO.puts(:stderr, "\nDakefile syntax error at #{path}:#{line}:#{column}")
-    IO.puts(:stderr, dakefile_error_context(content, line, column))
-    System.halt(1)
+    Dake.System.halt(:error, [
+      "\nDakefile syntax error at #{path}:#{line}:#{column}\n",
+      dakefile_error_context(content, line, column)
+    ])
   end
 
   @spec exit_on_dag_error(Dag.result()) :: Dag.graph()
   defp exit_on_dag_error({:ok, graph}), do: graph
 
   defp exit_on_dag_error({:error, reason}) do
-    IO.puts(:stderr, "\nTargets graph dependecy error:")
-    IO.puts(:stderr, inspect(reason))
-    System.halt(1)
+    Dake.System.halt(:error, ["\nTargets graph dependecy error:\n", inspect(reason)])
   end
 
   @spec exit_on_validation_error(Validator.result()) :: :ok
   defp exit_on_validation_error(:ok), do: :ok
 
   defp exit_on_validation_error({:error, reason}) do
-    IO.puts(:stderr, "\nValidation error:")
-    IO.puts(:stderr, inspect(reason))
-    System.halt(1)
+    Dake.System.halt(:error, ["\nValidation error:\n", inspect(reason)])
   end
 
   @spec dakefile_error_context(String.t(), pos_integer(), pos_integer()) :: String.t()
