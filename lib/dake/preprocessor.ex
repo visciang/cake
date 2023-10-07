@@ -11,6 +11,8 @@ defmodule Dake.Preprocessor do
 
   @spec expand(Dakefile.t(), args()) :: Dakefile.t()
   def expand(%Dakefile{} = dakefile, args) do
+    args = Map.merge(Map.new(dakefile.args, &{&1.name, &1.default_value}), args)
+
     includes = dakefile.includes
 
     dakefile =
@@ -30,17 +32,19 @@ defmodule Dake.Preprocessor do
       |> get_in([Access.key!(:includes), Access.all(), Access.key!(:args)])
       |> List.flatten()
 
-    included_targets =
-      Enum.flat_map(dakefile.includes, fn %Dakefile.Include{} = include ->
+    included_dakefiles =
+      Enum.map(dakefile.includes, fn %Dakefile.Include{} = include ->
         included_dakefile = Dake.load_and_parse_dakefile(include.ref)
-        included_dakefile = expand(included_dakefile, %{})
-        included_dakefile.targets
+        expand(included_dakefile, %{})
       end)
+
+    included_args = Enum.flat_map(included_dakefiles, & &1.args)
+    included_targets = Enum.flat_map(included_dakefiles, & &1.targets)
 
     %Dakefile{
       dakefile
       | includes: [],
-        args: dakefile.args ++ includes_args,
+        args: dakefile.args ++ included_args ++ includes_args,
         targets: included_targets ++ dakefile.targets
     }
   end
@@ -48,7 +52,11 @@ defmodule Dake.Preprocessor do
   @spec copy_include_ctx([Dakefile.Include.t()]) :: :ok
   defp copy_include_ctx(includes) do
     Enum.each(includes, fn %Dakefile.Include{} = include ->
-      File.cp_r!(Path.join(Path.dirname(include.ref), ".dake"), ".dake")
+      include_ctx_dir = Path.join(Path.dirname(include.ref), ".dake")
+
+      if File.exists?(include_ctx_dir) do
+        File.cp_r!(include_ctx_dir, ".dake")
+      end
     end)
   end
 

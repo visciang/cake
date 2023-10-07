@@ -261,7 +261,7 @@ defmodule Dake.Parser do
       :includes
     )
     |> ignore(repeat(ignorable_line))
-    |> tag(targets, :targets)
+    |> tag(optional(targets), :targets)
     |> ignore(repeat(ignorable_line))
     |> eos()
     |> wrap()

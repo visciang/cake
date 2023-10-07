@@ -38,6 +38,9 @@ defmodule Dake.CliArgs do
     optimus = optimus()
 
     case Optimus.parse(optimus, args) do
+      {:ok, _cli} ->
+        {:error, Optimus.help(optimus)}
+
       {:ok, [:ls], cli} ->
         {:ok, %Ls{tree: cli.flags.tree}}
 

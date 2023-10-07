@@ -17,7 +17,7 @@ defmodule Dake do
     File.mkdir!(".dake")
 
     dakefile = load_and_parse_dakefile("Dakefile")
-    dakefile = Preprocessor.expand(dakefile, args(dakefile, cmd))
+    dakefile = Preprocessor.expand(dakefile, args(cmd))
 
     graph =
       dakefile
@@ -42,15 +42,12 @@ defmodule Dake do
     |> exit_on_parse_error(path)
   end
 
-  @spec args(Dakefile.t(), Cmd.t()) :: Preprocessor.args()
-  defp args(%Dakefile{} = dakefile, %CliArgs.Run{} = run) do
-    args = Map.new(dakefile.args, &{&1.name, &1.default_value})
-    run_args = Map.new(run.args)
-
-    Map.merge(args, run_args)
+  @spec args(Cmd.t()) :: Preprocessor.args()
+  defp args(%CliArgs.Run{} = run) do
+    Map.new(run.args)
   end
 
-  defp args(_dakefile, _cmd), do: %{}
+  defp args(_cmd), do: %{}
 
   @spec exit_on_dakefile_read_error({:ok, data} | {:error, File.posix()}, Path.t()) :: data when data: String.t()
   defp exit_on_dakefile_read_error({:ok, data}, _path), do: data
