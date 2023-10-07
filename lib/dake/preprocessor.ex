@@ -1,6 +1,11 @@
 defmodule Dake.Preprocessor do
   @moduledoc """
   Preprocessor.
+
+  - expand dake @directives arguments
+  - (recursivelly) expand the included Dakefiles:
+    - included targets and arguments are merged with the main Dakefile
+    - the included ctx is copied locally under the .dake/ directory
   """
 
   alias Dake.Parser.Dakefile
