@@ -1,4 +1,4 @@
-defmodule Dake.CliArgs do
+defmodule Dake.Cli do
   alias Dake.{Cmd, Type}
 
   defmodule Ls do

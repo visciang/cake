@@ -1,9 +1,8 @@
 defmodule Dake.Pipeline do
-  alias Dake.CliArgs.Run
+  alias Dake.Cli.Run
   alias Dake.Parser.{Dakefile, Directive, Docker, Target}
   alias Dake.{Dag, Type}
 
-  @typep targets_map :: %{Type.tgid() => Dakefile.target()}
   @typep uuid :: String.t()
 
   @dake_dir ".dake"
@@ -94,11 +93,12 @@ defmodule Dake.Pipeline do
         Dask.flow(dask, upstream_tgids, tgid)
       end)
 
-    dask = build_dask_job_cleanup(dask, :cleanup, uuid)
+    dask = build_dask_job_cleanup(dask, :cleanup, pipeline_tgids, uuid)
     Dask.flow(dask, run.tgid, :cleanup)
   end
 
-  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), targets_map(), uuid()) :: Dask.t()
+  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), %{Type.tgid() => Dakefile.target()}, uuid()) ::
+          Dask.t()
   defp build_dask_job(%Run{} = run, %Dakefile{} = dakefile, dask, tgid, targets_map, uuid) do
     Dask.job(dask, tgid, fn ^tgid, _upstream_jobs_status ->
       case Map.fetch!(targets_map, tgid) do
@@ -135,25 +135,25 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), uuid()) :: Dask.t()
-  defp build_dask_job_cleanup(dask, cleanup_job_id, uuid) do
+  @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), [Type.tgid()], uuid()) :: Dask.t()
+  defp build_dask_job_cleanup(dask, cleanup_job_id, pipeline_tgids, uuid) do
     job_passthrough_fn = fn _, _ ->
       :ok
     end
 
     job_on_exit_fn = fn _, _, _, _ ->
       cleanup_dirs()
-      docker_cleanup_images(uuid)
+
+      images = Enum.map(pipeline_tgids, &fq_tgid(&1, uuid))
+      docker_cleanup_images(images)
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec docker_cleanup_images(uuid()) :: :ok
-  defp docker_cleanup_images(uuid) do
-    {res, 0} = System.cmd("docker", ["image", "ls", "--format", "{{.ID}}", "*:#{uuid}"])
-    images = res |> String.trim() |> String.split("\n")
-    {_, 0} = System.cmd("docker", ["image", "rm" | images])
+  @spec docker_cleanup_images([String.t()]) :: :ok
+  defp docker_cleanup_images(images) do
+    {_, 0} = System.cmd("docker", ["image", "rm", "--force" | images])
     :ok
   end
 

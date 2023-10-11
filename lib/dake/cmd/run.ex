@@ -1,5 +1,5 @@
-defimpl Dake.Cmd, for: Dake.CliArgs.Run do
-  alias Dake.CliArgs.Run
+defimpl Dake.Cmd, for: Dake.Cli.Run do
+  alias Dake.Cli.Run
   alias Dake.{Cmd, Dag, Pipeline}
   alias Dake.Parser.Dakefile
 

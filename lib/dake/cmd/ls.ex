@@ -1,5 +1,5 @@
-defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
-  alias Dake.CliArgs.Ls
+defimpl Dake.Cmd, for: Dake.Cli.Ls do
+  alias Dake.Cli.Ls
   alias Dake.Dag
   alias Dake.Parser.Dakefile
   alias Dake.Parser.Docker.Arg

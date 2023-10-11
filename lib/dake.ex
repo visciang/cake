@@ -1,12 +1,12 @@
 defmodule Dake do
-  alias Dake.{CliArgs, Cmd, Dag, Parser, Preprocessor, Validator}
+  alias Dake.{Cli, Cmd, Dag, Parser, Preprocessor, Validator}
   alias Dake.Parser.Dakefile
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
     cmd =
       cli_args
-      |> CliArgs.parse()
+      |> Cli.parse()
       |> exit_on_cli_args_error()
 
     dakefile = load_and_parse_dakefile("Dakefile")
@@ -35,7 +35,7 @@ defmodule Dake do
   end
 
   @spec args(Cmd.t()) :: Preprocessor.args()
-  defp args(%CliArgs.Run{} = run) do
+  defp args(%Cli.Run{} = run) do
     Map.new(run.args)
   end
 
@@ -52,7 +52,7 @@ defmodule Dake do
     Dake.System.halt(:error, "\nCannot open #{path}: (#{:file.format_error(reason)})")
   end
 
-  @spec exit_on_cli_args_error(CliArgs.result()) :: Cmd.t()
+  @spec exit_on_cli_args_error(Cli.result()) :: Cmd.t()
   defp exit_on_cli_args_error({:ok, cmd}), do: cmd
 
   defp exit_on_cli_args_error({:error, reason}) do

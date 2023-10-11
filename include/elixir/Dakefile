@@ -1,6 +1,5 @@
-ARG ESCRIPT_NAME
 ARG ELIXIR_VERSION=1.15.6
-ARG ELIXIR_ERLANG_VERSION=26.0.2
+ARG ELIXIR_ERLANG_VERSION=26.1.1
 ARG ELIXIR_ALPINE_VERSION=3.18.2
 ARG WORKDIR=/code
 
@@ -75,6 +74,15 @@ elixir.escript-build:
     FROM +elixir.compile
     RUN mix escript.build
 
+elixir.escript:
+    FROM +elixir.base
+    ARG ESCRIPT_NAME
+    ARG WORKDIR
+    ARG EXTRA_APK
+    RUN apk add --no-cache ${EXTRA_APK}
+    COPY --from=+elixir.escript-build ${WORKDIR}/${ESCRIPT_NAME} /app
+    ENTRYPOINT [ "/app" ]
+
 @push
 elixir.xxx-example-push:
     FROM +elixir.base
@@ -84,10 +92,3 @@ elixir.xxx-example-push:
 elixir.xxx-example-push2:
     FROM +elixir.base
     RUN echo "side-effect"
-
-elixir.escript:
-    FROM +elixir.base
-    ARG ESCRIPT_NAME
-    ARG WORKDIR
-    COPY --from=+elixir.escript-build ${WORKDIR}/${ESCRIPT_NAME} /app
-    ENTRYPOINT [ "/app" ]

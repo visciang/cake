@@ -68,7 +68,7 @@ defmodule Dake.Parser.Docker do
     @spec fmt(Arg.t()) :: String.t()
     def fmt(%Arg{} = arg) do
       if arg.default_value do
-        "ARG #{arg.name}=#{arg.default_value}"
+        "ARG #{arg.name}=#{inspect(arg.default_value)}"
       else
         "ARG #{arg.name}"
       end
