@@ -10,8 +10,8 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Run do
     end
 
     Pipeline.build(run, dakefile, graph)
-    |> Dask.async()
-    |> Dask.await()
+    |> Dask.async(run.parallelism)
+    |> Dask.await(run.timeout)
     |> case do
       {:ok, _} -> :ok
       {:error, _} = error -> error

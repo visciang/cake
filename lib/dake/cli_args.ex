@@ -10,7 +10,7 @@ defmodule Dake.CliArgs do
   end
 
   defmodule Run do
-    @enforce_keys [:tgid, :args, :push, :output, :tag]
+    @enforce_keys [:tgid, :args, :push, :output, :tag, :timeout, :parallelism]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
@@ -19,7 +19,9 @@ defmodule Dake.CliArgs do
             args: [arg()],
             push: boolean(),
             output: boolean(),
-            tag: nil | String.t()
+            tag: nil | String.t(),
+            timeout: timeout(),
+            parallelism: pos_integer()
           }
   end
 
@@ -79,22 +81,33 @@ defmodule Dake.CliArgs do
           ],
           flags: [
             push: [
-              short: "-p",
               long: "--push",
               help: "Includes push targets (ref. @push directive) in the pipeline run"
             ],
             output: [
-              short: "-o",
               long: "--output",
-              help: "Output the target artifacts (ref. @output directive) under ./.dake_ouput directory"
+              help: "Output the target artifacts (ref. @output directive) under ./.dake_output directory"
             ]
           ],
           options: [
             tag: [
-              short: "-t",
               long: "--tag",
               value_name: "TAG",
               help: "Tag the target's docker image"
+            ],
+            timeout: [
+              long: "--timeout",
+              value_name: "TIMEOUT",
+              default: :infinity,
+              parser: :integer,
+              help: "Pipeline execution timeout (seconds)"
+            ],
+            parallelism: [
+              long: "--parallelism",
+              value_name: "PARALLELISM",
+              default: System.schedulers_online(),
+              parser: :integer,
+              help: "Pipeline max parallelism"
             ]
           ]
         ],
@@ -103,7 +116,6 @@ defmodule Dake.CliArgs do
           about: "List targets",
           flags: [
             tree: [
-              short: "-t",
               long: "--tree",
               help: "Show the pipeline originating from each target"
             ]
@@ -117,12 +129,21 @@ defmodule Dake.CliArgs do
   defp parse_run(cli) do
     case parse_target_args(cli.unknown) do
       {:ok, target_args} ->
+        timeout =
+          if cli.options.timeout == :infinity do
+            :infinity
+          else
+            cli.options.timeout * 1_000
+          end
+
         run = %Run{
           tgid: cli.args.target,
           args: target_args,
           push: cli.flags.push,
           output: cli.flags.output,
-          tag: cli.options.tag
+          tag: cli.options.tag,
+          timeout: timeout,
+          parallelism: cli.options.parallelism
         }
 
         {:ok, run}

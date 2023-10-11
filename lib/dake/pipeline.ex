@@ -11,10 +11,8 @@ defmodule Dake.Pipeline do
 
   @spec build(Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Dakefile{} = dakefile, graph) do
-    uuid = uuid()
-
     setup_dirs()
-
+    uuid = uuid()
     dakefile = qualify_dakefile_targets(uuid, dakefile)
     build_dask_pipeline(uuid, run, dakefile, graph)
   end
@@ -26,6 +24,12 @@ defmodule Dake.Pipeline do
       File.rm_rf!(dir)
       File.mkdir!(dir)
     end)
+  end
+
+  @spec cleanup_dirs :: :ok
+  defp cleanup_dirs do
+    File.rm_rf!(@dake_dir)
+    :ok
   end
 
   @spec qualify_dakefile_targets(uuid, Dakefile.t()) :: Dakefile.t()
@@ -90,13 +94,11 @@ defmodule Dake.Pipeline do
         Dask.flow(dask, upstream_tgids, tgid)
       end)
 
-    cleanup_tgids = Enum.filter(pipeline_tgids, &match?(%Target.Docker{}, targets_map[&1]))
-    dask = build_dask_job_cleanup(dask, :cleanup, cleanup_tgids, uuid)
+    dask = build_dask_job_cleanup(dask, :cleanup, uuid)
     Dask.flow(dask, run.tgid, :cleanup)
   end
 
-  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), targets_map(), uuid()) ::
-          Dask.t()
+  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), targets_map(), uuid()) :: Dask.t()
   defp build_dask_job(%Run{} = run, %Dakefile{} = dakefile, dask, tgid, targets_map, uuid) do
     Dask.job(dask, tgid, fn ^tgid, _upstream_jobs_status ->
       case Map.fetch!(targets_map, tgid) do
@@ -133,16 +135,24 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), [Type.tgid()], uuid()) :: Dask.t()
-  defp build_dask_job_cleanup(dask, cleanup_job_id, pipeline_tgids, uuid) do
-    Dask.job(dask, cleanup_job_id, fn ^cleanup_job_id, _upstream_jobs_status ->
-      images = Enum.map(pipeline_tgids, &fq_tgid(&1, uuid))
-      docker_cleanup_images(images)
-    end)
+  @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), uuid()) :: Dask.t()
+  defp build_dask_job_cleanup(dask, cleanup_job_id, uuid) do
+    job_passthrough_fn = fn _, _ ->
+      :ok
+    end
+
+    job_on_exit_fn = fn _, _, _, _ ->
+      cleanup_dirs()
+      docker_cleanup_images(uuid)
+    end
+
+    Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec docker_cleanup_images([String.t()]) :: :ok
-  defp docker_cleanup_images(images) do
+  @spec docker_cleanup_images(uuid()) :: :ok
+  defp docker_cleanup_images(uuid) do
+    {res, 0} = System.cmd("docker", ["image", "ls", "--format", "{{.ID}}", "*:#{uuid}"])
+    images = res |> String.trim() |> String.split("\n")
     {_, 0} = System.cmd("docker", ["image", "rm" | images])
     :ok
   end
