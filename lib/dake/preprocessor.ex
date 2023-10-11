@@ -1,15 +1,10 @@
 defmodule Dake.Preprocessor do
-  @moduledoc """
-  Preprocessor.
-
-  - expand dake @directives arguments
-  - (recursivelly) expand the included Dakefiles:
-    - included targets and arguments are merged with the main Dakefile
-    - the included ctx is copied locally under the .dake/ directory
-  """
+  # - expand dake @directives arguments
+  # - (recursivelly) expand the included Dakefiles,
+  #   included targets and arguments are merged with the main Dakefile
 
   alias Dake.Parser.Dakefile
-  alias Dake.Parser.Docker.DakeOutput
+  alias Dake.Parser.Directive.Output
   alias Dake.Parser.Target.Docker
 
   @type args :: %{(name :: String.t()) => value :: nil | String.t()}
@@ -18,14 +13,10 @@ defmodule Dake.Preprocessor do
   def expand(%Dakefile{} = dakefile, args) do
     args = Map.merge(Map.new(dakefile.args, &{&1.name, &1.default_value}), args)
 
-    includes = dakefile.includes
-
     dakefile =
       dakefile
       |> expand_includes()
       |> expand_directives_args(args)
-
-    copy_include_ctx(includes)
 
     dakefile
   end
@@ -40,6 +31,18 @@ defmodule Dake.Preprocessor do
     included_dakefiles =
       Enum.map(dakefile.includes, fn %Dakefile.Include{} = include ->
         included_dakefile = Dake.load_and_parse_dakefile(include.ref)
+
+        included_dakefile =
+          put_in(
+            included_dakefile,
+            [
+              Access.key!(:targets),
+              Access.filter(&match?(%Docker{}, &1)),
+              Access.key!(:included_from_ref)
+            ],
+            include.ref
+          )
+
         expand(included_dakefile, %{})
       end)
 
@@ -54,24 +57,18 @@ defmodule Dake.Preprocessor do
     }
   end
 
-  @spec copy_include_ctx([Dakefile.Include.t()]) :: :ok
-  defp copy_include_ctx(includes) do
-    Enum.each(includes, fn %Dakefile.Include{} = include ->
-      include_ctx_dir = Path.join(Path.dirname(include.ref), ".dake")
-
-      if File.exists?(include_ctx_dir) do
-        File.cp_r!(include_ctx_dir, ".dake")
-      end
-    end)
-  end
-
   @spec expand_directives_args(Dakefile.t(), args()) :: Dakefile.t()
   defp expand_directives_args(%Dakefile{} = dakefile, args) do
     update_in(
       dakefile,
-      [Access.key!(:targets), Access.filter(&match?(%Docker{}, &1)), Access.key!(:directives), Access.all()],
+      [
+        Access.key!(:targets),
+        Access.filter(&match?(%Docker{}, &1)),
+        Access.key!(:directives),
+        Access.all()
+      ],
       fn
-        %DakeOutput{} = output -> %DakeOutput{output | dir: expand_vars(output.dir, args)}
+        %Output{} = output -> %Output{output | dir: expand_vars(output.dir, args)}
         other_directive -> other_directive
       end
     )

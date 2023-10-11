@@ -1,12 +1,7 @@
 defmodule Dake.CliArgs do
-  @moduledoc """
-  CLI argument parser
-  """
-
   alias Dake.{Cmd, Type}
 
   defmodule Ls do
-    @moduledoc false
     defstruct [:tree]
 
     @type t :: %__MODULE__{
@@ -15,13 +10,12 @@ defmodule Dake.CliArgs do
   end
 
   defmodule Run do
-    @moduledoc false
     @enforce_keys [:tgid, :args, :push, :output, :tag]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
-            tgid: Type.tgid(),
+            tgid: nil | Type.tgid(),
             args: [arg()],
             push: boolean(),
             output: boolean(),
@@ -123,10 +117,8 @@ defmodule Dake.CliArgs do
   defp parse_run(cli) do
     case parse_target_args(cli.unknown) do
       {:ok, target_args} ->
-        tgid = cli.args.target || "default"
-
         run = %Run{
-          tgid: tgid,
+          tgid: cli.args.target,
           args: target_args,
           push: cli.flags.push,
           output: cli.flags.output,

@@ -1,10 +1,6 @@
 defmodule Dake.Validator do
-  @moduledoc """
-  Dakefile Validator.
-  """
-
   alias Dake.Dag
-  alias Dake.Parser.{Dakefile, Docker, Target}
+  alias Dake.Parser.{Dakefile, Directive, Docker, Target}
 
   @type result() :: :ok | {:error, reason :: term()}
 
@@ -36,19 +32,13 @@ defmodule Dake.Validator do
 
     tgids_referenced_in_copy =
       all_commands
-      |> Enum.reduce([], fn
-        %Docker.Command{instruction: "COPY", options: options}, acc ->
-          case Docker.Command.find_option(options, "from") do
-            %Docker.Command.Option{value: value} ->
-              [value | acc]
-
-            nil ->
-              acc
-          end
-
-        _, acc ->
-          acc
-      end)
+      |> get_in([
+        Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
+        Access.key!(:options),
+        Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
+        Access.key!(:value)
+      ])
+      |> List.flatten()
 
     tgids_referenced =
       (tgids_referenced_in_from ++ tgids_referenced_in_copy)
@@ -72,7 +62,7 @@ defmodule Dake.Validator do
     push_targets =
       Enum.filter(dakefile.targets, fn
         %Target.Docker{} = docker ->
-          Enum.any?(docker.directives, &match?(%Docker.DakePush{}, &1))
+          Enum.any?(docker.directives, &match?(%Directive.Push{}, &1))
 
         _ ->
           false

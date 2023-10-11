@@ -1,8 +1,4 @@
 defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
-  @moduledoc """
-  ls Command.
-  """
-
   alias Dake.CliArgs.Ls
   alias Dake.Dag
   alias Dake.Parser.Dakefile
@@ -30,6 +26,8 @@ defimpl Dake.Cmd, for: Dake.CliArgs.Ls do
 
     tree_alias(graph, alias_targets)
     tree_docker(graph, docker_targets, target_args, 1)
+
+    :ok
   end
 
   def exec(%Ls{}, %Dakefile{} = dakefile, graph) do

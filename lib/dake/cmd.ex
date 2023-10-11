@@ -1,6 +1,6 @@
 defprotocol Dake.Cmd do
-  @moduledoc false
+  @type result :: :ok | {:error, reason :: term()}
 
-  @spec exec(t(), Dake.Parser.Dakefile.t(), Dake.Dag.graph()) :: :ok
+  @spec exec(t(), Dake.Parser.Dakefile.t(), Dake.Dag.graph()) :: result()
   def exec(cmd, dakefile, graph)
 end

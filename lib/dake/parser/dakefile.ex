@@ -1,12 +1,6 @@
 defmodule Dake.Parser.Dakefile do
-  @moduledoc """
-  Dakefile.
-  """
-
   defmodule Include do
-    @moduledoc """
-    `@include <ref> [<arg>, ...]`.
-    """
+    # `@include <ref> [<arg>, ...]`.
 
     @enforce_keys [:ref]
     defstruct @enforce_keys ++ [args: []]
@@ -17,8 +11,7 @@ defmodule Dake.Parser.Dakefile do
           }
   end
 
-  @enforce_keys [:includes, :args, :targets]
-  defstruct @enforce_keys
+  defstruct includes: [], args: [], targets: []
 
   @type target :: Dake.Parser.Target.Docker.t() | Dake.Parser.Target.Alias.t()
 

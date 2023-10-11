@@ -1,20 +1,13 @@
 defmodule Dake do
-  @moduledoc """
-  Dake escript.
-  """
-
   alias Dake.{CliArgs, Cmd, Dag, Parser, Preprocessor, Validator}
   alias Dake.Parser.Dakefile
 
-  @spec main([String.t()]) :: :ok
+  @spec main([String.t()]) :: no_return()
   def main(cli_args) do
     cmd =
       cli_args
       |> CliArgs.parse()
       |> exit_on_cli_args_error()
-
-    File.rm_rf!(".dake")
-    File.mkdir!(".dake")
 
     dakefile = load_and_parse_dakefile("Dakefile")
     dakefile = Preprocessor.expand(dakefile, args(cmd))
@@ -29,8 +22,7 @@ defmodule Dake do
     |> exit_on_validation_error()
 
     Cmd.exec(cmd, dakefile, graph)
-
-    :ok
+    |> exit_status()
   end
 
   @spec load_and_parse_dakefile(Path.t()) :: Dakefile.t()
@@ -48,6 +40,10 @@ defmodule Dake do
   end
 
   defp args(_cmd), do: %{}
+
+  @spec exit_status(Cmd.result()) :: no_return()
+  defp exit_status(:ok), do: Dake.System.halt(:ok, "")
+  defp exit_status({:error, reason}), do: Dake.System.halt(:error, "Pipeline failed: #{inspect(reason)}")
 
   @spec exit_on_dakefile_read_error({:ok, data} | {:error, File.posix()}, Path.t()) :: data when data: String.t()
   defp exit_on_dakefile_read_error({:ok, data}, _path), do: data

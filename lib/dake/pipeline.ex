@@ -1,280 +1,221 @@
 defmodule Dake.Pipeline do
-  @moduledoc """
-  Pipeline builder.
-  """
+  alias Dake.CliArgs.Run
+  alias Dake.Parser.{Dakefile, Directive, Docker, Target}
+  alias Dake.{Dag, Type}
 
-  alias Dake.Parser.Dakefile
-  alias Dake.Parser.Docker
-  alias Dake.Parser.Target
-  alias Dake.Type
+  @typep targets_map :: %{Type.tgid() => Dakefile.target()}
+  @typep uuid :: String.t()
 
-  @dake_done_path "/.dake_done"
-  @dake_ouput_path "/.dake_output"
+  @dake_dir ".dake"
+  @dake_output_dir ".dake_output"
 
-  @typep pipeline_target :: {Type.tgid(), [Docker.From.t() | Docker.Arg.t() | Docker.Command.t()]}
+  @spec build(Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
+  def build(%Run{} = run, %Dakefile{} = dakefile, graph) do
+    uuid = uuid()
 
-  @spec build(Dakefile.t(), push :: boolean()) :: Path.t()
-  def build(%Dakefile{} = dakefile, push) do
-    pipeline_args = pipeline_args(dakefile.args)
+    setup_dirs()
 
-    pipeline_docker_targets =
-      dakefile.targets
-      |> Enum.filter(&match?(%Target.Docker{}, &1))
-      |> pipeline_targets(push)
-      |> pipeline_add_default_target()
-      |> pipeline_add_targets_done()
-
-    pipeline_alias_targets =
-      dakefile.targets
-      |> Enum.filter(&match?(%Target.Alias{}, &1))
-      |> pipeline_aliases()
-      |> pipeline_add_targets_done()
-
-    dockerfile_path = Path.join(".dake", "Dockerfile")
-
-    dockerfile = """
-    # ==== pipeline ARGs ====
-
-    #{fmt_pipeline_args(pipeline_args)}
-
-    # ==== pipeline targets ====
-
-    #{fmt_done_target()}
-    #{fmt_pipeline_targets(pipeline_docker_targets)}
-
-    # ==== pipeline aliases ====
-
-    #{fmt_pipeline_targets(pipeline_alias_targets)}
-    """
-
-    File.write!(dockerfile_path, dockerfile)
-
-    dockerfile_path
+    dakefile = qualify_dakefile_targets(uuid, dakefile)
+    build_dask_pipeline(uuid, run, dakefile, graph)
   end
 
-  @spec pipeline_args([Docker.Arg.t()]) :: [Docker.Arg.t()]
-  defp pipeline_args(args), do: args
-
-  @spec pipeline_aliases([Target.Alias.t()]) :: [pipeline_target()]
-  defp pipeline_aliases(aliases) do
-    Enum.map(aliases, fn %Target.Alias{} = alias_ ->
-      from = %Docker.From{image: "scratch", as: alias_.tgid}
-      commands = Enum.map(alias_.tgids, fn tgid -> command_copy_done(tgid) end)
-
-      {alias_.tgid, [from | commands]}
+  @spec setup_dirs :: :ok
+  defp setup_dirs do
+    [@dake_dir, @dake_output_dir]
+    |> Enum.each(fn dir ->
+      File.rm_rf!(dir)
+      File.mkdir!(dir)
     end)
   end
 
-  @spec pipeline_targets([Target.Docker.t()], push :: boolean()) :: [pipeline_target()]
-  defp pipeline_targets(docker_targets, push) do
-    push_targets = push_targets_set(docker_targets)
+  @spec qualify_dakefile_targets(uuid, Dakefile.t()) :: Dakefile.t()
+  defp qualify_dakefile_targets(uuid, %Dakefile{} = dakefile) do
+    update_fn = fn "+" <> tgid -> fq_tgid(tgid, uuid) end
 
-    Enum.flat_map(docker_targets, fn %Target.Docker{} = docker ->
-      docker =
-        if push and MapSet.member?(push_targets, docker) do
-          force_push_arg = %Docker.Arg{name: String.upcase(docker.tgid)}
-          [from | rest_commands] = docker.commands
-          commands = [from, force_push_arg | rest_commands]
-          %Target.Docker{docker | commands: commands}
-        else
-          docker
-        end
+    dakefile =
+      update_in(
+        dakefile,
+        [
+          Access.key!(:targets),
+          Access.filter(&match?(%Target.Docker{}, &1)),
+          Access.key!(:commands),
+          Access.filter(&match?(%Docker.From{image: "+" <> _}, &1)),
+          Access.key!(:image)
+        ],
+        update_fn
+      )
 
-      if not push and MapSet.member?(push_targets, docker) do
-        []
+    update_in(
+      dakefile,
+      [
+        Access.key!(:targets),
+        Access.filter(&match?(%Target.Docker{}, &1)),
+        Access.key!(:commands),
+        Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
+        Access.key!(:options),
+        Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
+        Access.key!(:value)
+      ],
+      update_fn
+    )
+  end
+
+  @spec fq_tgid(Type.tgid(), uuid()) :: String.t()
+  defp fq_tgid(tgid, uuid), do: "#{tgid}:#{uuid}"
+
+  @spec build_dask_pipeline(uuid(), Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
+  defp build_dask_pipeline(uuid, %Run{} = run, %Dakefile{} = dakefile, graph) do
+    targets_map = Map.new(dakefile.targets, &{&1.tgid, &1})
+    pipeline_tgids = Dag.reaching_tgids(graph, run.tgid)
+
+    if run.push and push_target?(targets_map[run.tgid]) do
+      Dake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
+    end
+
+    pipeline_tgids =
+      if run.push do
+        Enum.reject(pipeline_tgids, &push_target?(targets_map[&1]))
       else
-        target = pipeline_target(docker)
-        target_output = pipeline_target_output(docker)
+        pipeline_tgids
+      end
 
-        [target, target_output]
+    dask =
+      Enum.reduce(pipeline_tgids, Dask.new(), fn tgid, dask ->
+        build_dask_job(run, dakefile, dask, tgid, targets_map, uuid)
+      end)
+
+    dask =
+      Enum.reduce(pipeline_tgids, dask, fn tgid, dask ->
+        upstream_tgids = Dag.upstream_tgids(graph, tgid)
+        Dask.flow(dask, upstream_tgids, tgid)
+      end)
+
+    cleanup_tgids = Enum.filter(pipeline_tgids, &match?(%Target.Docker{}, targets_map[&1]))
+    dask = build_dask_job_cleanup(dask, :cleanup, cleanup_tgids, uuid)
+    Dask.flow(dask, run.tgid, :cleanup)
+  end
+
+  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), targets_map(), uuid()) ::
+          Dask.t()
+  defp build_dask_job(%Run{} = run, %Dakefile{} = dakefile, dask, tgid, targets_map, uuid) do
+    Dask.job(dask, tgid, fn ^tgid, _upstream_jobs_status ->
+      case Map.fetch!(targets_map, tgid) do
+        %Target.Alias{} ->
+          :ok
+
+        %Target.Docker{} = docker ->
+          build_dask_job_docker(run, dakefile, docker, tgid, uuid)
       end
     end)
   end
 
-  @spec pipeline_target(Target.Docker.t()) :: pipeline_target()
-  defp pipeline_target(%Target.Docker{} = docker) do
-    commands =
-      docker.commands
-      |> Enum.map(fn
-        %Docker.From{} = from ->
-          image = String.trim_leading(from.image, "+")
-          %Docker.From{image: image, as: docker.tgid}
+  @spec build_dask_job_docker(Run.t(), Dakefile.t(), Target.Docker.t(), Type.tgid(), uuid()) :: :ok
+  defp build_dask_job_docker(%Run{} = run, %Dakefile{} = dakefile, %Target.Docker{} = docker, tgid, uuid) do
+    if docker.included_from_ref do
+      copy_included_ref_ctx(docker.included_from_ref)
+    end
 
-        %Docker.Command{instruction: "COPY"} = command ->
-          pipeline_copy_from(command)
+    dockerfile_path = Path.join(@dake_dir, "/Dockerfile.#{tgid}")
+    write_dockerfile(dakefile.args, docker, dockerfile_path)
 
-        %Docker.Command{} = command ->
-          command
+    args = docker_build_cmd_args(run, dockerfile_path, tgid, uuid)
+    docker_build(tgid, args)
 
-        %Docker.Arg{} = arg ->
-          arg
-      end)
+    if run.output do
+      outputs =
+        docker.directives
+        |> Enum.filter(&match?(%Directive.Output{}, &1))
+        |> Enum.map(& &1.dir)
 
-    output_commands =
-      docker.directives
-      |> Enum.filter(&match?(%Docker.DakeOutput{}, &1))
-      |> Enum.map(fn %Docker.DakeOutput{} = output ->
-        arguments = "mkdir -p #{@dake_ouput_path} && cp -r #{output.dir} #{@dake_ouput_path}/"
-        %Docker.Command{instruction: "RUN", arguments: arguments}
-      end)
+      docker_output(tgid, uuid, outputs)
+    end
 
-    {docker.tgid, commands ++ output_commands}
+    :ok
   end
 
-  @spec pipeline_target_output(Target.Docker.t()) :: pipeline_target()
-  defp pipeline_target_output(%Target.Docker{} = docker) do
-    commands = [
-      %Docker.From{image: "scratch", as: t_output(docker.tgid)},
-      command_copy_done(docker.tgid)
-    ]
-
-    commands =
-      if Enum.any?(docker.directives, &match?(%Docker.DakeOutput{}, &1)) do
-        copy_output_command = %Docker.Command{
-          instruction: "COPY",
-          options: [%Docker.Command.Option{name: "from", value: docker.tgid}],
-          arguments: "#{@dake_ouput_path} /"
-        }
-
-        commands ++ [copy_output_command]
-      else
-        commands
-      end
-
-    {t_output(docker.tgid), commands}
-  end
-
-  @spec pipeline_add_default_target([pipeline_target()]) :: [pipeline_target()]
-  defp pipeline_add_default_target(targets) do
-    commands =
-      targets
-      |> Enum.reject(fn {tgid, _} -> String.starts_with?(tgid, "output.") end)
-      |> Enum.map(fn {tgid, _commands} -> command_copy_done(tgid) end)
-
-    output_commands =
-      targets
-      |> Enum.filter(fn {tgid, _} -> String.starts_with?(tgid, "output.") end)
-      |> Enum.map(fn {output_tgid, _commands} ->
-        %Docker.Command{
-          instruction: "COPY",
-          options: [%Docker.Command.Option{name: "from", value: output_tgid}],
-          arguments: "/ ."
-        }
-      end)
-
-    default_target = {
-      "default",
-      [%Docker.From{image: "scratch", as: "default"} | commands]
-    }
-
-    default_output_target = {
-      "output.default",
-      [%Docker.From{image: "scratch", as: "output.default"} | output_commands]
-    }
-
-    targets ++ [default_target, default_output_target]
-  end
-
-  @spec pipeline_add_targets_done([pipeline_target()]) :: [[pipeline_target()]]
-  defp pipeline_add_targets_done(pipeline_targets) do
-    Enum.map(pipeline_targets, fn {tgid, commands} ->
-      commands = commands ++ [command_copy_done("base")]
-
-      {tgid, commands}
+  @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), [Type.tgid()], uuid()) :: Dask.t()
+  defp build_dask_job_cleanup(dask, cleanup_job_id, pipeline_tgids, uuid) do
+    Dask.job(dask, cleanup_job_id, fn ^cleanup_job_id, _upstream_jobs_status ->
+      images = Enum.map(pipeline_tgids, &fq_tgid(&1, uuid))
+      docker_cleanup_images(images)
     end)
   end
 
-  @spec pipeline_copy_from(Docker.Command.t()) :: Docker.Command.t()
-  defp pipeline_copy_from(%Docker.Command{instruction: "COPY", options: options} = command) do
-    options =
-      Enum.map(options, fn
-        %Docker.Command.Option{name: "from", value: "+" <> tgid} = option ->
-          %Docker.Command.Option{option | value: tgid}
-
-        option ->
-          option
-      end)
-
-    %Docker.Command{command | options: options}
+  @spec docker_cleanup_images([String.t()]) :: :ok
+  defp docker_cleanup_images(images) do
+    {_, 0} = System.cmd("docker", ["image", "rm" | images])
+    :ok
   end
 
-  @spec push_targets_set([Target.Docker.t()]) :: MapSet.t(Target.Docker.t())
-  defp push_targets_set(docker_targets) do
-    docker_targets
-    |> Enum.filter(fn
-      %Target.Docker{} = docker ->
-        Enum.any?(docker.directives, &match?(%Docker.DakePush{}, &1))
-
-      _ ->
-        false
-    end)
-    |> MapSet.new()
-  end
-
-  @spec command_copy_done(from :: Type.tgid()) :: Docker.Command.t()
-  defp command_copy_done(from) do
-    %Docker.Command{
-      instruction: "COPY",
-      options: [%Docker.Command.Option{name: "from", value: from}],
-      arguments: "#{@dake_done_path} #{@dake_done_path}"
-    }
-  end
-
-  @spec fmt_pipeline_args([Docker.Arg.t()]) :: String.t()
-  defp fmt_pipeline_args(args) do
-    Enum.map_join(args, "\n", &"#{fmt(&1)}")
-  end
-
-  @spec fmt_done_target :: String.t()
-  defp fmt_done_target do
-    """
-    FROM busybox AS base
-    RUN touch #{@dake_done_path}
-    """
-  end
-
-  @spec fmt_pipeline_targets([pipeline_target()]) :: String.t()
-  defp fmt_pipeline_targets(targets) do
-    Enum.map_join(targets, "\n", fn {target, commands} ->
-      commands = Enum.map_join(commands, "\n", &fmt(&1))
-
-      """
-      # ---- #{target} ----
-
-      #{commands}
-      """
-    end)
-  end
-
-  @spec fmt(Docker.From.t()) :: String.t()
-  defp fmt(%Docker.From{} = from) do
-    if from.as do
-      "FROM #{from.image} AS #{from.as}"
-    else
-      "FROM #{from.image}"
+  @spec docker_build(Type.tgid(), [String.t()]) :: :ok
+  defp docker_build(tgid, args) do
+    case System.cmd("docker", args, into: IO.stream()) do
+      {_, 0} -> :ok
+      {_, _exit_status} -> raise "Target #{tgid} failed"
     end
   end
 
-  @spec fmt(Docker.Arg.t()) :: String.t()
-  defp fmt(%Docker.Arg{} = arg) do
-    arg =
-      if arg.default_value do
-        "#{arg.name}=#{arg.default_value}"
-      else
-        arg.name
+  @spec docker_output(Type.tgid(), uuid(), [Path.t()]) :: :ok
+  defp docker_output(tgid, uuid, outputs) do
+    docker_image = fq_tgid(tgid, uuid)
+    tmp_container = "output-#{tgid}-#{uuid}"
+
+    {_, 0} = System.cmd("docker", ["create", "--name", tmp_container, docker_image])
+
+    Enum.each(outputs, fn output ->
+      case System.cmd("docker", ["container", "cp", "#{tmp_container}:#{output}", @dake_output_dir], into: IO.stream()) do
+        {_, 0} -> :ok
+        {_, _exit_status} -> raise "Target #{tgid} output copy failed"
       end
+    end)
 
-    "ARG #{arg}"
+    {_, 0} = System.cmd("docker", ["container", "rm", tmp_container])
+
+    :ok
   end
 
-  @spec fmt(Docker.Command.t()) :: String.t()
-  defp fmt(%Docker.Command{} = command) do
-    options = Enum.map_join(command.options, " ", &"--#{&1.name}=#{&1.value}")
-    "#{command.instruction} #{options} #{command.arguments}"
+  @spec docker_build_cmd_args(Run.t(), Path.t(), Type.tgid(), uuid()) :: [String.t()]
+  defp docker_build_cmd_args(%Run{} = run, dockerfile_path, tgid, uuid) do
+    Enum.concat([
+      ["buildx", "build"],
+      ["--progress", "plain"],
+      ["--file", dockerfile_path],
+      ["--tag", fq_tgid(tgid, uuid)],
+      if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
+      Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
+      ["."]
+    ])
   end
 
-  @spec t_output(Type.tgid()) :: Type.tgid()
-  defp t_output(tgid) do
-    "output.#{tgid}"
+  @spec uuid :: uuid()
+  defp uuid do
+    :crypto.strong_rand_bytes(16)
+    |> Base.encode32(case: :lower, padding: false)
+  end
+
+  @spec push_target?(Dakefile.target()) :: boolean()
+  defp push_target?(%Target.Alias{}), do: false
+
+  defp push_target?(%Target.Docker{} = docker) do
+    Enum.any?(docker.directives, &match?(%Directive.Push{}, &1))
+  end
+
+  @spec copy_included_ref_ctx(String.t()) :: :ok
+  defp copy_included_ref_ctx(included_ref) do
+    include_ctx_dir = Path.join(Path.dirname(included_ref), @dake_dir)
+
+    if File.exists?(include_ctx_dir) do
+      File.cp_r!(include_ctx_dir, @dake_dir)
+    end
+
+    :ok
+  end
+
+  @spec write_dockerfile([Docker.Arg.t()], Target.Docker.t(), Path.t()) :: :ok
+  defp write_dockerfile(args, %Target.Docker{} = docker, path) do
+    dockerfile = Enum.map_join(args ++ docker.commands, "\n", &Docker.Fmt.fmt(&1))
+    File.write!(path, dockerfile)
+
+    :ok
   end
 end

@@ -1,10 +1,5 @@
 defmodule Dake.Dag do
-  @moduledoc """
-  Dakfile targets DAG.
-  """
-
   defmodule Error do
-    @moduledoc false
     defexception [:message]
   end
 
@@ -14,9 +9,6 @@ defmodule Dake.Dag do
   @opaque graph :: :digraph.graph()
   @type result :: {:ok, graph()} | {:error, reason :: term()}
 
-  @doc """
-  Extract the targets DAG from a Dakefile
-  """
   @spec extract(Dakefile.t()) :: result()
   def extract(%Dakefile{} = dakefile) do
     graph = :digraph.new([:acyclic])
@@ -32,20 +24,24 @@ defmodule Dake.Dag do
     end
   end
 
-  @doc """
-  Return the targets ids.
-  """
   @spec tgids(graph()) :: [Type.tgid()]
   def tgids(graph) do
     :digraph.vertices(graph)
   end
 
-  @doc """
-  Return the downstream (dependant) targets of a specific target.
-  """
   @spec downstream_tgids(graph(), Type.tgid()) :: [Type.tgid()]
   def downstream_tgids(graph, vertex) do
     :digraph.out_neighbours(graph, vertex)
+  end
+
+  @spec upstream_tgids(graph(), Type.tgid()) :: [Type.tgid()]
+  def upstream_tgids(graph, vertex) do
+    :digraph.in_neighbours(graph, vertex)
+  end
+
+  @spec reaching_tgids(graph(), Type.tgid()) :: [Type.tgid()]
+  def reaching_tgids(graph, tgid) do
+    :digraph_utils.reaching([tgid], graph)
   end
 
   @spec add_vertices(:digraph.graph(), Dakefile.t()) :: :ok
@@ -67,8 +63,8 @@ defmodule Dake.Dag do
       %Target.Docker{tgid: downstream_tgid, commands: commands} ->
         add_command_edges(graph, commands, downstream_tgid)
 
-      %Target.Alias{tgid: upstream_tgid, tgids: downstream_tgids} ->
-        Enum.each(downstream_tgids, fn downstream_tgid ->
+      %Target.Alias{tgid: downstream_tgid, tgids: upstream_tgids} ->
+        Enum.each(upstream_tgids, fn upstream_tgid ->
           add_edge(graph, upstream_tgid, downstream_tgid)
         end)
     end)
@@ -78,21 +74,22 @@ defmodule Dake.Dag do
 
   @spec add_command_edges(:digraph.graph(), [Target.Docker.command()], Type.tgid()) :: :ok
   defp add_command_edges(graph, commands, downstream_tgid) do
-    Enum.each(commands, fn
-      %Docker.From{image: "+" <> upstream_tgid} ->
-        add_edge(graph, upstream_tgid, downstream_tgid)
+    commands
+    |> Enum.filter(&match?(%Docker.From{image: "+" <> _}, &1))
+    |> Enum.each(fn %Docker.From{image: "+" <> upstream_tgid} ->
+      add_edge(graph, upstream_tgid, downstream_tgid)
+    end)
 
-      %Docker.Command{instruction: "COPY", options: options} ->
-        case Docker.Command.find_option(options, "from") do
-          %Docker.Command.Option{value: "+" <> upstream_tgid} ->
-            add_edge(graph, upstream_tgid, downstream_tgid)
-
-          _ ->
-            :ok
-        end
-
-      _ ->
-        :ok
+    commands
+    |> get_in([
+      Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
+      Access.key!(:options),
+      Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
+      Access.key!(:value)
+    ])
+    |> List.flatten()
+    |> Enum.each(fn "+" <> upstream_tgid ->
+      add_edge(graph, upstream_tgid, downstream_tgid)
     end)
   end
 

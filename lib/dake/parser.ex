@@ -1,9 +1,5 @@
 defmodule Dake.Parser do
-  @moduledoc """
-  `Dakefile` parser.
-  """
-
-  alias Dake.Parser.{Dakefile, Docker, Target}
+  alias Dake.Parser.{Dakefile, Directive, Docker, Target}
 
   import NimbleParsec
 
@@ -151,12 +147,12 @@ defmodule Dake.Parser do
     |> ignore(spaces)
     |> unwrap_and_tag(line, :dir)
     |> wrap()
-    |> map({:cast, [Docker.DakeOutput]})
+    |> map({:cast, [Directive.Output]})
 
   push_directive =
     ignore(string("@push"))
     |> wrap()
-    |> map({:cast, [Docker.DakePush]})
+    |> map({:cast, [Directive.Push]})
 
   target_directive =
     choice([
@@ -237,7 +233,7 @@ defmodule Dake.Parser do
     ignore(string("@include"))
     |> ignore(spaces)
     |> unwrap_and_tag(include_ref, :ref)
-    |> tag(optional(include_args), :args)
+    |> optional(tag(include_args, :args))
     |> wrap()
     |> map({:cast, [Dakefile.Include]})
 
@@ -251,17 +247,17 @@ defmodule Dake.Parser do
 
   dakefile =
     ignore(repeat(ignorable_line))
-    |> tag(optional(global_args), :args)
+    |> optional(tag(global_args, :args))
     |> ignore(repeat(ignorable_line))
-    |> tag(
-      optional(
+    |> optional(
+      tag(
         include_directives
-        |> ignore(nl)
-      ),
-      :includes
+        |> ignore(nl),
+        :includes
+      )
     )
     |> ignore(repeat(ignorable_line))
-    |> tag(optional(targets), :targets)
+    |> optional(tag(targets, :targets))
     |> ignore(repeat(ignorable_line))
     |> eos()
     |> wrap()

@@ -16,10 +16,7 @@ defmodule Dake.MixProject do
       ],
       test_coverage: [tool: ExCoveralls],
       deps: deps(),
-      escript: [
-        app: nil,
-        main_module: Dake
-      ]
+      escript: [main_module: Dake]
     ]
   end
 

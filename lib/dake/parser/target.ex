@@ -1,8 +1,6 @@
 defmodule Dake.Parser.Target do
   defmodule Alias do
-    @moduledoc """
-    Alias target group `alias: <target>+`.
-    """
+    # Alias target group `alias: <target>+`
 
     alias Dake.Type
 
@@ -16,26 +14,20 @@ defmodule Dake.Parser.Target do
   end
 
   defmodule Docker do
-    @moduledoc """
-    Docker target:
-
-    ```
-    @output output/
-    target:
-        FROM image
-        ARG X=1
-        RUN ...
-    ```
-    """
+    # @output output/
+    # target:
+    #     FROM image
+    #     ARG X=1
+    #     RUN ...
 
     alias Dake.Type
 
     @enforce_keys [:tgid, :commands]
-    defstruct @enforce_keys ++ [directives: []]
+    defstruct @enforce_keys ++ [included_from_ref: nil, directives: []]
 
     @type directive ::
-            Dake.Parser.Docker.DakeOutput.t()
-            | Dake.Parser.Docker.DakePush.t()
+            Dake.Parser.Directive.Output.t()
+            | Dake.Parser.Directive.Push.t()
 
     @type command ::
             Dake.Parser.Docker.Arg.t()
@@ -45,7 +37,8 @@ defmodule Dake.Parser.Target do
     @type t :: %__MODULE__{
             tgid: Type.tgid(),
             directives: [directive()],
-            commands: [command()]
+            commands: [command()],
+            included_from_ref: nil | String.t()
           }
   end
 end

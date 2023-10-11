@@ -1,31 +1,11 @@
+defprotocol Dake.Parser.Docker.Fmt do
+  @spec fmt(t()) :: String.t()
+  def fmt(data)
+end
+
 defmodule Dake.Parser.Docker do
-  defmodule DakeOutput do
-    @moduledoc """
-    `@output <dir>`.
-    """
-
-    @enforce_keys [:dir]
-    defstruct @enforce_keys
-
-    @type t :: %__MODULE__{
-            dir: Path.t()
-          }
-  end
-
-  defmodule DakePush do
-    @moduledoc """
-    `@push`.
-    """
-
-    defstruct []
-
-    @type t :: %__MODULE__{}
-  end
-
   defmodule From do
-    @moduledoc """
-    Docker `FROM <image> [AS <as>]`.
-    """
+    # Docker `FROM <image> [AS <as>]`
 
     @enforce_keys [:image]
     defstruct @enforce_keys ++ [:as]
@@ -37,9 +17,7 @@ defmodule Dake.Parser.Docker do
   end
 
   defmodule Arg do
-    @moduledoc """
-    Docker `ARG <name>[=<default_value>]`.
-    """
+    # Docker `ARG <name>[=<default_value>]`
 
     @enforce_keys [:name]
     defstruct @enforce_keys ++ [:default_value]
@@ -51,14 +29,10 @@ defmodule Dake.Parser.Docker do
   end
 
   defmodule Command do
-    @moduledoc """
-    Generic Docker command `INSTRUCTION [--option=value]* arguments`.
-    """
+    # Generic Docker command `INSTRUCTION [--option=value]* arguments`
 
     defmodule Option do
-      @moduledoc """
-      Generic Docker option.
-      """
+      # Generic Docker option
 
       @enforce_keys [:name, :value]
       defstruct @enforce_keys
@@ -77,12 +51,35 @@ defmodule Dake.Parser.Docker do
             options: [Option.t(), ...],
             arguments: String.t()
           }
+  end
 
-    @spec find_option([Option.t()], String.t()) :: nil | Option.t()
-    def find_option(nil, _name), do: nil
+  defimpl Dake.Parser.Docker.Fmt, for: From do
+    @spec fmt(From.t()) :: String.t()
+    def fmt(%From{} = from) do
+      if from.as do
+        "FROM #{from.image} AS #{from.as}"
+      else
+        "FROM #{from.image}"
+      end
+    end
+  end
 
-    def find_option(options, name) do
-      Enum.find(options, &match?(%Option{name: ^name}, &1))
+  defimpl Dake.Parser.Docker.Fmt, for: Arg do
+    @spec fmt(Arg.t()) :: String.t()
+    def fmt(%Arg{} = arg) do
+      if arg.default_value do
+        "ARG #{arg.name}=#{arg.default_value}"
+      else
+        "ARG #{arg.name}"
+      end
+    end
+  end
+
+  defimpl Dake.Parser.Docker.Fmt, for: Command do
+    @spec fmt(Command.t()) :: String.t()
+    def fmt(%Command{} = command) do
+      options = Enum.map_join(command.options, " ", &"--#{&1.name}=#{&1.value}")
+      "#{command.instruction} #{options} #{command.arguments}"
     end
   end
 end
