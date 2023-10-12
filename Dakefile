@@ -1,1 +1,1 @@
-@include include/elixir/Dakefile ESCRIPT_NAME="dake" EXTRA_APK="git docker-cli-buildx"
+@include include/elixir/Dakefile EXTRA_APK="git docker-cli-buildx"

@@ -73,15 +73,16 @@ elixir.release:
 elixir.escript-build:
     FROM +elixir.compile
     RUN mix escript.build
+    RUN ESCRIPT_NAME=$(mix run --no-start --no-compile --eval "IO.write(to_string(Mix.Project.config[:escript][:name] || Mix.Project.config[:app]))") && \
+        cp "$ESCRIPT_NAME" escript
 
 elixir.escript:
     FROM +elixir.base
-    ARG ESCRIPT_NAME
     ARG WORKDIR
     ARG EXTRA_APK
     RUN apk add --no-cache ${EXTRA_APK}
-    COPY --from=+elixir.escript-build ${WORKDIR}/${ESCRIPT_NAME} /app
-    ENTRYPOINT [ "/app" ]
+    COPY --from=+elixir.escript-build ${WORKDIR}/escript /escript
+    ENTRYPOINT [ "/escript" ]
 
 @push
 elixir.xxx-example-push:
