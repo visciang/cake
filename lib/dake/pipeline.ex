@@ -3,10 +3,9 @@ defmodule Dake.Pipeline do
   alias Dake.Parser.{Dakefile, Directive, Docker, Target}
   alias Dake.{Dag, Type}
 
-  @typep uuid :: String.t()
+  require Dake.Const
 
-  @dake_dir ".dake"
-  @dake_output_dir ".dake_output"
+  @typep uuid :: String.t()
 
   @spec build(Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Dakefile{} = dakefile, graph) do
@@ -18,7 +17,7 @@ defmodule Dake.Pipeline do
 
   @spec setup_dirs :: :ok
   defp setup_dirs do
-    [@dake_dir, @dake_output_dir]
+    [Dake.Const.dake_dir(), Dake.Const.dake_output_dir()]
     |> Enum.each(fn dir ->
       File.rm_rf!(dir)
       File.mkdir!(dir)
@@ -27,7 +26,7 @@ defmodule Dake.Pipeline do
 
   @spec cleanup_dirs :: :ok
   defp cleanup_dirs do
-    File.rm_rf!(@dake_dir)
+    File.rm_rf!(Dake.Const.dake_dir())
     :ok
   end
 
@@ -117,7 +116,7 @@ defmodule Dake.Pipeline do
       copy_included_ref_ctx(docker.included_from_ref)
     end
 
-    dockerfile_path = Path.join(@dake_dir, "/Dockerfile.#{tgid}")
+    dockerfile_path = Path.join(Dake.Const.dake_dir(), "/Dockerfile.#{tgid}")
     write_dockerfile(dakefile.args, docker, dockerfile_path)
 
     args = docker_build_cmd_args(run, dockerfile_path, tgid, uuid)
@@ -173,7 +172,9 @@ defmodule Dake.Pipeline do
     {_, 0} = System.cmd("docker", ["create", "--name", tmp_container, docker_image])
 
     Enum.each(outputs, fn output ->
-      case System.cmd("docker", ["container", "cp", "#{tmp_container}:#{output}", @dake_output_dir], into: IO.stream()) do
+      case System.cmd("docker", ["container", "cp", "#{tmp_container}:#{output}", Dake.Const.dake_output_dir()],
+             into: IO.stream()
+           ) do
         {_, 0} -> :ok
         {_, _exit_status} -> raise "Target #{tgid} output copy failed"
       end
@@ -212,10 +213,10 @@ defmodule Dake.Pipeline do
 
   @spec copy_included_ref_ctx(String.t()) :: :ok
   defp copy_included_ref_ctx(included_ref) do
-    include_ctx_dir = Path.join(Path.dirname(included_ref), @dake_dir)
+    include_ctx_dir = Path.join(Path.dirname(included_ref), Dake.Const.dake_dir())
 
     if File.exists?(include_ctx_dir) do
-      File.cp_r!(include_ctx_dir, @dake_dir)
+      File.cp_r!(include_ctx_dir, Dake.Const.dake_dir())
     end
 
     :ok

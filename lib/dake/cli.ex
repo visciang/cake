@@ -1,6 +1,8 @@
 defmodule Dake.Cli do
   alias Dake.{Cmd, Type}
 
+  require Dake.Const
+
   defmodule Ls do
     defstruct [:tree]
 
@@ -86,7 +88,8 @@ defmodule Dake.Cli do
             ],
             output: [
               long: "--output",
-              help: "Output the target artifacts (ref. @output directive) under ./.dake_output directory"
+              help:
+                "Output the target artifacts (ref. @output directive) under #{Dake.Const.dake_output_dir()} directory"
             ]
           ],
           options: [
