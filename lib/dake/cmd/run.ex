@@ -1,10 +1,13 @@
 defimpl Dake.Cmd, for: Dake.Cli.Run do
   alias Dake.Cli.Run
-  alias Dake.{Cmd, Dag, Pipeline}
+  alias Dake.{Cmd, Dag, Pipeline, Reporter}
   alias Dake.Parser.Dakefile
 
   @spec exec(Run.t(), Dakefile.t(), Dag.graph()) :: Cmd.result()
   def exec(%Run{} = run, %Dakefile{} = dakefile, graph) do
+    Reporter.logs(run.verbose)
+    # TODO Reporter.logs_to_file()
+
     unless run.tgid in Dag.tgids(graph) do
       Dake.System.halt(:error, "Unknown target '#{run.tgid}'")
     end
@@ -15,7 +18,7 @@ defimpl Dake.Cmd, for: Dake.Cli.Run do
     |> case do
       {:ok, _} -> :ok
       {:error, _} = error -> error
-      :timeout -> {:error, :timeout}
+      :timeout -> :timeout
     end
   end
 end

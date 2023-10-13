@@ -12,7 +12,7 @@ defmodule Dake.Cli do
   end
 
   defmodule Run do
-    @enforce_keys [:tgid, :args, :push, :output, :tag, :timeout, :parallelism]
+    @enforce_keys [:tgid, :args, :push, :output, :tag, :timeout, :parallelism, :verbose]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
@@ -23,7 +23,8 @@ defmodule Dake.Cli do
             output: boolean(),
             tag: nil | String.t(),
             timeout: timeout(),
-            parallelism: pos_integer()
+            parallelism: pos_integer(),
+            verbose: boolean()
           }
   end
 
@@ -82,14 +83,17 @@ defmodule Dake.Cli do
             ]
           ],
           flags: [
+            verbose: [
+              long: "--verbose",
+              help: "Show jobs log to the console"
+            ],
             push: [
               long: "--push",
               help: "Includes push targets (ref. @push directive) in the pipeline run"
             ],
             output: [
               long: "--output",
-              help:
-                "Output the target artifacts (ref. @output directive) under #{Dake.Const.dake_output_dir()} directory"
+              help: "Output the target artifacts (ref. @output directive) under #{Dake.Const.output_dir()} directory"
             ]
           ],
           options: [
@@ -146,7 +150,8 @@ defmodule Dake.Cli do
           output: cli.flags.output,
           tag: cli.options.tag,
           timeout: timeout,
-          parallelism: cli.options.parallelism
+          parallelism: cli.options.parallelism,
+          verbose: cli.flags.verbose
         }
 
         {:ok, run}

@@ -1,9 +1,13 @@
 defmodule Dake.Const do
-  defmacro dake_dir do
-    quote do: ".dake"
+  defmacro tmp_dir do
+    quote do: ".dake/tmp"
   end
 
-  defmacro dake_output_dir do
-    quote do: ".dake_output"
+  defmacro output_dir do
+    quote do: ".dake/output"
+  end
+
+  defmacro log_dir do
+    quote do: ".dake/log"
   end
 end

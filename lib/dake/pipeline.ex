@@ -1,38 +1,48 @@
+defmodule Dake.Pipeline.Error do
+  defexception [:message]
+end
+
 defmodule Dake.Pipeline do
   alias Dake.Cli.Run
   alias Dake.Parser.{Dakefile, Directive, Docker, Target}
-  alias Dake.{Dag, Type}
+  alias Dake.{Const, Dag, Reporter, Type}
 
+  require Dake.Reporter.Status
   require Dake.Const
 
   @typep uuid :: String.t()
 
   @spec build(Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Dakefile{} = dakefile, graph) do
-    setup_dirs()
+    setup_dirs(run)
+
     uuid = uuid()
     dakefile = qualify_dakefile_targets(uuid, dakefile)
     build_dask_pipeline(uuid, run, dakefile, graph)
   end
 
-  @spec setup_dirs :: :ok
-  defp setup_dirs do
-    [Dake.Const.dake_dir(), Dake.Const.dake_output_dir()]
-    |> Enum.each(fn dir ->
+  @spec setup_dirs(Run.t()) :: :ok
+  defp setup_dirs(%Run{} = run) do
+    dirs = [Const.tmp_dir()]
+    dirs = dirs ++ if(run.output, do: [Const.output_dir()], else: [])
+    dirs = dirs ++ if(run.verbose, do: [Const.log_dir()], else: [])
+
+    Enum.each(dirs, fn dir ->
       File.rm_rf!(dir)
-      File.mkdir!(dir)
+      File.mkdir_p!(dir)
     end)
   end
 
   @spec cleanup_dirs :: :ok
   defp cleanup_dirs do
-    File.rm_rf!(Dake.Const.dake_dir())
+    File.rm_rf!(Const.tmp_dir())
+
     :ok
   end
 
   @spec qualify_dakefile_targets(uuid, Dakefile.t()) :: Dakefile.t()
   defp qualify_dakefile_targets(uuid, %Dakefile{} = dakefile) do
-    update_fn = fn "+" <> tgid -> fq_tgid(tgid, uuid) end
+    update_fn = fn "+" <> tgid -> fq_image(tgid, uuid) end
 
     dakefile =
       update_in(
@@ -62,8 +72,11 @@ defmodule Dake.Pipeline do
     )
   end
 
-  @spec fq_tgid(Type.tgid(), uuid()) :: String.t()
-  defp fq_tgid(tgid, uuid), do: "#{tgid}:#{uuid}"
+  @spec fq_image(Type.tgid(), uuid()) :: String.t()
+  defp fq_image(tgid, uuid), do: "#{tgid}:#{uuid}"
+
+  @spec fq_output_container(Type.tgid(), uuid()) :: String.t()
+  defp fq_output_container(tgid, uuid), do: "output-#{tgid}-#{uuid}"
 
   @spec build_dask_pipeline(uuid(), Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
   defp build_dask_pipeline(uuid, %Run{} = run, %Dakefile{} = dakefile, graph) do
@@ -99,7 +112,7 @@ defmodule Dake.Pipeline do
   @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), %{Type.tgid() => Dakefile.target()}, uuid()) ::
           Dask.t()
   defp build_dask_job(%Run{} = run, %Dakefile{} = dakefile, dask, tgid, targets_map, uuid) do
-    Dask.job(dask, tgid, fn ^tgid, _upstream_jobs_status ->
+    job_fn = fn ^tgid, _upstream_jobs_status ->
       case Map.fetch!(targets_map, tgid) do
         %Target.Alias{} ->
           :ok
@@ -107,7 +120,33 @@ defmodule Dake.Pipeline do
         %Target.Docker{} = docker ->
           build_dask_job_docker(run, dakefile, docker, tgid, uuid)
       end
-    end)
+
+      :ok
+    end
+
+    job_on_exit_fn = fn ^tgid, _upstream_results, job_exec_result, elapsed_time_ms ->
+      elapsed_time_s = elapsed_time_ms * 1_000
+
+      case job_exec_result do
+        {:job_ok, :ok} ->
+          Reporter.job_report(tgid, Reporter.Status.ok(), nil, elapsed_time_s)
+
+        :job_timeout ->
+          Reporter.job_report(tgid, Reporter.Status.timeout(), nil, elapsed_time_s)
+
+        {:job_error, %Dake.Pipeline.Error{}, _stacktrace} ->
+          Reporter.job_report(tgid, Reporter.Status.error("", nil), nil, elapsed_time_s)
+
+        {:job_error, reason, stacktrace} ->
+          error_message = "Internal dake error"
+          Reporter.job_report(tgid, Reporter.Status.error(reason, stacktrace), error_message, elapsed_time_s)
+
+        :job_skipped ->
+          :ok
+      end
+    end
+
+    Dask.job(dask, tgid, job_fn, :infinity, job_on_exit_fn)
   end
 
   @spec build_dask_job_docker(Run.t(), Dakefile.t(), Target.Docker.t(), Type.tgid(), uuid()) :: :ok
@@ -116,7 +155,7 @@ defmodule Dake.Pipeline do
       copy_included_ref_ctx(docker.included_from_ref)
     end
 
-    dockerfile_path = Path.join(Dake.Const.dake_dir(), "/Dockerfile.#{tgid}")
+    dockerfile_path = Path.join(Const.tmp_dir(), "Dockerfile.#{tgid}")
     write_dockerfile(dakefile.args, docker, dockerfile_path)
 
     args = docker_build_cmd_args(run, dockerfile_path, tgid, uuid)
@@ -142,45 +181,50 @@ defmodule Dake.Pipeline do
 
     job_on_exit_fn = fn _, _, _, _ ->
       cleanup_dirs()
-
-      images = Enum.map(pipeline_tgids, &fq_tgid(&1, uuid))
-      docker_cleanup_images(images)
+      docker_cleanup(pipeline_tgids, uuid)
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec docker_cleanup_images([String.t()]) :: :ok
-  defp docker_cleanup_images(images) do
-    {_, 0} = System.cmd("docker", ["image", "rm", "--force" | images])
+  @spec docker_cleanup([Type.tgid()], uuid()) :: :ok
+  defp docker_cleanup(pipeline_tgids, uuid) do
+    images = Enum.map(pipeline_tgids, &fq_image(&1, uuid))
+    image_rm_cmd = ["image", "rm", "--force" | images]
+    {_, 0} = System.cmd("docker", image_rm_cmd, stderr_to_stdout: true)
+
+    containers = Enum.map(pipeline_tgids, &fq_output_container(&1, uuid))
+    container_rm_cmd = ["container", "rm", "--force" | containers]
+    {_, 0} = System.cmd("docker", container_rm_cmd, stderr_to_stdout: true)
+
     :ok
   end
 
   @spec docker_build(Type.tgid(), [String.t()]) :: :ok
   defp docker_build(tgid, args) do
-    case System.cmd("docker", args, into: IO.stream()) do
+    case System.cmd("docker", args, stderr_to_stdout: true, into: Reporter.collector(tgid)) do
       {_, 0} -> :ok
-      {_, _exit_status} -> raise "Target #{tgid} failed"
+      {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} failed"
     end
   end
 
   @spec docker_output(Type.tgid(), uuid(), [Path.t()]) :: :ok
   defp docker_output(tgid, uuid, outputs) do
-    docker_image = fq_tgid(tgid, uuid)
-    tmp_container = "output-#{tgid}-#{uuid}"
+    docker_image = fq_image(tgid, uuid)
+    tmp_container = fq_output_container(tgid, uuid)
 
-    {_, 0} = System.cmd("docker", ["create", "--name", tmp_container, docker_image])
+    container_create_cmd = ["container", "create", "--name", tmp_container, docker_image]
+    {_, 0} = System.cmd("docker", container_create_cmd, stderr_to_stdout: true)
 
     Enum.each(outputs, fn output ->
-      case System.cmd("docker", ["container", "cp", "#{tmp_container}:#{output}", Dake.Const.dake_output_dir()],
-             into: IO.stream()
-           ) do
+      # TODO  into: IO.stream()
+      container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", Const.output_dir()]
+
+      case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: Reporter.collector(tgid)) do
         {_, 0} -> :ok
-        {_, _exit_status} -> raise "Target #{tgid} output copy failed"
+        {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} output copy failed"
       end
     end)
-
-    {_, 0} = System.cmd("docker", ["container", "rm", tmp_container])
 
     :ok
   end
@@ -191,7 +235,7 @@ defmodule Dake.Pipeline do
       ["buildx", "build"],
       ["--progress", "plain"],
       ["--file", dockerfile_path],
-      ["--tag", fq_tgid(tgid, uuid)],
+      ["--tag", fq_image(tgid, uuid)],
       if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
       Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
       ["."]
@@ -213,10 +257,10 @@ defmodule Dake.Pipeline do
 
   @spec copy_included_ref_ctx(String.t()) :: :ok
   defp copy_included_ref_ctx(included_ref) do
-    include_ctx_dir = Path.join(Path.dirname(included_ref), Dake.Const.dake_dir())
+    include_ctx_dir = Path.join(Path.dirname(included_ref), Const.tmp_dir())
 
     if File.exists?(include_ctx_dir) do
-      File.cp_r!(include_ctx_dir, Dake.Const.dake_dir())
+      File.cp_r!(include_ctx_dir, Const.tmp_dir())
     end
 
     :ok

@@ -1,9 +1,11 @@
 defmodule Dake do
-  alias Dake.{Cli, Cmd, Dag, Parser, Preprocessor, Validator}
+  alias Dake.{Cli, Cmd, Dag, Parser, Preprocessor, Reporter, Validator}
   alias Dake.Parser.Dakefile
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
+    Reporter.start_link()
+
     cmd =
       cli_args
       |> Cli.parse()
@@ -21,8 +23,11 @@ defmodule Dake do
     |> Validator.check(graph)
     |> exit_on_validation_error()
 
-    Cmd.exec(cmd, dakefile, graph)
-    |> exit_status()
+    cmd_res = Cmd.exec(cmd, dakefile, graph)
+
+    Reporter.stop(cmd_res)
+
+    exit_status(cmd_res)
   end
 
   @spec load_and_parse_dakefile(Path.t()) :: Dakefile.t()
@@ -42,8 +47,9 @@ defmodule Dake do
   defp args(_cmd), do: %{}
 
   @spec exit_status(Cmd.result()) :: no_return()
-  defp exit_status(:ok), do: Dake.System.halt(:ok, "")
-  defp exit_status({:error, reason}), do: Dake.System.halt(:error, "Pipeline failed: #{inspect(reason)}")
+  defp exit_status(:ok), do: Dake.System.halt(:ok)
+  defp exit_status({:error, _reason}), do: Dake.System.halt(:error)
+  defp exit_status(:timeout), do: Dake.System.halt(:error)
 
   @spec exit_on_dakefile_read_error({:ok, data} | {:error, File.posix()}, Path.t()) :: data when data: String.t()
   defp exit_on_dakefile_read_error({:ok, data}, _path), do: data
