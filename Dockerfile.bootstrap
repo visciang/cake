@@ -17,6 +17,7 @@ RUN mix escript.build
 COPY dake /dake
 
 FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} as app
-RUN apk add --no-cache git docker-cli-buildx
+RUN apk add --no-cache bash git docker-cli-buildx
+COPY priv/dake_cmd.sh /usr/bin/
 COPY --from=build /code/dake /dake
 ENTRYPOINT [ "/dake" ]

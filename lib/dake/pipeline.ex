@@ -166,7 +166,10 @@ defmodule Dake.Pipeline do
 
   @spec docker_build(Type.tgid(), [String.t()]) :: :ok
   defp docker_build(tgid, args) do
-    case System.cmd("docker", args, stderr_to_stdout: true, into: Reporter.collector(tgid)) do
+    docker = System.find_executable("docker")
+    args = [docker, "buildx", "build" | args]
+
+    case System.cmd("/usr/bin/dake_cmd.sh", args, stderr_to_stdout: true, into: Reporter.collector(tgid)) do
       {_, 0} -> :ok
       {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} failed"
     end
@@ -175,7 +178,6 @@ defmodule Dake.Pipeline do
   @spec docker_build_cmd_args(Run.t(), Path.t(), Type.tgid(), uuid()) :: [String.t()]
   defp docker_build_cmd_args(%Run{} = run, dockerfile_path, tgid, uuid) do
     Enum.concat([
-      ["buildx", "build"],
       ["--progress", "plain"],
       ["--file", dockerfile_path],
       ["--tag", fq_image(tgid, uuid)],
@@ -208,7 +210,7 @@ defmodule Dake.Pipeline do
   @spec docker_shell(Type.tgid(), uuid()) :: :ok
   defp docker_shell(tgid, uuid) do
     run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh", fq_image(tgid, uuid)]
-    port_opts = [:nouse_stdio, :exit_status, parallelism: true, args: run_cmd_args]
+    port_opts = [:nouse_stdio, :exit_status, args: run_cmd_args]
     port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
 
     receive do
