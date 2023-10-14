@@ -96,21 +96,26 @@ defmodule Dake.Reporter do
         _from,
         %State{} = state
       ) do
-    {state, log_file_} = log_file(state, job_id)
+    {state, log_file} = log_file(state, job_id)
     state = track_jobs(job_id, status, state)
 
-    duration = if elapsed != nil, do: " (#{delta_time_string(elapsed)}) ", else: ""
-    description = if description != nil, do: "| #{description}", else: ""
     {status_icon, status_info} = status_icon_info(status)
+    job_id = if status == Status.log(), do: [:yellow, job_id, :reset], else: job_id
+    duration = if elapsed != nil, do: " (#{delta_time_string(elapsed)}) ", else: ""
 
-    job_id = if status == Status.log(), do: IO.ANSI.format([:yellow, job_id]), else: job_id
+    if description == nil do
+      log_puts(log_file, [status_icon, " - ", :bright, job_id, :reset, "  ", duration, " ", :faint, "", :reset])
+    else
+      description
+      |> String.split(~r/\R/)
+      |> Enum.each(fn line ->
+        line = "| #{line}"
+        ansidata = [status_icon, " - ", :bright, job_id, :reset, "  ", duration, " ", :faint, line, :reset]
+        log_puts(log_file, ansidata)
+      end)
+    end
 
-    log_puts(
-      log_file_,
-      IO.ANSI.format([status_icon, " - ", :bright, job_id, :normal, "  ", duration, " ", :faint, description])
-    )
-
-    if status_info not in [nil, ""], do: log_puts(log_file_, "  - #{status_info}")
+    if status_info not in [nil, ""], do: log_puts(log_file, "  - #{status_info}")
 
     {:reply, :ok, state}
   end
@@ -123,47 +128,33 @@ defmodule Dake.Reporter do
 
   @impl true
   def handle_call({:logs_to_file, enabled}, _from, %State{} = state) do
+    if enabled, do: File.mkdir_p!(state.logs_dir)
+
     {:reply, :ok, put_in(state.logs_to_file, enabled)}
   end
 
   @impl true
-  def handle_call(
-        {:stop, reason},
-        _from,
-        %State{
-          logs_to_file: logs_to_file,
-          logs_dir: logs_dir,
-          job_id_to_log_file: job_id_to_log_file,
-          start_time: start_time,
-          success_jobs: success_jobs,
-          failed_jobs: failed_jobs
-        } = state
-      ) do
+  def handle_call({:stop, reason}, _from, %State{} = state) do
     end_time = time()
 
-    if logs_to_file do
-      log_stdout_puts("\nLogs directory: #{logs_dir}")
+    if state.logs_to_file do
+      log_stdout_puts("\nLogs directory: #{state.logs_dir}")
 
-      job_id_to_log_file
+      state.job_id_to_log_file
       |> Map.values()
       |> Enum.each(&File.close/1)
     end
 
     end_message =
       case reason do
-        :ok ->
-          IO.ANSI.format([:green, "Completed (#{length(success_jobs)} jobs)"])
-
-        {:error, _} ->
-          IO.ANSI.format([:red, "Failed jobs:", :normal, Enum.map(Enum.sort(failed_jobs), &"\n- #{&1}"), "\n"])
-
-        :timeout ->
-          IO.ANSI.format([:red, "Timeout"])
+        :ok -> [:green, "Completed (#{length(state.success_jobs)} jobs)", :reset]
+        {:error, _} -> [:red, "Failed jobs:", :reset, Enum.map(Enum.sort(state.failed_jobs), &"\n- #{&1}"), "\n"]
+        :timeout -> [:red, "Timeout", :reset]
       end
 
-    duration = delta_time_string(end_time - start_time)
+    duration = delta_time_string(end_time - state.start_time)
 
-    log_stdout_puts("\n#{end_message} (#{duration})\n")
+    log_stdout_puts(["\n", end_message, " (#{duration})\n"])
 
     {:stop, :normal, :ok, state}
   end
@@ -186,24 +177,12 @@ defmodule Dake.Reporter do
   defp status_icon_info(status) do
     case status do
       Status.ok() ->
-        {IO.ANSI.format([:green, "✔"]), nil}
+        {[:green, "✔", :reset], nil}
 
       Status.error(reason, stacktrace) ->
-        reason_str =
-          if is_binary(reason) do
-            reason
-          else
-            inspect(reason)
-          end
-
-        reason_str =
-          if stacktrace != nil do
-            [reason_str, "\n", stacktrace]
-          else
-            reason_str
-          end
-
-        {IO.ANSI.format([:red, "✘"]), reason_str}
+        reason_str = if is_binary(reason), do: reason, else: inspect(reason)
+        reason_str = if stacktrace != nil, do: [reason_str, "\n", stacktrace], else: reason_str
+        {[:red, "✘", :reset], reason_str}
 
       Status.timeout() ->
         {"⏰", nil}
@@ -213,19 +192,19 @@ defmodule Dake.Reporter do
     end
   end
 
-  @spec log_puts(nil | File.io_device(), IO.chardata()) :: :ok
+  @spec log_puts(nil | File.io_device(), IO.ANSI.ansidata()) :: :ok
   defp log_puts(log_file, message) do
     log_stdout_puts(message)
 
     if log_file != nil do
-      IO.write(log_file, message)
-      IO.write(log_file, "\n")
+      message = message |> List.flatten() |> Enum.reject(&is_atom(&1))
+      IO.write(log_file, [message, "\n"])
     end
   end
 
-  @spec log_stdout_puts(IO.chardata()) :: :ok
+  @spec log_stdout_puts(IO.ANSI.ansidata()) :: :ok
   defp log_stdout_puts(message) do
-    IO.puts(message)
+    message |> IO.ANSI.format() |> IO.puts()
     :ok
   end
 
@@ -239,8 +218,8 @@ defmodule Dake.Reporter do
     {state, job_id_to_log_file[job_id]}
   end
 
-  defp log_file(%State{logs_dir: logs_dir} = state, job_id) do
-    file = File.open!(Path.join(logs_dir, "#{job_id}.txt"), [:utf8, :write])
+  defp log_file(%State{} = state, job_id) do
+    file = File.open!(Path.join(state.logs_dir, "#{job_id}.txt"), [:utf8, :write])
     state = update_in(state.job_id_to_log_file, &Map.put(&1, job_id, file))
     {state, file}
   end

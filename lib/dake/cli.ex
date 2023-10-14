@@ -1,5 +1,5 @@
 defmodule Dake.Cli do
-  alias Dake.{Cmd, Type}
+  alias Dake.{Cmd, Const, Type}
 
   require Dake.Const
 
@@ -12,7 +12,7 @@ defmodule Dake.Cli do
   end
 
   defmodule Run do
-    @enforce_keys [:tgid, :args, :push, :output, :tag, :timeout, :parallelism, :verbose]
+    @enforce_keys [:tgid, :args, :push, :output, :tag, :timeout, :parallelism, :verbose, :save_logs, :shell]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
@@ -24,7 +24,9 @@ defmodule Dake.Cli do
             tag: nil | String.t(),
             timeout: timeout(),
             parallelism: pos_integer(),
-            verbose: boolean()
+            verbose: boolean(),
+            save_logs: boolean(),
+            shell: boolean()
           }
   end
 
@@ -87,13 +89,21 @@ defmodule Dake.Cli do
               long: "--verbose",
               help: "Show jobs log to the console"
             ],
+            save_logs: [
+              long: "--save-logs",
+              help: "Save logs under #{Const.log_dir()} directory"
+            ],
             push: [
               long: "--push",
               help: "Includes push targets (ref. @push directive) in the pipeline run"
             ],
             output: [
               long: "--output",
-              help: "Output the target artifacts (ref. @output directive) under #{Dake.Const.output_dir()} directory"
+              help: "Output the target artifacts (ref. @output directive) under #{Const.output_dir()} directory"
+            ],
+            shell: [
+              long: "--shell",
+              help: "Open an interactive shell in the target"
             ]
           ],
           options: [
@@ -151,7 +161,9 @@ defmodule Dake.Cli do
           tag: cli.options.tag,
           timeout: timeout,
           parallelism: cli.options.parallelism,
-          verbose: cli.flags.verbose
+          verbose: cli.flags.verbose,
+          save_logs: cli.flags.save_logs,
+          shell: cli.flags.shell
         }
 
         {:ok, run}

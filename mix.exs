@@ -14,9 +14,14 @@ defmodule Dake.MixProject do
         "coveralls.html": :test,
         docs: :dev
       ],
-      test_coverage: [tool: ExCoveralls],
+      test_coverage: [
+        tool: ExCoveralls
+      ],
       deps: deps(),
-      escript: [main_module: Dake]
+      escript: [
+        main_module: Dake,
+        emu_args: "-noinput"
+      ]
     ]
   end
 

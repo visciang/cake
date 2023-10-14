@@ -16,9 +16,7 @@ defimpl Collectable, for: Dake.Reporter.Collector do
   def into(%Reporter.Collector{job_id: job_id} = original) do
     collector_fun = fn
       _, {:cont, log_message} ->
-        log_message
-        |> String.split(~r/\R/)
-        |> Enum.each(&Reporter.job_report(job_id, Reporter.Status.log(), &1, nil))
+        Reporter.job_report(job_id, Reporter.Status.log(), log_message, nil)
 
         original
 

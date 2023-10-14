@@ -1,12 +1,11 @@
 TODO
 
-- cli log reporter
-- shell
 - dot
 - supportare include path: local, http, git
+- namespace per qualificare i target inclusi
 - "service tests"
     docker compose like (build --network ?)
 - Dakefile FROM DOCKERFILE
 - run against a private buildkit instance
-- project / namespace per qualificare i target?
+- System.cmd adn zombies!
 - private targets ?: .target

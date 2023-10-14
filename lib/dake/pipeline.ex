@@ -25,7 +25,6 @@ defmodule Dake.Pipeline do
   defp setup_dirs(%Run{} = run) do
     dirs = [Const.tmp_dir()]
     dirs = dirs ++ if(run.output, do: [Const.output_dir()], else: [])
-    dirs = dirs ++ if(run.verbose, do: [Const.log_dir()], else: [])
 
     Enum.each(dirs, fn dir ->
       File.rm_rf!(dir)
@@ -96,7 +95,8 @@ defmodule Dake.Pipeline do
 
     dask =
       Enum.reduce(pipeline_tgids, Dask.new(), fn tgid, dask ->
-        build_dask_job(run, dakefile, dask, tgid, targets_map, uuid)
+        target = Map.fetch!(targets_map, tgid)
+        build_dask_job(run, dakefile, dask, tgid, target, uuid)
       end)
 
     dask =
@@ -109,11 +109,10 @@ defmodule Dake.Pipeline do
     Dask.flow(dask, run.tgid, :cleanup)
   end
 
-  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), %{Type.tgid() => Dakefile.target()}, uuid()) ::
-          Dask.t()
-  defp build_dask_job(%Run{} = run, %Dakefile{} = dakefile, dask, tgid, targets_map, uuid) do
+  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), Dakefile.target(), uuid()) :: Dask.t()
+  defp build_dask_job(%Run{} = run, %Dakefile{} = dakefile, dask, tgid, target, uuid) do
     job_fn = fn ^tgid, _upstream_jobs_status ->
-      case Map.fetch!(targets_map, tgid) do
+      case target do
         %Target.Alias{} ->
           :ok
 
@@ -160,6 +159,12 @@ defmodule Dake.Pipeline do
 
     args = docker_build_cmd_args(run, dockerfile_path, tgid, uuid)
     docker_build(tgid, args)
+
+    if run.shell and tgid == run.tgid do
+      IO.puts("\nStarting interactive shell in #{run.tgid}:\n")
+
+      docker_shell(tgid, uuid)
+    end
 
     if run.output do
       outputs =
@@ -208,6 +213,19 @@ defmodule Dake.Pipeline do
     end
   end
 
+  @spec docker_shell(Type.tgid(), uuid()) :: :ok
+  defp docker_shell(tgid, uuid) do
+    run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh", fq_image(tgid, uuid)]
+    port_opts = [:nouse_stdio, :exit_status, parallelism: true, args: run_cmd_args]
+    port = Port.open({:spawn_executable, "/usr/local/bin/docker"}, port_opts)
+
+    receive do
+      {^port, {:exit_status, _}} -> :ok
+    end
+
+    :ok
+  end
+
   @spec docker_output(Type.tgid(), uuid(), [Path.t()]) :: :ok
   defp docker_output(tgid, uuid, outputs) do
     docker_image = fq_image(tgid, uuid)
@@ -217,7 +235,6 @@ defmodule Dake.Pipeline do
     {_, 0} = System.cmd("docker", container_create_cmd, stderr_to_stdout: true)
 
     Enum.each(outputs, fn output ->
-      # TODO  into: IO.stream()
       container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", Const.output_dir()]
 
       case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: Reporter.collector(tgid)) do
@@ -244,8 +261,7 @@ defmodule Dake.Pipeline do
 
   @spec uuid :: uuid()
   defp uuid do
-    :crypto.strong_rand_bytes(16)
-    |> Base.encode32(case: :lower, padding: false)
+    Base.encode32(:crypto.strong_rand_bytes(16), case: :lower, padding: false)
   end
 
   @spec push_target?(Dakefile.target()) :: boolean()
