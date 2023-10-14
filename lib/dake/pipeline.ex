@@ -86,6 +86,10 @@ defmodule Dake.Pipeline do
       Dake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
     end
 
+    if run.shell and match?(%Target.Alias{}, targets_map[run.tgid]) do
+      Dake.System.halt(:error, "cannot shell into and \"alias\" target")
+    end
+
     pipeline_tgids =
       if run.push do
         Enum.reject(pipeline_tgids, &push_target?(targets_map[&1]))
@@ -217,7 +221,7 @@ defmodule Dake.Pipeline do
   defp docker_shell(tgid, uuid) do
     run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh", fq_image(tgid, uuid)]
     port_opts = [:nouse_stdio, :exit_status, parallelism: true, args: run_cmd_args]
-    port = Port.open({:spawn_executable, "/usr/local/bin/docker"}, port_opts)
+    port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
 
     receive do
       {^port, {:exit_status, _}} -> :ok

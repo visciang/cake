@@ -54,11 +54,8 @@ defmodule Dake.Reporter do
     report? = status != Status.log() or :ets.lookup_element(@name, :logs_enabled, 2)
 
     if report? do
-      GenServer.call(
-        @name,
-        %Report{job_id: job_id, status: status, description: description, elapsed: elapsed},
-        :infinity
-      )
+      report = %Report{job_id: job_id, status: status, description: description, elapsed: elapsed}
+      GenServer.call(@name, report, :infinity)
     else
       :ok
     end
