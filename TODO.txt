@@ -1,8 +1,8 @@
 TODO
 
+- namespace per qualificare i target inclusi
 - dot
 - supportare include path: local, http, git
-- namespace per qualificare i target inclusi
 - "service tests"
     docker compose like (build --network ?)
 - Dakefile FROM DOCKERFILE

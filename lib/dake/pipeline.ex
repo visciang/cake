@@ -15,10 +15,7 @@ defmodule Dake.Pipeline do
   @spec build(Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Dakefile{} = dakefile, graph) do
     setup_dirs(run)
-
-    uuid = uuid()
-    dakefile = qualify_dakefile_targets(uuid, dakefile)
-    build_dask_pipeline(uuid, run, dakefile, graph)
+    build_dask_pipeline(run, dakefile, graph)
   end
 
   @spec setup_dirs(Run.t()) :: :ok
@@ -39,62 +36,20 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec qualify_dakefile_targets(uuid, Dakefile.t()) :: Dakefile.t()
-  defp qualify_dakefile_targets(uuid, %Dakefile{} = dakefile) do
-    update_fn = fn "+" <> tgid -> fq_image(tgid, uuid) end
-
-    dakefile =
-      update_in(
-        dakefile,
-        [
-          Access.key!(:targets),
-          Access.filter(&match?(%Target.Docker{}, &1)),
-          Access.key!(:commands),
-          Access.filter(&match?(%Docker.From{image: "+" <> _}, &1)),
-          Access.key!(:image)
-        ],
-        update_fn
-      )
-
-    update_in(
-      dakefile,
-      [
-        Access.key!(:targets),
-        Access.filter(&match?(%Target.Docker{}, &1)),
-        Access.key!(:commands),
-        Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
-        Access.key!(:options),
-        Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
-        Access.key!(:value)
-      ],
-      update_fn
-    )
-  end
-
-  @spec fq_image(Type.tgid(), uuid()) :: String.t()
-  defp fq_image(tgid, uuid), do: "#{tgid}:#{uuid}"
-
-  @spec fq_output_container(Type.tgid(), uuid()) :: String.t()
-  defp fq_output_container(tgid, uuid), do: "output-#{tgid}-#{uuid}"
-
-  @spec build_dask_pipeline(uuid(), Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
-  defp build_dask_pipeline(uuid, %Run{} = run, %Dakefile{} = dakefile, graph) do
+  @spec build_dask_pipeline(Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
+  defp build_dask_pipeline(%Run{} = run, %Dakefile{} = dakefile, graph) do
+    uuid = uuid()
+    dakefile = fq_dakefile_targets(uuid, dakefile)
     targets_map = Map.new(dakefile.targets, &{&1.tgid, &1})
     pipeline_tgids = Dag.reaching_tgids(graph, run.tgid)
 
-    if run.push and push_target?(targets_map[run.tgid]) do
-      Dake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
-    end
-
-    if run.shell and match?(%Target.Alias{}, targets_map[run.tgid]) do
-      Dake.System.halt(:error, "cannot shell into and \"alias\" target")
-    end
+    validate_cmd(run, Map.fetch!(targets_map, run.tgid))
 
     pipeline_tgids =
       if run.push do
-        Enum.reject(pipeline_tgids, &push_target?(targets_map[&1]))
-      else
         pipeline_tgids
+      else
+        Enum.reject(pipeline_tgids, &push_target?(targets_map[&1]))
       end
 
     dask =
@@ -217,17 +172,17 @@ defmodule Dake.Pipeline do
     end
   end
 
-  @spec docker_shell(Type.tgid(), uuid()) :: :ok
-  defp docker_shell(tgid, uuid) do
-    run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh", fq_image(tgid, uuid)]
-    port_opts = [:nouse_stdio, :exit_status, parallelism: true, args: run_cmd_args]
-    port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
-
-    receive do
-      {^port, {:exit_status, _}} -> :ok
-    end
-
-    :ok
+  @spec docker_build_cmd_args(Run.t(), Path.t(), Type.tgid(), uuid()) :: [String.t()]
+  defp docker_build_cmd_args(%Run{} = run, dockerfile_path, tgid, uuid) do
+    Enum.concat([
+      ["buildx", "build"],
+      ["--progress", "plain"],
+      ["--file", dockerfile_path],
+      ["--tag", fq_image(tgid, uuid)],
+      if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
+      Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
+      ["."]
+    ])
   end
 
   @spec docker_output(Type.tgid(), uuid(), [Path.t()]) :: :ok
@@ -250,22 +205,17 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec docker_build_cmd_args(Run.t(), Path.t(), Type.tgid(), uuid()) :: [String.t()]
-  defp docker_build_cmd_args(%Run{} = run, dockerfile_path, tgid, uuid) do
-    Enum.concat([
-      ["buildx", "build"],
-      ["--progress", "plain"],
-      ["--file", dockerfile_path],
-      ["--tag", fq_image(tgid, uuid)],
-      if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
-      Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
-      ["."]
-    ])
-  end
+  @spec docker_shell(Type.tgid(), uuid()) :: :ok
+  defp docker_shell(tgid, uuid) do
+    run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh", fq_image(tgid, uuid)]
+    port_opts = [:nouse_stdio, :exit_status, parallelism: true, args: run_cmd_args]
+    port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
 
-  @spec uuid :: uuid()
-  defp uuid do
-    Base.encode32(:crypto.strong_rand_bytes(16), case: :lower, padding: false)
+    receive do
+      {^port, {:exit_status, _}} -> :ok
+    end
+
+    :ok
   end
 
   @spec push_target?(Dakefile.target()) :: boolean()
@@ -273,6 +223,19 @@ defmodule Dake.Pipeline do
 
   defp push_target?(%Target.Docker{} = docker) do
     Enum.any?(docker.directives, &match?(%Directive.Push{}, &1))
+  end
+
+  @spec validate_cmd(Run.t(), Dakefile.target()) :: :ok | no_return()
+  defp validate_cmd(%Run{} = run, target) do
+    if run.push and push_target?(target) do
+      Dake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
+    end
+
+    if run.shell and match?(%Target.Alias{}, target) do
+      Dake.System.halt(:error, "cannot shell into and \"alias\" target")
+    end
+
+    :ok
   end
 
   @spec copy_included_ref_ctx(String.t()) :: :ok
@@ -292,5 +255,48 @@ defmodule Dake.Pipeline do
     File.write!(path, dockerfile)
 
     :ok
+  end
+
+  @spec fq_dakefile_targets(uuid, Dakefile.t()) :: Dakefile.t()
+  defp fq_dakefile_targets(uuid, %Dakefile{} = dakefile) do
+    update_fn = fn "+" <> tgid -> fq_image(tgid, uuid) end
+
+    dakefile =
+      update_in(
+        dakefile,
+        [
+          Access.key!(:targets),
+          Access.filter(&match?(%Target.Docker{}, &1)),
+          Access.key!(:commands),
+          Access.filter(&match?(%Docker.From{image: "+" <> _}, &1)),
+          Access.key!(:image)
+        ],
+        update_fn
+      )
+
+    update_in(
+      dakefile,
+      [
+        Access.key!(:targets),
+        Access.filter(&match?(%Target.Docker{}, &1)),
+        Access.key!(:commands),
+        Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
+        Access.key!(:options),
+        Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
+        Access.key!(:value)
+      ],
+      update_fn
+    )
+  end
+
+  @spec fq_image(Type.tgid(), uuid()) :: String.t()
+  defp fq_image(tgid, uuid), do: "#{tgid}:#{uuid}"
+
+  @spec fq_output_container(Type.tgid(), uuid()) :: String.t()
+  defp fq_output_container(tgid, uuid), do: "output-#{tgid}-#{uuid}"
+
+  @spec uuid :: uuid()
+  defp uuid do
+    Base.encode32(:crypto.strong_rand_bytes(16), case: :lower, padding: false)
   end
 end
