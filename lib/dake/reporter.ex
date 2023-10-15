@@ -23,8 +23,8 @@ defmodule Dake.Reporter do
             logs_dir: Path.t(),
             job_id_to_log_file: %{String.t() => File.io_device()},
             start_time: integer(),
-            failed_jobs: [String.t()],
-            success_jobs: [String.t()]
+            failed_jobs: MapSet.t(String.t()),
+            success_jobs: MapSet.t(String.t())
           }
   end
 
@@ -82,8 +82,8 @@ defmodule Dake.Reporter do
        logs_dir: Path.join(Const.log_dir(), to_string(DateTime.utc_now())),
        job_id_to_log_file: %{},
        start_time: start_time,
-       success_jobs: [],
-       failed_jobs: []
+       success_jobs: MapSet.new(),
+       failed_jobs: MapSet.new()
      }}
   end
 
@@ -101,7 +101,8 @@ defmodule Dake.Reporter do
     duration = if elapsed != nil, do: " (#{delta_time_string(elapsed)}) ", else: ""
 
     if description == nil do
-      log_puts(log_file, [status_icon, " - ", :bright, job_id, :reset, "  ", duration, " ", :faint, "", :reset])
+      ansidata = [status_icon, " - ", :bright, job_id, :reset, "  ", duration, " ", :faint, "", :reset]
+      log_puts(log_file, ansidata)
     else
       description
       |> String.split(~r/\R/)
@@ -144,7 +145,7 @@ defmodule Dake.Reporter do
 
     end_message =
       case reason do
-        :ok -> [:green, "Completed (#{length(state.success_jobs)} jobs)", :reset]
+        :ok -> [:green, "Completed (#{MapSet.size(state.success_jobs)} jobs)", :reset]
         {:error, _} -> [:red, "Failed jobs:", :reset, Enum.map(Enum.sort(state.failed_jobs), &"\n- #{&1}"), "\n"]
         :timeout -> [:red, "Timeout", :reset]
       end
@@ -159,8 +160,8 @@ defmodule Dake.Reporter do
   @spec track_jobs(String.t(), Status.t(), State.t()) :: State.t()
   defp track_jobs(job_id, status, %State{} = state) do
     case status do
-      Status.error(_reason, _stacktrace) -> update_in(state.failed_jobs, &[job_id | &1])
-      Status.ok() -> update_in(state.success_jobs, &[job_id | &1])
+      Status.error(_reason, _stacktrace) -> update_in(state.failed_jobs, &MapSet.put(&1, job_id))
+      Status.ok() -> update_in(state.success_jobs, &MapSet.put(&1, job_id))
       _ -> state
     end
   end

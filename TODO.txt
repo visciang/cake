@@ -1,12 +1,12 @@
 TODO
 
-- reporter: always show current running jobs (last line)
 - namespace per qualificare i target inclusi
-- dot
 - supportare include path: local, http, git
+- local task
+- dot
 - "service tests"
     docker compose like (build --network ?)
 - Dakefile FROM DOCKERFILE
 - run against a private buildkit instance
-- System.cmd adn zombies!
-- private targets ?: .target
+? reporter: always show current running jobs (last line)
+? private targets (.target)

@@ -1,5 +1,5 @@
-@include include/elixir/Dakefile EXTRA_APK="bash git docker-cli-buildx graphviz"
+@include include/elixir/Dakefile ELIXIR_ESCRIPT_EXTRA_APK="bash git docker-cli-buildx graphviz"
 
-app:
+dake.app:
     FROM +elixir.escript
     COPY priv/dake_cmd.sh /usr/bin/

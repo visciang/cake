@@ -79,8 +79,8 @@ elixir.escript-build:
 elixir.escript:
     FROM +elixir.base
     ARG WORKDIR
-    ARG EXTRA_APK
-    RUN apk add --no-cache ${EXTRA_APK}
+    ARG ELIXIR_ESCRIPT_EXTRA_APK
+    RUN apk add --no-cache ${ELIXIR_ESCRIPT_EXTRA_APK}
     COPY --from=+elixir.escript-build ${WORKDIR}/escript /escript
     ENTRYPOINT [ "/escript" ]
 
