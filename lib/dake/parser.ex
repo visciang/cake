@@ -8,7 +8,7 @@ defmodule Dake.Parser do
           | {:error, {context :: String.t(), line :: pos_integer(), column :: pos_integer()}}
 
   nl = string("\n")
-  line = utf8_string([not: ?\n], min: 1)
+  line = utf8_string([not: ?\n], min: 0)
   space = string(" ")
   spaces = times(space, min: 1)
   indent = string("    ")
