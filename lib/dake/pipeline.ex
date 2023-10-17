@@ -87,17 +87,17 @@ defmodule Dake.Pipeline do
 
       case job_exec_result do
         {:job_ok, :ok} ->
-          Reporter.job_report(tgid, Reporter.Status.ok(), nil, elapsed_time_s)
+          Reporter.job_report(tgid, run.ns, Reporter.Status.ok(), nil, elapsed_time_s)
 
         :job_timeout ->
-          Reporter.job_report(tgid, Reporter.Status.timeout(), nil, elapsed_time_s)
+          Reporter.job_report(tgid, run.ns, Reporter.Status.timeout(), nil, elapsed_time_s)
 
         {:job_error, %Dake.Pipeline.Error{} = err, _stacktrace} ->
-          Reporter.job_report(tgid, Reporter.Status.error(err.message, nil), nil, elapsed_time_s)
+          Reporter.job_report(tgid, run.ns, Reporter.Status.error(err.message, nil), nil, elapsed_time_s)
 
         {:job_error, reason, stacktrace} ->
           error_message = "Internal dake error"
-          Reporter.job_report(tgid, Reporter.Status.error(reason, stacktrace), error_message, elapsed_time_s)
+          Reporter.job_report(tgid, run.ns, Reporter.Status.error(reason, stacktrace), error_message, elapsed_time_s)
 
         :job_skipped ->
           :ok
@@ -121,7 +121,7 @@ defmodule Dake.Pipeline do
     write_dockerfile(dakefile.args, docker, dockerfile_path)
 
     args = docker_build_cmd_args(run, dockerfile_path, tgid, uuid)
-    docker_build(tgid, args)
+    docker_build(run, tgid, args)
 
     if run.shell and tgid == run.tgid do
       IO.puts("\nStarting interactive shell in #{run.tgid}:\n")
@@ -135,7 +135,7 @@ defmodule Dake.Pipeline do
         |> Enum.filter(&match?(%Directive.Output{}, &1))
         |> Enum.map(& &1.dir)
 
-      docker_output(tgid, uuid, outputs)
+      docker_output(run, tgid, uuid, outputs)
     end
 
     :ok
@@ -157,6 +157,7 @@ defmodule Dake.Pipeline do
       cmd_res =
         Dake.cmd(
           %Run{
+            ns: "#{run.ns} -> #{dir}",
             tgid: import_.target,
             args: Enum.map(import_.args, &{&1.name, &1.default_value}),
             push: false,
@@ -225,12 +226,13 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec docker_build(Type.tgid(), [String.t()]) :: :ok
-  defp docker_build(tgid, args) do
+  @spec docker_build(Run.t(), Type.tgid(), [String.t()]) :: :ok
+  defp docker_build(%Run{} = run, tgid, args) do
     docker = System.find_executable("docker")
     args = [docker, "buildx", "build" | args]
+    into = Reporter.collector(tgid, run.ns)
 
-    case System.cmd("/usr/bin/dake_cmd.sh", args, stderr_to_stdout: true, into: Reporter.collector(tgid)) do
+    case System.cmd("/usr/bin/dake_cmd.sh", args, stderr_to_stdout: true, into: into) do
       {_, 0} -> :ok
       {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} failed"
     end
@@ -248,8 +250,8 @@ defmodule Dake.Pipeline do
     ])
   end
 
-  @spec docker_output(Type.tgid(), uuid(), [Path.t()]) :: :ok
-  defp docker_output(tgid, uuid, outputs) do
+  @spec docker_output(Run.t(), Type.tgid(), uuid(), [Path.t()]) :: :ok
+  defp docker_output(%Run{} = run, tgid, uuid, outputs) do
     docker_image = fq_image(tgid, uuid)
     tmp_container = fq_output_container(tgid, uuid)
 
@@ -258,8 +260,9 @@ defmodule Dake.Pipeline do
 
     Enum.each(outputs, fn output ->
       container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", Const.output_dir()]
+      into = Reporter.collector(tgid, run.ns)
 
-      case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: Reporter.collector(tgid)) do
+      case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: into) do
         {_, 0} -> :ok
         {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} output copy failed"
       end

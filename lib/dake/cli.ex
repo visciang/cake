@@ -12,11 +12,12 @@ defmodule Dake.Cli do
   end
 
   defmodule Run do
-    @enforce_keys [:tgid, :args, :push, :output, :tag, :timeout, :parallelism, :verbose, :save_logs, :shell]
+    @enforce_keys [:ns, :tgid, :args, :push, :output, :tag, :timeout, :parallelism, :verbose, :save_logs, :shell]
     defstruct @enforce_keys
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
+            ns: String.t(),
             tgid: nil | Type.tgid(),
             args: [arg()],
             push: boolean(),
@@ -154,6 +155,7 @@ defmodule Dake.Cli do
           end
 
         run = %Run{
+          ns: "/",
           tgid: cli.args.target,
           args: target_args,
           push: cli.flags.push,

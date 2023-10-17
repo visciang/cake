@@ -7,6 +7,8 @@ defmodule Dake.Reporter do
   require Dake.Const
   require Dake.Reporter.Status
 
+  @typep ansidata :: IO.ANSI.ansidata()
+
   @name __MODULE__
 
   @time_unit :millisecond
@@ -49,12 +51,12 @@ defmodule Dake.Reporter do
     GenServer.call(@name, {:logs_to_file, enabled}, :infinity)
   end
 
-  @spec job_report(String.t(), Status.t(), nil | String.t(), nil | non_neg_integer()) :: :ok
-  def job_report(job_id, status, description, elapsed) do
+  @spec job_report(String.t(), String.t(), Status.t(), nil | String.t(), nil | non_neg_integer()) :: :ok
+  def job_report(job_id, job_ns, status, description, elapsed) do
     report? = status != Status.log() or :ets.lookup_element(@name, :logs_enabled, 2)
 
     if report? do
-      report = %Report{job_id: job_id, status: status, description: description, elapsed: elapsed}
+      report = %Report{job_id: job_id, job_ns: job_ns, status: status, description: description, elapsed: elapsed}
       GenServer.call(@name, report, :infinity)
     else
       :ok
@@ -66,9 +68,9 @@ defmodule Dake.Reporter do
     System.monotonic_time(@time_unit)
   end
 
-  @spec collector(String.t()) :: Collectable.t()
-  def collector(job_id) do
-    %Collector{job_id: job_id}
+  @spec collector(String.t(), String.t()) :: Collectable.t()
+  def collector(job_id, job_ns) do
+    %Collector{job_id: job_id, job_ns: job_ns}
   end
 
   @impl true
@@ -89,7 +91,7 @@ defmodule Dake.Reporter do
 
   @impl true
   def handle_call(
-        %Report{job_id: job_id, status: status, description: description, elapsed: elapsed},
+        %Report{job_id: job_id, job_ns: job_ns, status: status, description: description, elapsed: elapsed},
         _from,
         %State{} = state
       ) do
@@ -101,14 +103,13 @@ defmodule Dake.Reporter do
     duration = if elapsed != nil, do: " (#{delta_time_string(elapsed)}) ", else: ""
 
     if description == nil do
-      ansidata = [status_icon, " - ", :bright, job_id, :reset, "  ", duration, " ", :faint, "", :reset]
+      ansidata = report_line(status_icon, job_ns, job_id, duration, "")
       log_puts(log_file, ansidata)
     else
       description
       |> String.split(~r/\R/)
       |> Enum.each(fn line ->
-        line = "| #{line}"
-        ansidata = [status_icon, " - ", :bright, job_id, :reset, "  ", duration, " ", :faint, line, :reset]
+        ansidata = report_line(status_icon, job_ns, job_id, duration, "| #{line}")
         log_puts(log_file, ansidata)
       end)
     end
@@ -171,7 +172,7 @@ defmodule Dake.Reporter do
     Dask.Utils.seconds_to_compound_duration(elapsed * @time_unit_scale)
   end
 
-  @spec status_icon_info(Status.t()) :: {IO.chardata(), nil | IO.chardata()}
+  @spec status_icon_info(Status.t()) :: {ansidata(), nil | ansidata()}
   defp status_icon_info(status) do
     case status do
       Status.ok() ->
@@ -188,6 +189,23 @@ defmodule Dake.Reporter do
       Status.log() ->
         {".", nil}
     end
+  end
+
+  @spec report_line(ansidata(), ansidata(), ansidata(), ansidata(), ansidata()) :: ansidata()
+  defp report_line(status_icon, job_ns, job_id, duration, description) do
+    [
+      status_icon,
+      :faint,
+      " (#{job_ns}) ",
+      :reset,
+      :bright,
+      job_id,
+      :reset,
+      "  #{duration} ",
+      :faint,
+      description,
+      :reset
+    ]
   end
 
   @spec log_puts(nil | File.io_device(), IO.ANSI.ansidata()) :: :ok
