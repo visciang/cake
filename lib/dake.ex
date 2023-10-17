@@ -4,15 +4,28 @@ defmodule Dake do
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
-    Reporter.start_link()
-
     cmd =
       cli_args
       |> Cli.parse()
       |> exit_on_cli_args_error()
 
-    dakefile = load_and_parse_dakefile("Dakefile")
-    dakefile = Preprocessor.expand(dakefile, args(cmd))
+    Reporter.start_link()
+    cmd_res = cmd(cmd)
+    Reporter.stop(cmd_res)
+
+    exit_status(cmd_res)
+  end
+
+  @spec cmd(Cmd.t(), Path.t()) :: Cmd.result()
+  def cmd(cmd, dir \\ ".") do
+    cwd = File.cwd!()
+
+    File.cd!(dir)
+
+    dakefile =
+      "Dakefile"
+      |> load_and_parse_dakefile()
+      |> Preprocessor.expand(args(cmd))
 
     graph =
       dakefile
@@ -23,11 +36,11 @@ defmodule Dake do
     |> Validator.check(graph)
     |> exit_on_validation_error()
 
-    cmd_res = Cmd.exec(cmd, dakefile, graph)
+    res = Cmd.exec(cmd, dakefile, graph)
 
-    Reporter.stop(cmd_res)
+    File.cd!(cwd)
 
-    exit_status(cmd_res)
+    res
   end
 
   @spec load_and_parse_dakefile(Path.t()) :: Dakefile.t()

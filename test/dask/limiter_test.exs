@@ -39,7 +39,7 @@ defmodule DakeTest.Dask.Limiter do
       end)
 
     # wait task is up
-    assert_receive({^task_id, :up})
+    assert_receive {^task_id, :up}
 
     {task_id, pid}
   end

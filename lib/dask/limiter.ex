@@ -11,7 +11,8 @@ defmodule Dask.Limiter do
   use GenServer
   require Logger
 
-  @type max_concurrency :: nil | pos_integer()
+  @type t() :: nil | GenServer.server()
+  @type max_concurrency :: pos_integer() | :infinity
 
   defmodule State do
     defstruct [:max_concurrency, :running_jobs, :waiting_list]
@@ -23,28 +24,26 @@ defmodule Dask.Limiter do
           }
   end
 
-  @spec start_link(max_concurrency()) :: GenServer.on_start()
-  def start_link(max_concurrency) do
-    if max_concurrency == nil do
+  @spec start_link(max_concurrency()) :: {:ok, t()} | {:error, {:already_started, pid()} | term()}
+  def start_link(max_concurrency, name \\ nil) do
+    if max_concurrency == :infinity do
       {:ok, nil}
     else
-      GenServer.start_link(__MODULE__, [max_concurrency])
+      opts = if name, do: [name: name], else: []
+      GenServer.start_link(__MODULE__, [max_concurrency], opts)
     end
   end
 
-  @spec wait_my_turn(pid(), term()) :: :ok
-  def wait_my_turn(limiter, name \\ nil) do
-    if limiter == nil do
-      :ok
-    else
-      GenServer.call(limiter, {:wait_my_turn, name}, :infinity)
-    end
-  end
+  @spec wait_my_turn(t(), term()) :: :ok
+  def wait_my_turn(limiter, name \\ nil)
+  def wait_my_turn(nil, _name), do: :ok
+  def wait_my_turn(limiter, name), do: GenServer.call(limiter, {:wait_my_turn, name}, :infinity)
 
-  @spec stats(pid()) :: [running: non_neg_integer(), waiting: non_neg_integer()]
-  def stats(limiter) do
-    GenServer.call(limiter, :stats, :infinity)
-  end
+  @spec stats(t()) :: nil | [running: non_neg_integer(), waiting: non_neg_integer()]
+  # coveralls-ignore-start
+  def stats(nil), do: nil
+  # coveralls-ignore-stop
+  def stats(limiter), do: GenServer.call(limiter, :stats, :infinity)
 
   @impl true
   @spec init([non_neg_integer()]) :: {:ok, State.t()}
@@ -57,9 +56,8 @@ defmodule Dask.Limiter do
     Logger.debug("[process=#{inspect(process)}] (#{inspect(name)}) wait_my_turn #{inspect(state, pretty: true)}")
 
     if map_size(state.running_jobs) == state.max_concurrency do
-      Logger.debug(
-        "[process=#{inspect(process)}] reached max_concurrency=#{state.max_concurrency}, adding process to the waiting list"
-      )
+      Logger.debug("[process=#{inspect(process)}] reached max_concurrency=#{state.max_concurrency}")
+      Logger.debug("adding process to the waiting list")
 
       state = put_in(state.waiting_list, [{name, from} | state.waiting_list])
       {:noreply, state}

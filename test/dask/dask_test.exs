@@ -18,7 +18,7 @@ defmodule DakeTest.Dask do
       job_d2: %{job_c1: :ok, job_c2: :ok}
     ]
 
-    assert match?({:error, _}, workflow_status)
+    assert {:error, :job_skipped} == workflow_status
     assert_workflow_execution(expected_workflow_execution)
   end
 
@@ -55,9 +55,7 @@ defmodule DakeTest.Dask do
       Dask.new()
       |> Dask.job(:job_1, test_job_timeout_fun, 100)
       |> Dask.job(:job_2, test_job_fun)
-      |> Dask.job(:job_3, test_job_fun)
       |> Dask.flow(:job_1, :job_2)
-      |> Dask.flow(:job_2, :job_3)
       |> Dask.async()
       |> Dask.await(1_000)
 
@@ -65,7 +63,7 @@ defmodule DakeTest.Dask do
       job_1: %{Dask.start_job_id() => :ok}
     ]
 
-    assert match?({:error, _}, workflow_status)
+    assert {:error, :job_skipped} = workflow_status
     assert_workflow_execution(expected_workflow_execution)
   end
 

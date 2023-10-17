@@ -1,22 +1,12 @@
 defmodule Dake.Parser.Dakefile do
-  defmodule Include do
-    # `@include <ref> [<arg>, ...]`.
-
-    @enforce_keys [:ref]
-    defstruct @enforce_keys ++ [args: []]
-
-    @type t :: %__MODULE__{
-            ref: String.t(),
-            args: [Dake.Parser.Docker.Arg.t()]
-          }
-  end
+  alias Dake.Parser.Directive
 
   defstruct includes: [], args: [], targets: []
 
   @type target :: Dake.Parser.Target.Docker.t() | Dake.Parser.Target.Alias.t()
 
   @type t :: %__MODULE__{
-          includes: [Include.t()],
+          includes: [Directive.Include.t()],
           args: [Dake.Parser.Docker.Arg.t()],
           targets: [target()]
         }

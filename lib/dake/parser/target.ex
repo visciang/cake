@@ -2,14 +2,12 @@ defmodule Dake.Parser.Target do
   defmodule Alias do
     # Alias target group `alias: <target>+`
 
-    alias Dake.Type
-
     @enforce_keys [:tgid, :tgids]
     defstruct @enforce_keys
 
     @type t :: %__MODULE__{
-            tgid: Type.tgid(),
-            tgids: [Type.tgid(), ...]
+            tgid: Dake.Type.tgid(),
+            tgids: [Dake.Type.tgid(), ...]
           }
   end
 
@@ -19,8 +17,6 @@ defmodule Dake.Parser.Target do
     #     FROM image
     #     ARG X=1
     #     RUN ...
-
-    alias Dake.Type
 
     @enforce_keys [:tgid, :commands]
     defstruct @enforce_keys ++ [included_from_ref: nil, directives: []]
@@ -35,7 +31,7 @@ defmodule Dake.Parser.Target do
             | Dake.Parser.Docker.Command.t()
 
     @type t :: %__MODULE__{
-            tgid: Type.tgid(),
+            tgid: Dake.Type.tgid(),
             directives: [directive()],
             commands: [command()],
             included_from_ref: nil | String.t()

@@ -4,7 +4,7 @@ defmodule Dake.Preprocessor do
   #   included targets and arguments are merged with the main Dakefile
 
   alias Dake.Parser.Dakefile
-  alias Dake.Parser.Directive.Output
+  alias Dake.Parser.Directive.{Include, Output}
   alias Dake.Parser.Target.Docker
 
   @type args :: %{(name :: String.t()) => value :: nil | String.t()}
@@ -29,7 +29,7 @@ defmodule Dake.Preprocessor do
       |> List.flatten()
 
     included_dakefiles =
-      Enum.map(dakefile.includes, fn %Dakefile.Include{} = include ->
+      Enum.map(dakefile.includes, fn %Include{} = include ->
         included_dakefile = Dake.load_and_parse_dakefile(include.ref)
 
         included_dakefile =

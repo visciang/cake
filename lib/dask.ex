@@ -57,10 +57,10 @@ defmodule Dask do
     flow(workflow, depends_on_job, job)
   end
 
-  @spec async(t(), Limiter.max_concurrency()) :: Exec.t()
-  def async(%__MODULE__{} = workflow, max_concurrency \\ nil) do
+  @spec async(t(), Limiter.t()) :: Exec.t()
+  def async(%__MODULE__{} = workflow, limiter \\ nil) do
     {graph, end_job} = build_workflow_graph(workflow)
-    exec_async_workflow(graph, end_job, max_concurrency)
+    exec_async_workflow(graph, end_job, limiter)
   end
 
   @spec await(Exec.t(), timeout()) :: await_result()
@@ -137,8 +137,8 @@ defmodule Dask do
     end
   end
 
-  @spec exec_async_workflow(:digraph.graph(), Job.t(), Limiter.max_concurrency()) :: Exec.t()
-  defp exec_async_workflow(graph, %Job{} = end_job, max_concurrency) do
-    %Exec{graph: graph, task: Task.async(fn -> Exec.exec(graph, end_job, max_concurrency) end)}
+  @spec exec_async_workflow(:digraph.graph(), Job.t(), Limiter.t()) :: Exec.t()
+  defp exec_async_workflow(graph, %Job{} = end_job, limiter) do
+    %Exec{graph: graph, task: Task.async(fn -> Exec.exec(graph, end_job, limiter) end)}
   end
 end

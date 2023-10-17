@@ -64,7 +64,7 @@ defmodule Dake.Pipeline do
         Dask.flow(dask, upstream_tgids, tgid)
       end)
 
-    dask = build_dask_job_cleanup(dask, :cleanup, pipeline_tgids, uuid)
+    dask = build_dask_job_cleanup(dask, :cleanup, uuid)
     Dask.flow(dask, run.tgid, :cleanup)
   end
 
@@ -92,8 +92,8 @@ defmodule Dake.Pipeline do
         :job_timeout ->
           Reporter.job_report(tgid, Reporter.Status.timeout(), nil, elapsed_time_s)
 
-        {:job_error, %Dake.Pipeline.Error{}, _stacktrace} ->
-          Reporter.job_report(tgid, Reporter.Status.error("", nil), nil, elapsed_time_s)
+        {:job_error, %Dake.Pipeline.Error{} = err, _stacktrace} ->
+          Reporter.job_report(tgid, Reporter.Status.error(err.message, nil), nil, elapsed_time_s)
 
         {:job_error, reason, stacktrace} ->
           error_message = "Internal dake error"
@@ -109,9 +109,13 @@ defmodule Dake.Pipeline do
 
   @spec build_dask_job_docker(Run.t(), Dakefile.t(), Target.Docker.t(), Type.tgid(), uuid()) :: :ok
   defp build_dask_job_docker(%Run{} = run, %Dakefile{} = dakefile, %Target.Docker{} = docker, tgid, uuid) do
+    build_dask_job_docker_imports(run, docker, uuid)
+
     if docker.included_from_ref do
       copy_included_ref_ctx(docker.included_from_ref)
     end
+
+    dakefile = insert_builtin_args(dakefile, uuid)
 
     dockerfile_path = Path.join(Const.tmp_dir(), "Dockerfile.#{tgid}")
     write_dockerfile(dakefile.args, docker, dockerfile_path)
@@ -137,29 +141,86 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), [Type.tgid()], uuid()) :: Dask.t()
-  defp build_dask_job_cleanup(dask, cleanup_job_id, pipeline_tgids, uuid) do
+  @spec build_dask_job_docker_imports(Run.t(), Target.Docker.t(), uuid()) :: :ok
+  defp build_dask_job_docker_imports(%Run{} = run, %Target.Docker{} = docker, uuid) do
+    docker.directives
+    |> Enum.filter(&match?(%Directive.Import{}, &1))
+    |> Enum.each(fn %Directive.Import{} = import_ ->
+      unless File.exists?(import_.ref) do
+        raise Dake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}"
+      end
+
+      dir = import_.ref |> Path.dirname()
+
+      # TODO parallelism -> limiter
+      # dask.limiter deve essere quello principale
+      cmd_res =
+        Dake.cmd(
+          %Run{
+            tgid: import_.target,
+            args: Enum.map(import_.args, &{&1.name, &1.default_value}),
+            push: false,
+            output: nil,
+            tag: fq_image(import_.target, uuid),
+            timeout: :infinity,
+            parallelism: run.parallelism,
+            verbose: run.verbose,
+            save_logs: run.save_logs,
+            shell: false
+          },
+          dir
+        )
+
+      case cmd_res do
+        :ok -> :ok
+        {:error, _} -> raise Dake.Pipeline.Error, "failed @import #{inspect(import_.ref)} build"
+        :timeout -> raise Dake.Pipeline.Error, "timeout"
+      end
+    end)
+  end
+
+  @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), uuid()) :: Dask.t()
+  defp build_dask_job_cleanup(dask, cleanup_job_id, uuid) do
     job_passthrough_fn = fn _, _ ->
       :ok
     end
 
     job_on_exit_fn = fn _, _, _, _ ->
       cleanup_dirs()
-      docker_cleanup(pipeline_tgids, uuid)
+      docker_cleanup(uuid)
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec docker_cleanup([Type.tgid()], uuid()) :: :ok
-  defp docker_cleanup(pipeline_tgids, uuid) do
-    images = Enum.map(pipeline_tgids, &fq_image(&1, uuid))
-    image_rm_cmd = ["image", "rm", "--force" | images]
-    {_, 0} = System.cmd("docker", image_rm_cmd, stderr_to_stdout: true)
+  @spec docker_cleanup(uuid()) :: :ok
+  defp docker_cleanup(uuid) do
+    docker_rm_containers(uuid)
+    docker_rm_images(uuid)
+  end
 
-    containers = Enum.map(pipeline_tgids, &fq_output_container(&1, uuid))
-    container_rm_cmd = ["container", "rm", "--force" | containers]
-    {_, 0} = System.cmd("docker", container_rm_cmd, stderr_to_stdout: true)
+  @spec docker_rm_images(uuid()) :: :ok
+  defp docker_rm_images(uuid) do
+    {cmd_out, 0} = System.cmd("docker", ["image", "ls", "*:#{uuid}", "--format", "{{.Repository}}", "--quiet"])
+    repositories = String.split(cmd_out, "\n", trim: true)
+
+    if repositories != [] do
+      images_ids = Enum.map(repositories, &fq_image(&1, uuid))
+      _ = System.cmd("docker", ["image", "rm" | images_ids], stderr_to_stdout: true)
+    end
+
+    :ok
+  end
+
+  @spec docker_rm_containers(uuid()) :: :ok
+  defp docker_rm_containers(uuid) do
+    cmd = ["container", "ls", "--all", "--filter", "name=#{fq_output_container(".*", uuid)}", "--quiet"]
+    {cmd_out, 0} = System.cmd("docker", cmd)
+    containers_ids = String.split(cmd_out, "\n", trim: true)
+
+    if containers_ids != [] do
+      _ = System.cmd("docker", ["container", "rm" | containers_ids], stderr_to_stdout: true)
+    end
 
     :ok
   end
@@ -238,6 +299,29 @@ defmodule Dake.Pipeline do
     end
 
     :ok
+  end
+
+  @spec insert_builtin_args(Dakefile.t(), uuid()) :: Dakefile.t()
+  defp insert_builtin_args(%Dakefile{} = dakefile, uuid) do
+    builtin_args = [
+      %Docker.Arg{name: "DAKE_UUID", default_value: uuid}
+    ]
+
+    dakefile
+    |> update_in(
+      [Access.key(:args)],
+      &(&1 ++ builtin_args)
+    )
+    |> update_in(
+      [
+        Access.key!(:targets),
+        Access.filter(&match?(%Target.Docker{}, &1)),
+        Access.key!(:commands)
+      ],
+      fn [%Docker.From{} = from | rest_commands] ->
+        [from | builtin_args] ++ [rest_commands]
+      end
+    )
   end
 
   @spec copy_included_ref_ctx(String.t()) :: :ok

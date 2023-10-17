@@ -101,13 +101,10 @@ defmodule Dake.Parser do
     ignore(string("="))
     |> concat(literal_value)
 
-  image_ref =
-    utf8_string([not: ?\n], min: 1)
-
   from =
     ignore(string("FROM"))
     |> ignore(spaces)
-    |> unwrap_and_tag(image_ref, :image)
+    |> unwrap_and_tag(literal_value, :image)
     |> optional(
       ignore(spaces)
       |> ignore(string("AS"))
@@ -154,10 +151,30 @@ defmodule Dake.Parser do
     |> wrap()
     |> map({:cast, [Directive.Push]})
 
+  import_args =
+    repeat(
+      ignore(spaces)
+      |> unwrap_and_tag(arg_name, :name)
+      |> optional(unwrap_and_tag(arg_value, :default_value))
+      |> wrap()
+      |> map({:cast, [Docker.Arg]})
+    )
+
+  import_directive =
+    ignore(string("@import"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(literal_value, :ref)
+    |> ignore(spaces)
+    |> unwrap_and_tag(literal_value, :target)
+    |> optional(tag(import_args, :args))
+    |> wrap()
+    |> map({:cast, [Directive.Import]})
+
   target_directive =
     choice([
       output_directive,
-      push_directive
+      push_directive,
+      import_directive
     ])
 
   target_directives =
@@ -216,26 +233,13 @@ defmodule Dake.Parser do
       |> concat(target)
     )
 
-  include_ref =
-    utf8_string([not: ?\s], min: 1)
-
-  include_args =
-    repeat(
-      ignore(spaces)
-      |> unwrap_and_tag(arg_name, :name)
-      |> optional(unwrap_and_tag(arg_value, :default_value))
-      |> wrap()
-      |> map({:cast, [Docker.Arg]})
-    )
-
-  # TODO ref and args
   include_directive =
     ignore(string("@include"))
     |> ignore(spaces)
-    |> unwrap_and_tag(include_ref, :ref)
-    |> optional(tag(include_args, :args))
+    |> unwrap_and_tag(literal_value, :ref)
+    |> optional(tag(import_args, :args))
     |> wrap()
-    |> map({:cast, [Dakefile.Include]})
+    |> map({:cast, [Directive.Include]})
 
   include_directives =
     include_directive

@@ -5,11 +5,8 @@ defmodule Dask.Exec do
   @enforce_keys [:graph, :task]
   defstruct [:graph, :task]
 
-  @spec exec(:digraph.graph(), Job.t(), Limiter.max_concurrency()) ::
-          {:error, Job.upstream_results()} | {:ok, Job.upstream_results()}
-  def exec(graph, %Job{} = end_job, max_concurrency) do
-    {:ok, limiter} = Limiter.start_link(max_concurrency)
-
+  @spec exec(:digraph.graph(), Job.t(), Limiter.t()) :: {:error, Job.upstream_results()} | {:ok, Job.upstream_results()}
+  def exec(graph, %Job{} = end_job, limiter) do
     :digraph_utils.topsort(graph)
     |> Enum.reverse()
     |> Enum.reduce(%{}, fn job, job_to_task_map ->
@@ -24,7 +21,7 @@ defmodule Dask.Exec do
     end
   end
 
-  @spec async_workflow_job_task(:digraph.graph(), Job.t(), %{Job.t() => Task.t()}, pid()) :: Task.t()
+  @spec async_workflow_job_task(:digraph.graph(), Job.t(), %{Job.t() => Task.t()}, Limiter.t()) :: Task.t()
   defp async_workflow_job_task(graph, %Job{} = job, job_to_task_map, limiter) do
     upstream_job_id_set = :digraph.in_neighbours(graph, job) |> MapSet.new(& &1.id)
     downstream_job_pid_set = :digraph.out_neighbours(graph, job) |> MapSet.new(&job_to_task_map[&1].pid)

@@ -2,7 +2,7 @@ defmodule Dask.JobExec do
   require Logger
   alias Dask.{Job, Limiter, Utils}
 
-  @spec exec(Job.t(), pid(), MapSet.t(Job.id()), MapSet.t(pid()), Job.upstream_results()) :: Job.job_exec_result()
+  @spec exec(Job.t(), Limiter.t(), MapSet.t(Job.id()), MapSet.t(pid()), Job.upstream_results()) :: Job.job_exec_result()
   def exec(%Job{} = job, limiter, upstream_job_id_set, downstream_job_pid_set, upstream_jobs_status) do
     if MapSet.size(upstream_job_id_set) == 0 do
       Logger.debug("START #{inspect(job.id)}  upstream_jobs_status: #{inspect(upstream_jobs_status)}")
@@ -14,9 +14,8 @@ defmodule Dask.JobExec do
 
       Enum.each(downstream_job_pid_set, &send(&1, {job.id, job_status}))
 
-      Logger.debug(
-        "END #{inspect(job.id)}  job_status: #{inspect(job_status)}  -  job_elapsed_time: #{Utils.seconds_to_compound_duration(elapsed_time)}"
-      )
+      duration = Utils.seconds_to_compound_duration(elapsed_time)
+      Logger.debug("END #{inspect(job.id)} status: #{inspect(job_status)} - elapsed_time: #{duration}")
 
       job_status
     else
@@ -24,7 +23,7 @@ defmodule Dask.JobExec do
     end
   end
 
-  @spec exec_job_fun(Job.t(), pid(), Job.upstream_results(), Job.id()) :: Job.job_exec_result()
+  @spec exec_job_fun(Job.t(), Limiter.t(), Job.upstream_results(), Job.id()) :: Job.job_exec_result()
   defp exec_job_fun(%Job{} = job, limiter, upstream_jobs_status, job_id) do
     if Enum.all?(Map.values(upstream_jobs_status), &match?({:job_ok, _}, &1)) do
       try do
@@ -45,7 +44,7 @@ defmodule Dask.JobExec do
     end
   end
 
-  @spec wait_upstream_job_task(Job.t(), pid(), MapSet.t(pid()), MapSet.t(pid()), Job.upstream_results()) ::
+  @spec wait_upstream_job_task(Job.t(), Limiter.t(), MapSet.t(pid()), MapSet.t(pid()), Job.upstream_results()) ::
           Job.job_exec_result()
   defp wait_upstream_job_task(
          job,
