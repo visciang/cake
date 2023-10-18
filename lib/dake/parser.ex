@@ -171,7 +171,8 @@ defmodule Dake.Parser do
     |> map({:cast, [Directive.Import]})
 
   target_directive =
-    choice([
+    ignore(indent)
+    |> choice([
       output_directive,
       push_directive,
       import_directive
@@ -185,13 +186,13 @@ defmodule Dake.Parser do
     )
 
   target_docker =
-    optional(
+    unwrap_and_tag(target_id, :tgid)
+    |> ignore(string(":"))
+    |> ignore(nl)
+    |> optional(
       tag(target_directives, :directives)
       |> ignore(nl)
     )
-    |> unwrap_and_tag(target_id, :tgid)
-    |> ignore(string(":"))
-    |> ignore(nl)
     |> tag(target_commands, :commands)
     |> wrap()
     |> map({:cast, [Target.Docker]})

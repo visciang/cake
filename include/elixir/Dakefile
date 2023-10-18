@@ -54,14 +54,14 @@ elixir.credo:
     COPY mix.exs .credo.exs* ./
     RUN mix credo ${ELIXIR_CREDO_OPTS}
 
-@output ${WORKDIR}/cover
 elixir.test:
+    @output ${WORKDIR}/cover
     FROM +elixir.compile
     ARG ELIXIR_TEST_CMD="coveralls.html"
     RUN mix ${ELIXIR_TEST_CMD}
 
-@output ${WORKDIR}/doc
 elixir.docs:
+    @output ${WORKDIR}/doc
     FROM +elixir.compile
     COPY README.md ./
     RUN mix docs --formatter=html
@@ -84,12 +84,12 @@ elixir.escript:
     COPY --from=+elixir.escript-build ${WORKDIR}/escript /escript
     ENTRYPOINT [ "/escript" ]
 
-@push
 elixir.xxx-example-push:
+    @push
     FROM +elixir.base
     RUN echo "side-effect"
 
-@push
 elixir.xxx-example-push2:
+    @push
     FROM +elixir.base
     RUN echo "side-effect"
