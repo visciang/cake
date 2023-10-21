@@ -30,7 +30,8 @@ defmodule Dake.Preprocessor do
 
     included_dakefiles =
       Enum.map(dakefile.includes, fn %Include{} = include ->
-        included_dakefile = Dake.load_and_parse_dakefile(include.ref)
+        included_dakefile_path = Path.join(Path.dirname(dakefile.path), include.ref)
+        included_dakefile = Dake.load_and_parse_dakefile(included_dakefile_path)
 
         included_dakefile =
           put_in(
@@ -51,8 +52,7 @@ defmodule Dake.Preprocessor do
 
     %Dakefile{
       dakefile
-      | includes: [],
-        args: dakefile.args ++ included_args ++ includes_args,
+      | args: dakefile.args ++ included_args ++ includes_args,
         targets: included_targets ++ dakefile.targets
     }
   end

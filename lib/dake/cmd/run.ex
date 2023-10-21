@@ -6,7 +6,7 @@ defimpl Dake.Cmd, for: Dake.Cli.Run do
 
   @spec exec(Run.t(), Dakefile.t(), Dag.graph()) :: Cmd.result()
   def exec(%Run{} = run, %Dakefile{} = dakefile, graph) do
-    Reporter.logs(run.verbose)
+    Reporter.verbose(run.verbose)
     Reporter.logs_to_file(run.save_logs)
 
     unless run.tgid in Dag.tgids(graph) do

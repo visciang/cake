@@ -21,7 +21,7 @@ defmodule Dask do
   def new, do: %__MODULE__{jobs: %{}}
 
   @spec job(t(), Job.id(), Job.fun(), timeout(), Job.on_exit()) :: t()
-  def job(%__MODULE__{} = workflow, job_id, job_fun, job_timeout \\ :infinity, on_exit \\ fn _, _, _, _ -> :ok end) do
+  def job(%__MODULE__{} = workflow, job_id, job_fun, job_timeout \\ :infinity, on_exit \\ fn _, _, _ -> :ok end) do
     job = %Job{id: job_id, fun: job_fun, timeout: job_timeout, downstream_jobs: MapSet.new(), on_exit: on_exit}
     put_in(workflow.jobs[job_id], job)
   end
@@ -98,7 +98,7 @@ defmodule Dask do
       fun: fn _, _ -> :ok end,
       timeout: :infinity,
       downstream_jobs: MapSet.new(),
-      on_exit: fn _, _, _, _ -> :ok end
+      on_exit: fn _, _, _ -> :ok end
     }
 
     end_job = %Job{
@@ -106,7 +106,7 @@ defmodule Dask do
       fun: fn _, upstream_results -> upstream_results end,
       timeout: :infinity,
       downstream_jobs: MapSet.new(),
-      on_exit: fn _, _, _, _ -> :ok end
+      on_exit: fn _, _, _ -> :ok end
     }
 
     :digraph.add_vertex(graph, start_job, to_string(start_job.id))

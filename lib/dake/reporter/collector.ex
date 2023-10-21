@@ -1,9 +1,9 @@
 defmodule Dake.Reporter.Collector do
-  defstruct [:job_id, :job_ns]
+  defstruct [:job_ns, :job_id]
 
   @type t :: %__MODULE__{
-          job_id: String.t(),
-          job_ns: String.t()
+          job_ns: [String.t()],
+          job_id: String.t()
         }
 end
 
@@ -17,7 +17,7 @@ defimpl Collectable, for: Dake.Reporter.Collector do
   def into(%Reporter.Collector{} = collector) do
     collector_fun = fn
       _, {:cont, log_message} ->
-        Reporter.job_report(collector.job_id, collector.job_ns, Reporter.Status.log(), log_message, nil)
+        Reporter.job_log(collector.job_ns, collector.job_id, log_message)
 
         collector
 

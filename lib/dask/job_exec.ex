@@ -1,21 +1,19 @@
 defmodule Dask.JobExec do
   require Logger
-  alias Dask.{Job, Limiter, Utils}
+  alias Dask.{Job, Limiter}
 
   @spec exec(Job.t(), Limiter.t(), MapSet.t(Job.id()), MapSet.t(pid()), Job.upstream_results()) :: Job.job_exec_result()
   def exec(%Job{} = job, limiter, upstream_job_id_set, downstream_job_pid_set, upstream_jobs_status) do
     if MapSet.size(upstream_job_id_set) == 0 do
       Logger.debug("START #{inspect(job.id)}  upstream_jobs_status: #{inspect(upstream_jobs_status)}")
 
-      {job_status, elapsed_time} =
-        timed(fn -> exec_job_fun(job, limiter, upstream_jobs_status, job.id) end, job.timeout)
+      job_status = timed(fn -> exec_job_fun(job, limiter, upstream_jobs_status, job.id) end, job.timeout)
 
-      job.on_exit.(job.id, upstream_jobs_status, job_status, elapsed_time)
+      job.on_exit.(job.id, upstream_jobs_status, job_status)
 
       Enum.each(downstream_job_pid_set, &send(&1, {job.id, job_status}))
 
-      duration = Utils.seconds_to_compound_duration(elapsed_time)
-      Logger.debug("END #{inspect(job.id)} status: #{inspect(job_status)} - elapsed_time: #{duration}")
+      Logger.debug("END #{inspect(job.id)} status: #{inspect(job_status)}")
 
       job_status
     else
@@ -61,20 +59,13 @@ defmodule Dask.JobExec do
     end
   end
 
-  @spec timed((-> Job.job_exec_result()), timeout()) :: {any(), float()}
+  @spec timed((-> Job.job_exec_result()), timeout()) :: Job.result()
   defp timed(fun, timeout) do
-    start_time = System.monotonic_time(:microsecond)
-
     task = Task.async(fun)
 
-    res =
-      case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
-        {:ok, result} -> result
-        _ -> :job_timeout
-      end
-
-    end_time = System.monotonic_time(:microsecond)
-
-    {res, (end_time - start_time) * :math.pow(10, -6)}
+    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} -> result
+      _ -> :job_timeout
+    end
   end
 end

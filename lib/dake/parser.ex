@@ -273,14 +273,14 @@ defmodule Dake.Parser do
   @doc """
   Parse a `Dakefile`.
   """
-  @spec parse(String.t()) :: result()
-  def parse(content) do
+  @spec parse(String.t(), Path.t()) :: result()
+  def parse(content, path) do
     content
     |> dos2unix()
     |> dakefile()
     |> case do
       {:ok, [dakefile], "" = _rest, _context, _position, _byte_offset} ->
-        {:ok, dakefile}
+        {:ok, %Dakefile{dakefile | path: path}}
 
       {:error, _reason, _rest, _context, {line, offset_to_start_of_line}, byte_offset} ->
         column = byte_offset - offset_to_start_of_line

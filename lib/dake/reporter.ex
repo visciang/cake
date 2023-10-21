@@ -1,10 +1,9 @@
 defmodule Dake.Reporter do
   use GenServer
 
-  alias Dake.Const
-  alias Dake.Reporter.{Collector, Report, Status}
+  alias Dake.Dir
+  alias Dake.Reporter.{Collector, Status}
 
-  require Dake.Const
   require Dake.Reporter.Status
 
   @typep ansidata :: IO.ANSI.ansidata()
@@ -17,22 +16,24 @@ defmodule Dake.Reporter do
   defmodule State do
     @moduledoc false
 
-    @enforce_keys [:logs_to_file, :logs_dir, :job_id_to_log_file, :start_time, :success_jobs, :failed_jobs]
+    @enforce_keys [:verbose, :logs_to_file, :logs_dir, :job_id_to_log_file, :start_time, :track]
     defstruct @enforce_keys
 
+    @type job :: {job_ns :: [String.t()], job_id :: String.t()}
+
     @type t :: %__MODULE__{
+            verbose: boolean(),
             logs_to_file: boolean(),
             logs_dir: Path.t(),
-            job_id_to_log_file: %{String.t() => File.io_device()},
+            job_id_to_log_file: %{job() => File.io_device()},
             start_time: integer(),
-            failed_jobs: MapSet.t(String.t()),
-            success_jobs: MapSet.t(String.t())
+            track: %{job() => Status.t() | {:running, start_time :: integer()}}
           }
   end
 
   @spec start_link :: :ok
   def start_link do
-    {:ok, _pid} = GenServer.start_link(__MODULE__, [start_time: time()], name: @name)
+    {:ok, _pid} = GenServer.start_link(__MODULE__, [], name: @name)
     :ok
   end
 
@@ -41,26 +42,32 @@ defmodule Dake.Reporter do
     GenServer.call(@name, {:stop, workflow_status}, :infinity)
   end
 
-  @spec logs(boolean()) :: :ok
-  def logs(enabled) do
-    GenServer.call(@name, {:logs, enabled}, :infinity)
+  @spec verbose(boolean()) :: :ok
+  def verbose(enabled) do
+    GenServer.call(@name, {:verbose, enabled}, :infinity)
   end
 
   @spec logs_to_file(boolean()) :: :ok
   def logs_to_file(enabled) do
-    GenServer.call(@name, {:logs_to_file, enabled}, :infinity)
+    GenServer.call(@name, {:logs_to_file, enabled})
+    :ok
   end
 
-  @spec job_report(String.t(), String.t(), Status.t(), nil | String.t(), nil | non_neg_integer()) :: :ok
-  def job_report(job_id, job_ns, status, description, elapsed) do
-    report? = status != Status.log() or :ets.lookup_element(@name, :logs_enabled, 2)
+  @spec job_start([String.t()], String.t()) :: :ok
+  def job_start(job_ns, job_id) do
+    GenServer.cast(@name, {:job_start, {job_ns, job_id}})
+  end
 
-    if report? do
-      report = %Report{job_id: job_id, job_ns: job_ns, status: status, description: description, elapsed: elapsed}
-      GenServer.call(@name, report, :infinity)
-    else
-      :ok
-    end
+  @spec job_end([String.t()], String.t(), Status.t()) :: :ok
+  def job_end(job_ns, job_id, status) do
+    GenServer.cast(@name, {:job_end, {job_ns, job_id}, status})
+  end
+
+  @spec job_log([String.t()], String.t(), String.t()) :: :ok
+  def job_log(job_ns, job_id, message) do
+    GenServer.cast(@name, {:job_log, {job_ns, job_id}, message})
+
+    :ok
   end
 
   @spec time :: integer()
@@ -68,67 +75,96 @@ defmodule Dake.Reporter do
     System.monotonic_time(@time_unit)
   end
 
-  @spec collector(String.t(), String.t()) :: Collectable.t()
-  def collector(job_id, job_ns) do
-    %Collector{job_id: job_id, job_ns: job_ns}
+  @spec collector([String.t()], String.t()) :: Collectable.t()
+  def collector(job_ns, job_id) do
+    %Collector{job_ns: job_ns, job_id: job_id}
   end
 
   @impl true
-  @spec init(start_time: integer()) :: {:ok, Dake.Reporter.State.t()}
-  def init(start_time: start_time) do
-    :ets.new(@name, [:named_table])
-
+  @spec init([]) :: {:ok, Dake.Reporter.State.t()}
+  def init([]) do
     {:ok,
      %State{
+       verbose: false,
        logs_to_file: false,
-       logs_dir: Path.join(Const.log_dir(), to_string(DateTime.utc_now())),
+       logs_dir: Path.join(Dir.log(), to_string(DateTime.utc_now())),
        job_id_to_log_file: %{},
-       start_time: start_time,
-       success_jobs: MapSet.new(),
-       failed_jobs: MapSet.new()
+       start_time: time(),
+       track: %{}
      }}
   end
 
   @impl true
-  def handle_call(
-        %Report{job_id: job_id, job_ns: job_ns, status: status, description: description, elapsed: elapsed},
-        _from,
-        %State{} = state
-      ) do
-    {state, log_file} = log_file(state, job_id)
-    state = track_jobs(job_id, status, state)
+  def handle_cast({:job_start, {job_ns, job_id} = job}, %State{} = state) do
+    {state, log_file} = log_file(state, job)
 
-    {status_icon, status_info} = status_icon_info(status)
-    job_id = if status == Status.log(), do: [:yellow, job_id, :reset], else: job_id
-    duration = if elapsed != nil, do: " (#{delta_time_string(elapsed)}) ", else: ""
+    ansidata = report_line("+", job_ns, [:faint, job_id, :reset], nil, nil)
+    log_puts(log_file, ansidata, true)
 
-    if description == nil do
-      ansidata = report_line(status_icon, job_ns, job_id, duration, "")
-      log_puts(log_file, ansidata)
-    else
-      description
-      |> String.split(~r/\R/)
-      |> Enum.each(fn line ->
-        ansidata = report_line(status_icon, job_ns, job_id, duration, "| #{line}")
-        log_puts(log_file, ansidata)
-      end)
+    state = put_in(state.track[job], {:running, time()})
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:job_end, {job_ns, job_id} = job, status}, %State{} = state) do
+    {state, log_file} = log_file(state, job)
+
+    {job_id, status_icon, status_info} =
+      case status do
+        Status.ok() ->
+          {[:green, job_id, :reset], [:green, "✔", :reset], nil}
+
+        Status.error(reason, stacktrace) ->
+          reason_str = if is_binary(reason), do: reason, else: inspect(reason)
+          reason_str = if stacktrace != nil, do: [reason_str, "\n", stacktrace], else: reason_str
+          {[:red, job_id, :reset], [:red, "✘", :reset], reason_str}
+
+        Status.timeout() ->
+          {[:red, job_id, :reset], "⏰", nil}
+      end
+
+    end_time = time()
+
+    start_time =
+      case Map.get(state.track, job) do
+        {:running, start_time} -> start_time
+        _ -> end_time
+      end
+
+    duration = " (#{delta_time_string(end_time - start_time)}) "
+
+    ansidata = report_line(status_icon, job_ns, job_id, duration, nil)
+    log_puts(log_file, ansidata, true)
+
+    if status_info not in [nil, ""] do
+      log_puts(log_file, "  - #{status_info}", true)
     end
 
-    if status_info not in [nil, ""], do: log_puts(log_file, "  - #{status_info}")
+    state = put_in(state.track[job], status)
 
-    {:reply, :ok, state}
+    {:noreply, state}
+  end
+
+  def handle_cast({:job_log, job, message}, %State{} = state) do
+    {state, log_file} = log_file(state, {job_ns, job_id} = job)
+
+    message
+    |> String.split(~r/\R/)
+    |> Enum.each(fn line ->
+      ansidata = report_line(".", job_ns, job_id, nil, " | #{line}")
+      log_puts(log_file, ansidata, state.verbose)
+    end)
+
+    {:noreply, state}
   end
 
   @impl true
-  def handle_call({:logs, enabled}, _from, %State{} = state) do
-    :ets.insert(@name, {:logs_enabled, enabled})
-    {:reply, :ok, state}
+  def handle_call({:verbose, enabled}, _from, %State{} = state) do
+    {:reply, :ok, put_in(state.verbose, enabled)}
   end
 
   @impl true
   def handle_call({:logs_to_file, enabled}, _from, %State{} = state) do
-    if enabled, do: File.mkdir_p!(state.logs_dir)
-
     {:reply, :ok, put_in(state.logs_to_file, enabled)}
   end
 
@@ -146,9 +182,24 @@ defmodule Dake.Reporter do
 
     end_message =
       case reason do
-        :ok -> [:green, "Completed (#{MapSet.size(state.success_jobs)} jobs)", :reset]
-        {:error, _} -> [:red, "Failed jobs:", :reset, Enum.map(Enum.sort(state.failed_jobs), &"\n- #{&1}"), "\n"]
-        :timeout -> [:red, "Timeout", :reset]
+        :ok ->
+          count = state.track |> Map.values() |> Enum.count(&(&1 == :ok))
+          [:green, "Completed (#{count} jobs)", :reset]
+
+        {:error, _} ->
+          failed =
+            state.track
+            |> Enum.filter(fn {_job, status} ->
+              match?(Status.error(_, _), status) or match?(Status.timeout(), status)
+            end)
+            |> Enum.map(fn {job, _status} ->
+              "\n- #{inspect(job)}"
+            end)
+
+          [:red, "Failed jobs:", :reset, failed, "\n"]
+
+        :timeout ->
+          [:red, "Timeout", :reset]
       end
 
     duration = delta_time_string(end_time - state.start_time)
@@ -158,59 +209,25 @@ defmodule Dake.Reporter do
     {:stop, :normal, :ok, state}
   end
 
-  @spec track_jobs(String.t(), Status.t(), State.t()) :: State.t()
-  defp track_jobs(job_id, status, %State{} = state) do
-    case status do
-      Status.error(_reason, _stacktrace) -> update_in(state.failed_jobs, &MapSet.put(&1, job_id))
-      Status.ok() -> update_in(state.success_jobs, &MapSet.put(&1, job_id))
-      _ -> state
-    end
-  end
-
   @spec delta_time_string(number()) :: String.t()
   defp delta_time_string(elapsed) do
     Dask.Utils.seconds_to_compound_duration(elapsed * @time_unit_scale)
   end
 
-  @spec status_icon_info(Status.t()) :: {ansidata(), nil | ansidata()}
-  defp status_icon_info(status) do
-    case status do
-      Status.ok() ->
-        {[:green, "✔", :reset], nil}
-
-      Status.error(reason, stacktrace) ->
-        reason_str = if is_binary(reason), do: reason, else: inspect(reason)
-        reason_str = if stacktrace != nil, do: [reason_str, "\n", stacktrace], else: reason_str
-        {[:red, "✘", :reset], reason_str}
-
-      Status.timeout() ->
-        {"⏰", nil}
-
-      Status.log() ->
-        {".", nil}
-    end
-  end
-
-  @spec report_line(ansidata(), ansidata(), ansidata(), ansidata(), ansidata()) :: ansidata()
+  @spec report_line(ansidata(), [String.t()], ansidata(), nil | ansidata(), nil | ansidata()) :: ansidata()
   defp report_line(status_icon, job_ns, job_id, duration, description) do
-    [
-      status_icon,
-      :faint,
-      " (#{job_ns}) ",
-      :reset,
-      :bright,
-      job_id,
-      :reset,
-      "  #{duration} ",
-      :faint,
-      description,
-      :reset
-    ]
+    job_ns = if job_ns == [], do: "", else: ["(", Enum.join(job_ns, ", "), ") "]
+    line = ["[", status_icon, "]  ", :faint, job_ns, :reset, :bright, job_id, :reset]
+    line = if duration, do: [line, ["  #{duration} "]], else: line
+    line = if description, do: [line, :faint, "  ", description, :reset], else: line
+    line
   end
 
-  @spec log_puts(nil | File.io_device(), IO.ANSI.ansidata()) :: :ok
-  defp log_puts(log_file, message) do
-    log_stdout_puts(message)
+  @spec log_puts(nil | File.io_device(), IO.ANSI.ansidata(), boolean()) :: :ok
+  defp log_puts(log_file, message, stdout?) do
+    if stdout? do
+      log_stdout_puts(message)
+    end
 
     if log_file != nil do
       message = message |> List.flatten() |> Enum.reject(&is_atom(&1))
@@ -224,19 +241,20 @@ defmodule Dake.Reporter do
     :ok
   end
 
-  @spec log_file(State.t(), String.t()) :: {State.t(), nil | File.io_device()}
-  defp log_file(%State{logs_to_file: false} = state, _job_id) do
+  @spec log_file(State.t(), State.job()) :: {State.t(), nil | File.io_device()}
+  defp log_file(%State{logs_to_file: false} = state, _job) do
     {state, nil}
   end
 
-  defp log_file(%State{job_id_to_log_file: job_id_to_log_file} = state, job_id)
-       when is_map_key(job_id_to_log_file, job_id) do
-    {state, job_id_to_log_file[job_id]}
+  defp log_file(%State{job_id_to_log_file: job_id_to_log_file} = state, job)
+       when is_map_key(job_id_to_log_file, job) do
+    {state, job_id_to_log_file[job]}
   end
 
-  defp log_file(%State{} = state, job_id) do
-    file = File.open!(Path.join(state.logs_dir, "#{job_id}.txt"), [:utf8, :write])
-    state = update_in(state.job_id_to_log_file, &Map.put(&1, job_id, file))
+  defp log_file(%State{} = state, {job_ns, job_id} = job) do
+    File.mkdir_p!(state.logs_dir)
+    file = File.open!(Path.join(state.logs_dir, "#{inspect(job_ns)}-#{job_id}.txt"), [:utf8, :write])
+    state = put_in(state.job_id_to_log_file[job], file)
     {state, file}
   end
 end

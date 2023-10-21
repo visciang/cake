@@ -1,9 +1,11 @@
 defmodule Dake do
-  alias Dake.{Cli, Cmd, Dag, Parser, Preprocessor, Reporter, Validator}
+  alias Dake.{Cli, Cmd, Dag, Dir, Parser, Preprocessor, Reporter, Validator}
   alias Dake.Parser.Dakefile
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
+    setup_dake_dirs()
+
     cmd =
       cli_args
       |> Cli.parse()
@@ -18,12 +20,8 @@ defmodule Dake do
 
   @spec cmd(Cmd.t(), Path.t()) :: Cmd.result()
   def cmd(cmd, dir \\ ".") do
-    cwd = File.cwd!()
-
-    File.cd!(dir)
-
     dakefile =
-      "Dakefile"
+      Path.join(dir, "Dakefile")
       |> load_and_parse_dakefile()
       |> Preprocessor.expand(args(cmd))
 
@@ -38,8 +36,6 @@ defmodule Dake do
 
     res = Cmd.exec(cmd, dakefile, graph)
 
-    File.cd!(cwd)
-
     res
   end
 
@@ -48,8 +44,18 @@ defmodule Dake do
     path
     |> File.read()
     |> exit_on_dakefile_read_error(path)
-    |> Parser.parse()
+    |> Parser.parse(path)
     |> exit_on_parse_error(path)
+  end
+
+  @spec setup_dake_dirs :: :ok
+  defp setup_dake_dirs do
+    File.mkdir_p!(Dir.log())
+
+    Enum.each([Dir.tmp(), Dir.output(), Dir.include_ctx(File.cwd!())], fn dir ->
+      File.rm_rf!(dir)
+      File.mkdir_p!(dir)
+    end)
   end
 
   @spec args(Cmd.t()) :: Preprocessor.args()

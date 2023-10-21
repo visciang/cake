@@ -1,7 +1,5 @@
 defmodule Dake.Cli do
-  alias Dake.{Cmd, Const, Type}
-
-  require Dake.Const
+  alias Dake.{Cmd, Dir, Type}
 
   defmodule Ls do
     defstruct [:tree]
@@ -17,7 +15,7 @@ defmodule Dake.Cli do
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
-            ns: String.t(),
+            ns: [Type.tgid()],
             tgid: nil | Type.tgid(),
             args: [arg()],
             push: boolean(),
@@ -92,7 +90,7 @@ defmodule Dake.Cli do
             ],
             save_logs: [
               long: "--save-logs",
-              help: "Save logs under #{Const.log_dir()} directory"
+              help: "Save logs under #{Dir.log()} directory"
             ],
             push: [
               long: "--push",
@@ -100,7 +98,7 @@ defmodule Dake.Cli do
             ],
             output: [
               long: "--output",
-              help: "Output the target artifacts (ref. @output directive) under #{Const.output_dir()} directory"
+              help: "Output the target artifacts (ref. @output directive) under #{Dir.output()} directory"
             ],
             shell: [
               long: "--shell",
@@ -155,7 +153,7 @@ defmodule Dake.Cli do
           end
 
         run = %Run{
-          ns: "/",
+          ns: [],
           tgid: cli.args.target,
           args: target_args,
           push: cli.flags.push,
