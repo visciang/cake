@@ -166,13 +166,13 @@ defmodule Dake.Parser do
     |> optional(
       string("--output")
       |> replace(true)
-      |> tag(:output)
+      |> unwrap_and_tag(:output)
       |> ignore(spaces)
     )
     |> optional(
       string("--push")
       |> replace(true)
-      |> tag(:push)
+      |> unwrap_and_tag(:push)
       |> ignore(spaces)
     )
     |> unwrap_and_tag(literal_value, :ref)

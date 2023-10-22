@@ -141,7 +141,7 @@ defmodule Dake.Pipeline do
             tgid: import_.target,
             args: Enum.map(import_.args, &{&1.name, &1.default_value}),
             push: import_.push,
-            output: import_.output,
+            output: import_.output and run.output,
             tag: fq_image(import_.target, pipeline_uuid),
             timeout: :infinity,
             parallelism: run.parallelism,
