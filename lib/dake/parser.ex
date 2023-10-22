@@ -175,6 +175,9 @@ defmodule Dake.Parser do
       |> unwrap_and_tag(:push)
       |> ignore(spaces)
     )
+    |> ignore(string("--as="))
+    |> unwrap_and_tag(literal_value, :as)
+    |> ignore(spaces)
     |> unwrap_and_tag(literal_value, :ref)
     |> ignore(spaces)
     |> unwrap_and_tag(literal_value, :target)
@@ -288,7 +291,6 @@ defmodule Dake.Parser do
   @spec parse(String.t(), Path.t()) :: result()
   def parse(content, path) do
     content
-    |> dos2unix()
     |> dakefile()
     |> case do
       {:ok, [dakefile], "" = _rest, _context, _position, _byte_offset} ->
@@ -298,11 +300,6 @@ defmodule Dake.Parser do
         column = byte_offset - offset_to_start_of_line
         {:error, {content, line, column}}
     end
-  end
-
-  @spec dos2unix(String.t()) :: String.t()
-  defp dos2unix(data) do
-    String.replace(data, "\r\n", "\n")
   end
 
   @spec cast(Keyword.t(), module()) :: struct()

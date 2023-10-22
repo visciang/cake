@@ -11,7 +11,7 @@ defmodule Dake.Cli do
 
   defmodule Run do
     @enforce_keys [:ns, :tgid, :args, :push, :output, :tag, :timeout, :parallelism, :verbose, :save_logs, :shell]
-    defstruct @enforce_keys
+    defstruct @enforce_keys ++ [output_dir: ""]
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
@@ -20,6 +20,7 @@ defmodule Dake.Cli do
             args: [arg()],
             push: boolean(),
             output: boolean(),
+            output_dir: Path.t(),
             tag: nil | String.t(),
             timeout: timeout(),
             parallelism: pos_integer(),

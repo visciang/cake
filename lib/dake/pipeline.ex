@@ -142,7 +142,8 @@ defmodule Dake.Pipeline do
             args: Enum.map(import_.args, &{&1.name, &1.default_value}),
             push: import_.push and run.push,
             output: import_.output and run.output,
-            tag: fq_image(import_.target, pipeline_uuid),
+            output_dir: import_.as,
+            tag: fq_image(import_.as, pipeline_uuid),
             timeout: :infinity,
             parallelism: run.parallelism,
             verbose: run.verbose,
@@ -238,7 +239,8 @@ defmodule Dake.Pipeline do
     {_, 0} = System.cmd("docker", container_create_cmd, stderr_to_stdout: true)
 
     Enum.each(outputs, fn output ->
-      container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", Dir.output()]
+      output_dir = Path.join(Dir.output(), run.output_dir)
+      container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", output_dir]
       into = Reporter.collector(run.ns, tgid)
 
       case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: into) do
@@ -246,7 +248,7 @@ defmodule Dake.Pipeline do
         {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} output copy failed"
       end
 
-      Reporter.job_output(run.ns, tgid, "#{output} -> #{Dir.output()}")
+      Reporter.job_output(run.ns, tgid, "#{output} -> #{output_dir}")
     end)
 
     :ok
