@@ -31,14 +31,16 @@ defmodule Dake.Parser.Directive do
   end
 
   defmodule Import do
-    # `@import <ref> <target> [<arg>, ...]`.
+    # `@import [--ouput] [--push] <ref> <target> [<arg>, ...]`.
 
     @enforce_keys [:ref, :target]
-    defstruct @enforce_keys ++ [args: []]
+    defstruct @enforce_keys ++ [output: false, push: false, args: []]
 
     @type t :: %__MODULE__{
             ref: String.t(),
             target: String.t(),
+            output: boolean(),
+            push: boolean(),
             args: [Dake.Parser.Docker.Arg.t()]
           }
   end

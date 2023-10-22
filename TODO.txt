@@ -1,6 +1,7 @@
 TODO
 
-- @import options for --push --output passthrough
+- output as ...
+- import as ...
 - supportare include path: local, http, git
 - local task
 - dot

@@ -45,6 +45,7 @@ defmodule Dake.Reporter do
   @spec verbose(boolean()) :: :ok
   def verbose(enabled) do
     GenServer.call(@name, {:verbose, enabled}, :infinity)
+    :ok
   end
 
   @spec logs_to_file(boolean()) :: :ok
@@ -66,8 +67,11 @@ defmodule Dake.Reporter do
   @spec job_log([String.t()], String.t(), String.t()) :: :ok
   def job_log(job_ns, job_id, message) do
     GenServer.cast(@name, {:job_log, {job_ns, job_id}, message})
+  end
 
-    :ok
+  @spec job_output([String.t()], String.t(), Path.t()) :: :ok
+  def job_output(job_ns, job_id, output_path) do
+    GenServer.cast(@name, {:job_output, {job_ns, job_id}, output_path})
   end
 
   @spec time :: integer()
@@ -154,6 +158,17 @@ defmodule Dake.Reporter do
       ansidata = report_line(".", job_ns, job_id, nil, " | #{line}")
       log_puts(log_file, ansidata, state.verbose)
     end)
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:job_output, job, output_path}, %State{} = state) do
+    {state, log_file} = log_file(state, {job_ns, job_id} = job)
+
+    status_icon = [:yellow, "←", :reset]
+    job_id = [:yellow, job_id, :reset]
+    ansidata = report_line(status_icon, job_ns, job_id, nil, " | output: #{output_path}")
+    log_puts(log_file, ansidata, true)
 
     {:noreply, state}
   end

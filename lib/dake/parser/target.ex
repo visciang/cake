@@ -12,8 +12,8 @@ defmodule Dake.Parser.Target do
   end
 
   defmodule Docker do
-    # @output output/
     # target:
+    #     @output output/
     #     FROM image
     #     ARG X=1
     #     RUN ...

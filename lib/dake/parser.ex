@@ -163,6 +163,18 @@ defmodule Dake.Parser do
   import_directive =
     ignore(string("@import"))
     |> ignore(spaces)
+    |> optional(
+      string("--output")
+      |> replace(true)
+      |> tag(:output)
+      |> ignore(spaces)
+    )
+    |> optional(
+      string("--push")
+      |> replace(true)
+      |> tag(:push)
+      |> ignore(spaces)
+    )
     |> unwrap_and_tag(literal_value, :ref)
     |> ignore(spaces)
     |> unwrap_and_tag(literal_value, :target)

@@ -140,8 +140,8 @@ defmodule Dake.Pipeline do
             ns: run.ns ++ [docker.tgid],
             tgid: import_.target,
             args: Enum.map(import_.args, &{&1.name, &1.default_value}),
-            push: false,
-            output: nil,
+            push: import_.push,
+            output: import_.output,
             tag: fq_image(import_.target, pipeline_uuid),
             timeout: :infinity,
             parallelism: run.parallelism,
@@ -245,6 +245,8 @@ defmodule Dake.Pipeline do
         {_, 0} -> :ok
         {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} output copy failed"
       end
+
+      Reporter.job_output(run.ns, tgid, "#{output} -> #{Dir.output()}")
     end)
 
     :ok
