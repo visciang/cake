@@ -140,7 +140,7 @@ defmodule Dake.Pipeline do
             ns: run.ns ++ [docker.tgid],
             tgid: import_.target,
             args: Enum.map(import_.args, &{&1.name, &1.default_value}),
-            push: import_.push,
+            push: import_.push and run.push,
             output: import_.output and run.output,
             tag: fq_image(import_.target, pipeline_uuid),
             timeout: :infinity,
