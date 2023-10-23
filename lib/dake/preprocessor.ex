@@ -1,10 +1,6 @@
 defmodule Dake.Preprocessor do
-  # - expand dake @directives arguments
-  # - (recursivelly) expand the included Dakefiles,
-  #   included targets and arguments are merged with the main Dakefile
-
   alias Dake.Parser.Dakefile
-  alias Dake.Parser.Directive.{Include, Output}
+  alias Dake.Parser.Directive.{Import, Include, Output}
   alias Dake.Parser.Target.Docker
 
   @type args :: %{(name :: String.t()) => value :: nil | String.t()}
@@ -17,8 +13,27 @@ defmodule Dake.Preprocessor do
       dakefile
       |> expand_includes()
       |> expand_directives_args(args)
+      |> normalize_import_paths()
 
     dakefile
+  end
+
+  @spec normalize_import_paths(Dakefile.t()) :: Dakefile.t()
+  defp normalize_import_paths(%Dakefile{} = dakefile) do
+    update_in(
+      dakefile,
+      [
+        Access.key!(:targets),
+        Access.filter(&match?(%Docker{}, &1)),
+        Access.key!(:directives),
+        Access.filter(&match?(%Import{}, &1)),
+        Access.key!(:ref)
+      ],
+      fn ref ->
+        {:ok, ref} = Path.join(Path.dirname(dakefile.path), ref) |> Path.safe_relative()
+        ref
+      end
+    )
   end
 
   @spec expand_includes(Dakefile.t()) :: Dakefile.t()
@@ -30,7 +45,9 @@ defmodule Dake.Preprocessor do
 
     included_dakefiles =
       Enum.map(dakefile.includes, fn %Include{} = include ->
-        included_dakefile_path = Path.join(Path.dirname(dakefile.path), include.ref)
+        # include path normalizated to be relative to the project root directory
+        {:ok, included_dakefile_path} = Path.join(Path.dirname(dakefile.path), include.ref) |> Path.safe_relative()
+
         included_dakefile = Dake.load_and_parse_dakefile(included_dakefile_path)
 
         included_dakefile =
@@ -41,7 +58,7 @@ defmodule Dake.Preprocessor do
               Access.filter(&match?(%Docker{}, &1)),
               Access.key!(:included_from_ref)
             ],
-            include.ref
+            included_dakefile_path
           )
 
         expand(included_dakefile, %{})
@@ -52,7 +69,8 @@ defmodule Dake.Preprocessor do
 
     %Dakefile{
       dakefile
-      | args: dakefile.args ++ included_args ++ includes_args,
+      | includes: [],
+        args: dakefile.args ++ included_args ++ includes_args,
         targets: included_targets ++ dakefile.targets
     }
   end

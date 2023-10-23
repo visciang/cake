@@ -22,7 +22,8 @@ defmodule Dake.Parser.Target do
     defstruct @enforce_keys ++ [included_from_ref: nil, directives: []]
 
     @type directive ::
-            Dake.Parser.Directive.Output.t()
+            Dake.Parser.Directive.Import.t()
+            | Dake.Parser.Directive.Output.t()
             | Dake.Parser.Directive.Push.t()
 
     @type command ::

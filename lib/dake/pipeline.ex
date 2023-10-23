@@ -98,7 +98,9 @@ defmodule Dake.Pipeline do
         ""
       end
 
-    dakefile = insert_builtin_args(dakefile, pipeline_uuid, build_relative_include_ctx_dir)
+    dakefile = insert_builtin_global_args(dakefile, pipeline_uuid)
+    docker = insert_builtin_docker_args(docker, build_relative_include_ctx_dir)
+
     dockerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
     write_dockerfile(dakefile.args, docker, dockerfile_path)
 
@@ -132,8 +134,6 @@ defmodule Dake.Pipeline do
         raise Dake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}"
       end
 
-      dir = import_.ref |> Path.dirname()
-
       cmd_res =
         Dake.cmd(
           %Run{
@@ -150,7 +150,7 @@ defmodule Dake.Pipeline do
             save_logs: run.save_logs,
             shell: false
           },
-          dir
+          Path.dirname(import_.ref)
         )
 
       case cmd_res do
@@ -287,37 +287,32 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec insert_builtin_args(Dakefile.t(), pipeline_uuid(), Path.t()) :: Dakefile.t()
-  defp insert_builtin_args(%Dakefile{} = dakefile, pipeline_uuid, include_ctx_dir) do
-    builtin_args = [
-      %Docker.Arg{name: "DAKE_PIPELINE_UUID", default_value: pipeline_uuid},
-      %Docker.Arg{name: "DAKE_INCLUDE_CTX", default_value: include_ctx_dir}
-    ]
+  @spec insert_builtin_global_args(Dakefile.t(), pipeline_uuid()) :: Dakefile.t()
+  defp insert_builtin_global_args(%Dakefile{} = dakefile, pipeline_uuid) do
+    %Dakefile{dakefile | args: dakefile.args ++ [%Docker.Arg{name: "DAKE_PIPELINE_UUID", default_value: pipeline_uuid}]}
+  end
 
-    dakefile
-    |> update_in(
-      [Access.key(:args)],
-      &(&1 ++ builtin_args)
-    )
-    |> update_in(
-      [
-        Access.key!(:targets),
-        Access.filter(&match?(%Target.Docker{}, &1)),
-        Access.key!(:commands)
-      ],
-      fn [%Docker.From{} = from | rest_commands] ->
-        [from | builtin_args] ++ [rest_commands]
-      end
-    )
+  @spec insert_builtin_docker_args(Target.Docker.t(), Path.t()) :: Target.Docker.t()
+  defp insert_builtin_docker_args(%Target.Docker{} = docker, include_ctx_dir) do
+    from_idx = Enum.find_index(docker.commands, &match?(%Docker.From{}, &1))
+    {pre_from_cmds, [%Docker.From{} = from | post_from_cmds]} = Enum.split(docker.commands, from_idx)
+
+    commands =
+      pre_from_cmds ++ [from, %Docker.Arg{name: "DAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
+
+    %Target.Docker{docker | commands: commands}
   end
 
   @spec copy_includes_ctx(Dakefile.t()) :: :ok
   defp copy_includes_ctx(%Dakefile{} = dakefile) do
-    Enum.each(dakefile.includes, fn %Directive.Include{} = include ->
-      include_ctx_dir = Path.join(Path.dirname(include.ref), "ctx")
+    dakefile.targets
+    |> Enum.filter(&match?(%Target.Docker{included_from_ref: inc} when inc != nil, &1))
+    |> List.flatten()
+    |> Enum.each(fn %Target.Docker{included_from_ref: included_from_ref} ->
+      include_ctx_dir = Path.join(Path.dirname(included_from_ref), "ctx")
 
       if File.exists?(include_ctx_dir) do
-        dest = local_include_ctx_dir(dakefile, include.ref)
+        dest = local_include_ctx_dir(dakefile, included_from_ref)
 
         File.rm_rf!(dest)
         File.mkdir_p!(dest)
