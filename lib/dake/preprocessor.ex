@@ -3,10 +3,14 @@ defmodule Dake.Preprocessor do
   alias Dake.Parser.Directive.{Import, Include, Output}
   alias Dake.Parser.Target.Docker
 
+  require Logger
+
   @type args :: %{(name :: String.t()) => value :: nil | String.t()}
 
   @spec expand(Dakefile.t(), args()) :: Dakefile.t()
   def expand(%Dakefile{} = dakefile, args) do
+    Logger.info("dakefile=#{inspect(dakefile.path)}, args=#{inspect(args)}")
+
     args = Map.merge(Map.new(dakefile.args, &{&1.name, &1.default_value}), args)
 
     dakefile =
@@ -47,6 +51,8 @@ defmodule Dake.Preprocessor do
       Enum.map(dakefile.includes, fn %Include{} = include ->
         # include path normalizated to be relative to the project root directory
         {:ok, included_dakefile_path} = Path.join(Path.dirname(dakefile.path), include.ref) |> Path.safe_relative()
+
+        Logger.info("dakefile=#{inspect(included_dakefile_path)}")
 
         included_dakefile = Dake.load_and_parse_dakefile(included_dakefile_path)
 

@@ -13,7 +13,7 @@ defimpl Dake.Cmd, for: Dake.Cli.Run do
       Dake.System.halt(:error, "Unknown target '#{run.tgid}'")
     end
 
-    limiter = start_global_limiter(run)
+    {:ok, limiter} = Limiter.start_link(run.parallelism)
 
     Pipeline.build(run, dakefile, graph)
     |> Dask.async(limiter)
@@ -23,17 +23,5 @@ defimpl Dake.Cmd, for: Dake.Cli.Run do
       {:error, _} = error -> error
       :timeout -> :timeout
     end
-  end
-
-  @spec start_global_limiter(Run.t()) :: GenServer.name()
-  defp start_global_limiter(%Run{} = run) do
-    limiter_name = :dask_global_limiter
-
-    case Limiter.start_link(run.parallelism, limiter_name) do
-      {:error, {:already_started, _}} -> :ok
-      {:ok, _} -> :ok
-    end
-
-    limiter_name
   end
 end
