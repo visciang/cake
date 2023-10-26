@@ -1,7 +1,5 @@
 TODO
 
-- output as ...
-- import as ...
 - supportare include path: local, http, git
 - secrets mount
 - "service tests"

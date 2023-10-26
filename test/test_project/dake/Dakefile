@@ -1,0 +1,9 @@
+app:
+    @output /out
+    FROM alpine
+    COPY x /out/x
+    COPY ${DAKE_INCLUDE_CTX}/file /file
+    ARG XXX
+    RUN echo "${XXX}" >> /out/x
+    RUN cat /file >> /out/x
+    CMD ["cat", "/out/x"]

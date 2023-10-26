@@ -1,0 +1,16 @@
+all: app_a app_b
+
+app_a:
+    @import --output --as=app_a components/app_a/Dakefile app
+    FROM app_a:${DAKE_PIPELINE_UUID}
+    RUN true
+
+app_b:
+    @import --output --as=app_b components/app_b/Dakefile app
+    FROM app_b:${DAKE_PIPELINE_UUID}
+    RUN true
+
+app_ta:
+    @import --output --as=app_ta components/app_ta/Dakefile app
+    FROM app_ta:${DAKE_PIPELINE_UUID}
+    RUN true
