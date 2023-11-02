@@ -13,8 +13,8 @@ defmodule Dake.Pipeline.Docker do
   @spec docker_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
   def docker_build(%Run{} = run, tgid, args, pipeline_uuid) do
     docker = System.find_executable("docker")
-    args = [docker, "buildx", "build" | args]
-    into = Reporter.collector(run.ns, tgid)
+    args = [docker, "buildx", "build", "--ssh=default" | args]
+    into = Reporter.collector(run.ns, tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
 
@@ -26,7 +26,9 @@ defmodule Dake.Pipeline.Docker do
 
   @spec docker_shell(Type.tgid(), Type.pipeline_uuid()) :: :ok
   def docker_shell(tgid, pipeline_uuid) do
-    run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh", fq_image(tgid, pipeline_uuid)]
+    ssh_auth_sock = System.fetch_env!("SSH_AUTH_SOCK")
+    run_ssh_args = ["-e", "SSH_AUTH_SOCK=#{ssh_auth_sock}", "-v", "#{ssh_auth_sock}:#{ssh_auth_sock}"]
+    run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh"] ++ run_ssh_args ++ [fq_image(tgid, pipeline_uuid)]
     port_opts = [:nouse_stdio, :exit_status, args: run_cmd_args]
     port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
 
@@ -48,7 +50,7 @@ defmodule Dake.Pipeline.Docker do
     Enum.each(outputs, fn output ->
       output_dir = Path.join(Dir.output(), run.output_dir)
       container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", output_dir]
-      into = Reporter.collector(run.ns, tgid)
+      into = Reporter.collector(run.ns, tgid, :log)
 
       case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: into) do
         {_, 0} -> :ok

@@ -6,7 +6,7 @@ defmodule Dake.Pipeline do
   alias Dake.Cli.Run
   alias Dake.Parser.{Dakefile, Directive, Docker, Target}
   alias Dake.Pipeline.Docker, as: DockerCmd
-  alias Dake.{Dag, Dir, Reporter, Type}
+  alias Dake.{Dag, Dir, Reference, Reporter, Type}
 
   require Logger
   require Dake.Reporter.Status
@@ -22,8 +22,6 @@ defmodule Dake.Pipeline do
     pipeline_tgids = Dag.reaching_tgids(graph, run.tgid)
 
     validate_cmd(run, Map.fetch!(targets_map, run.tgid))
-
-    copy_includes_ctx(dakefile, pipeline_uuid)
 
     pipeline_tgids =
       if run.push do
@@ -98,7 +96,7 @@ defmodule Dake.Pipeline do
 
     build_relative_include_ctx_dir =
       if docker.included_from_ref do
-        include_ctx_dir = local_include_ctx_dir(dakefile, docker.included_from_ref)
+        include_ctx_dir = Dir.local_include_ctx_dir(dakefile.path, docker.included_from_ref)
         Path.relative_to(include_ctx_dir, docker_build_ctx_dir)
       else
         ""
@@ -114,8 +112,7 @@ defmodule Dake.Pipeline do
     DockerCmd.docker_build(run, tgid, args, pipeline_uuid)
 
     if run.shell and tgid == run.tgid do
-      IO.puts("\nStarting interactive shell in #{run.tgid}:\n")
-
+      Reporter.job_notice(run.ns, run.tgid, "\nStarting interactive shell:\n")
       DockerCmd.docker_shell(tgid, pipeline_uuid)
     end
 
@@ -136,11 +133,18 @@ defmodule Dake.Pipeline do
     docker.directives
     |> Enum.filter(&match?(%Directive.Import{}, &1))
     |> Enum.each(fn %Directive.Import{} = import_ ->
-      unless File.exists?(import_.ref) do
+      import_dakefile_path =
+        case Reference.get_import(import_) do
+          {:ok, import_dakefile_path} -> import_dakefile_path
+          {:error, reason} -> raise Dake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}: #{reason}"
+        end
+
+      unless File.exists?(import_dakefile_path) do
         raise Dake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}"
       end
 
-      Logger.info("running pipeline for imported target #{inspect(import_.target)} dakefile=#{inspect(import_.ref)}",
+      Logger.info(
+        "running pipeline for imported target #{inspect(import_.target)} dakefile=#{inspect(import_dakefile_path)}",
         pipeline: pipeline_uuid
       )
 
@@ -160,13 +164,18 @@ defmodule Dake.Pipeline do
             save_logs: run.save_logs,
             shell: false
           },
-          Path.dirname(import_.ref)
+          import_.ref
         )
 
       case cmd_res do
-        :ok -> :ok
-        {:error, _} -> raise Dake.Pipeline.Error, "failed @import #{inspect(import_.ref)} build"
-        :timeout -> raise Dake.Pipeline.Error, "timeout"
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          raise Dake.Pipeline.Error, "failed @import #{inspect(import_.ref)} build: #{inspect(reason)}"
+
+        :timeout ->
+          raise Dake.Pipeline.Error, "timeout"
       end
     end)
   end
@@ -234,34 +243,6 @@ defmodule Dake.Pipeline do
         [from, %Docker.Arg{name: "DAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
 
     %Target.Docker{docker | commands: commands}
-  end
-
-  @spec copy_includes_ctx(Dakefile.t(), Type.pipeline_uuid()) :: :ok
-  defp copy_includes_ctx(%Dakefile{} = dakefile, pipeline_uuid) do
-    dakefile.targets
-    |> Enum.filter(&match?(%Target.Docker{included_from_ref: inc} when inc != nil, &1))
-    |> List.flatten()
-    |> Enum.each(fn %Target.Docker{included_from_ref: included_from_ref} ->
-      include_ctx_dir = Path.join(Path.dirname(included_from_ref), "ctx")
-
-      if File.exists?(include_ctx_dir) do
-        dest = local_include_ctx_dir(dakefile, included_from_ref)
-
-        Logger.info("from #{inspect(included_from_ref)}", pipeline: pipeline_uuid)
-
-        File.rm_rf!(dest)
-        File.mkdir_p!(dest)
-        File.cp_r!(include_ctx_dir, dest)
-      end
-    end)
-  end
-
-  @spec local_include_ctx_dir(Dakefile.t(), String.t()) :: Path.t()
-  defp local_include_ctx_dir(%Dakefile{} = dakefile, include_ref) do
-    dakefile_dir = Path.dirname(dakefile.path)
-    include_ref_dir = Path.dirname(include_ref)
-    include_ctx_dir = Dir.include_ctx(dakefile_dir)
-    Path.join(include_ctx_dir, include_ref_dir)
   end
 
   @spec write_dockerfile([Docker.Arg.t()], Target.Docker.t(), Path.t()) :: :ok

@@ -2,11 +2,9 @@ defmodule Dake.Cli do
   alias Dake.{Cmd, Dir, Type}
 
   defmodule Ls do
-    defstruct [:tree]
+    defstruct []
 
-    @type t :: %__MODULE__{
-            tree: nil | boolean()
-          }
+    @type t :: %__MODULE__{}
   end
 
   defmodule Run do
@@ -16,7 +14,7 @@ defmodule Dake.Cli do
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
             ns: [Type.tgid()],
-            tgid: nil | Type.tgid(),
+            tgid: Type.tgid(),
             args: [arg()],
             push: boolean(),
             output: boolean(),
@@ -42,8 +40,8 @@ defmodule Dake.Cli do
       {:ok, _cli} ->
         {:error, Optimus.help(optimus)}
 
-      {:ok, [:ls], cli} ->
-        {:ok, %Ls{tree: cli.flags.tree}}
+      {:ok, [:ls], _cli} ->
+        {:ok, %Ls{}}
 
       {:ok, [:run], cli} ->
         parse_run(cli)
@@ -58,11 +56,11 @@ defmodule Dake.Cli do
         Dake.System.halt(:ok, Optimus.Title.title(optimus))
 
       :help ->
-        {:error, Optimus.help(optimus)}
+        {:ignore, Optimus.help(optimus)}
 
       {:help, subcommand_path} ->
         {optimus_subcommand, _} = Optimus.fetch_subcommand(optimus, subcommand_path)
-        {:error, Optimus.help(optimus_subcommand)}
+        {:ignore, Optimus.help(optimus_subcommand)}
     end
   end
 
@@ -80,8 +78,7 @@ defmodule Dake.Cli do
           args: [
             target: [
               value_name: "TARGET",
-              help: "The target of the pipeline. If not specified all targets are executed",
-              required: false
+              help: "The target of the pipeline"
             ]
           ],
           flags: [
@@ -130,13 +127,7 @@ defmodule Dake.Cli do
         ],
         ls: [
           name: "ls",
-          about: "List targets",
-          flags: [
-            tree: [
-              long: "--tree",
-              help: "Show the pipeline originating from each target"
-            ]
-          ]
+          about: "List targets"
         ]
       ]
     )

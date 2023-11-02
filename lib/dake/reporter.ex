@@ -37,7 +37,7 @@ defmodule Dake.Reporter do
     :ok
   end
 
-  @spec stop(:ok | {:error, reason :: term()} | :timeout) :: :ok
+  @spec stop(Dake.Cmd.result()) :: :ok
   def stop(workflow_status) do
     GenServer.call(@name, {:stop, workflow_status}, :infinity)
   end
@@ -64,6 +64,11 @@ defmodule Dake.Reporter do
     GenServer.cast(@name, {:job_end, {job_ns, job_id}, status})
   end
 
+  @spec job_notice([String.t()], String.t(), String.t()) :: :ok
+  def job_notice(job_ns, job_id, message) do
+    GenServer.cast(@name, {:job_notice, {job_ns, job_id}, message})
+  end
+
   @spec job_log([String.t()], String.t(), String.t()) :: :ok
   def job_log(job_ns, job_id, message) do
     GenServer.cast(@name, {:job_log, {job_ns, job_id}, message})
@@ -79,13 +84,12 @@ defmodule Dake.Reporter do
     System.monotonic_time(@time_unit)
   end
 
-  @spec collector([String.t()], String.t()) :: Collectable.t()
-  def collector(job_ns, job_id) do
-    %Collector{job_ns: job_ns, job_id: job_id}
+  @spec collector([String.t()], String.t(), Collector.report_type()) :: Collectable.t()
+  def collector(job_ns, job_id, type) do
+    %Collector{job_ns: job_ns, job_id: job_id, type: type}
   end
 
   @impl true
-  @spec init([]) :: {:ok, Dake.Reporter.State.t()}
   def init([]) do
     {:ok,
      %State{
@@ -149,14 +153,25 @@ defmodule Dake.Reporter do
     {:noreply, state}
   end
 
-  def handle_cast({:job_log, job, message}, %State{} = state) do
-    {state, log_file} = log_file(state, {job_ns, job_id} = job)
+  def handle_cast({:job_log, {job_ns, job_id} = job, message}, %State{} = state) do
+    {state, log_file} = log_file(state, job)
 
     message
     |> String.split(~r/\R/)
     |> Enum.each(fn line ->
       ansidata = report_line(".", job_ns, job_id, nil, " | #{line}")
       log_puts(log_file, ansidata, state.verbose)
+    end)
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:job_notice, {job_ns, job_id}, message}, %State{} = state) do
+    message
+    |> String.split(~r/\R/)
+    |> Enum.each(fn line ->
+      ansidata = report_line("!", job_ns, job_id, nil, " | #{line}")
+      log_puts(nil, ansidata, true)
     end)
 
     {:noreply, state}
@@ -201,6 +216,9 @@ defmodule Dake.Reporter do
           count = state.track |> Map.values() |> Enum.count(&(&1 == :ok))
           [:green, "Completed (#{count} jobs)", :reset]
 
+        {:ignore, _} ->
+          nil
+
         {:error, _} ->
           failed =
             state.track
@@ -217,9 +235,10 @@ defmodule Dake.Reporter do
           [:red, "Timeout", :reset]
       end
 
-    duration = delta_time_string(end_time - state.start_time)
-
-    log_stdout_puts(["\n", end_message, " (#{duration})\n"])
+    if end_message != nil do
+      duration = delta_time_string(end_time - state.start_time)
+      log_stdout_puts(["\n", end_message, " (#{duration})\n"])
+    end
 
     {:stop, :normal, :ok, state}
   end

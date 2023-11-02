@@ -1,6 +1,8 @@
 TODO
 
 - supportare include path: local, http, git
+  - git branch / tag / commit
+- include / import cycles
 - secrets mount
 - "service tests"
     docker compose like (build --network ?)

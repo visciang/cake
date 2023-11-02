@@ -1,9 +1,13 @@
 defmodule Dake.Reporter.Collector do
-  defstruct [:job_ns, :job_id]
+  @enforce_keys [:job_ns, :job_id, :type]
+  defstruct @enforce_keys
+
+  @type report_type :: :log | :info
 
   @type t :: %__MODULE__{
           job_ns: [String.t()],
-          job_id: String.t()
+          job_id: String.t(),
+          type: report_type()
         }
 end
 
@@ -16,8 +20,14 @@ defimpl Collectable, for: Dake.Reporter.Collector do
   @spec into(Reporter.Collector.t()) :: {Reporter.Collector.t(), collector_fn()}
   def into(%Reporter.Collector{} = collector) do
     collector_fun = fn
-      _, {:cont, log_message} ->
-        Reporter.job_log(collector.job_ns, collector.job_id, log_message)
+      _, {:cont, message} ->
+        case collector.type do
+          :log ->
+            Reporter.job_log(collector.job_ns, collector.job_id, message)
+
+          :info ->
+            Reporter.job_notice(collector.job_ns, collector.job_id, message)
+        end
 
         collector
 

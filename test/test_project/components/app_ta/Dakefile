@@ -1,1 +1,1 @@
-@include ../../dake/Dakefile XXX=123
+@include ../../dake XXX=123

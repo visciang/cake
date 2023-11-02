@@ -15,7 +15,7 @@ defmodule Dask.Utils do
         {rem(n, divisor), [div(n, divisor) | acc]}
       end)
 
-    ["#{w} wk", "#{d} d", "#{h} hr", "#{m} min", "#{trunc(s)}.#{sec_decimals} sec"]
+    ["#{w} wk", "#{d} d", "#{h} hr", "#{m} min", "#{trunc(s)}.#{sec_decimals} s"]
     |> Enum.reject(&String.starts_with?(&1, "0 "))
     |> Enum.join(", ")
   end
