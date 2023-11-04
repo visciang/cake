@@ -38,7 +38,7 @@ defmodule Dake.Cli do
 
     case Optimus.parse(optimus, args) do
       {:ok, _cli} ->
-        {:error, Optimus.help(optimus)}
+        {:ignore, Optimus.help(optimus)}
 
       {:ok, [:ls], _cli} ->
         {:ok, %Ls{}}
