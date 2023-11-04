@@ -1,13 +1,35 @@
 TODO
 
-- supportare include path: local, http, git
-  - git branch / tag / commit
+- run against a private buildkit instance
+  - "run --load" (flag)
 - include / import cycles
 - secrets mount
 - "service tests"
     docker compose like (build --network ?)
 - local task
 - Dakefile FROM DOCKERFILE
-- run against a private buildkit instance
 - dot
 ? private targets (.target)
+
+
+
+NOTE:
+
+  BUILDKIT_VERSION=v0.12.3
+  BUILDKIT_BUILDER_NAME=dake
+
+  DOCKER_REGISTRY_VERSION=2.8.3
+  DOCKER_REGISTRY_HOST=localhost:7100
+
+  docker run --rm -d -p 7000:7000 --name registry registry:${DOCKER_REGISTRY_VERSION}
+
+  docker buildx create --name=${BUILDKIT_BUILDER_NAME} --driver=docker-container --driver-opt=image=moby/buildkit:${BUILDKIT_VERSION},network=host
+
+  docker buildx inspect --builder ${BUILDKIT_BUILDER_NAME}
+
+  docker buildx build --builder=${BUILDKIT_BUILDER_NAME} -f Dockerfile \
+          --push \
+          -t ${DOCKER_REGISTRY_HOST}/my-alpine:latest \
+          --cache-from=type=registry,ref=${DOCKER_REGISTRY_HOST}/my-alpine \
+          --cache-to=type=registry,ref=${DOCKER_REGISTRY_HOST}/my-alpine,mode=max \
+          .

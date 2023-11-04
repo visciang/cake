@@ -5,7 +5,7 @@ defmodule Dake.Pipeline.Docker do
   require Logger
 
   @spec fq_image(Type.tgid(), Type.pipeline_uuid()) :: String.t()
-  def fq_image(tgid, pipeline_uuid), do: "#{tgid}:#{pipeline_uuid}"
+  def fq_image(tgid, pipeline_uuid), do: "dake/#{tgid}:#{pipeline_uuid}"
 
   @spec fq_output_container(Type.tgid(), Type.pipeline_uuid()) :: String.t()
   def fq_output_container(tgid, pipeline_uuid), do: "output-#{tgid}-#{pipeline_uuid}"
@@ -13,7 +13,7 @@ defmodule Dake.Pipeline.Docker do
   @spec docker_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
   def docker_build(%Run{} = run, tgid, args, pipeline_uuid) do
     docker = System.find_executable("docker")
-    args = [docker, "buildx", "build", "--ssh=default" | args]
+    args = [docker, "build", "--ssh=default" | args]
     into = Reporter.collector(run.ns, tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
@@ -71,12 +71,13 @@ defmodule Dake.Pipeline.Docker do
 
   @spec docker_rm_images(Type.pipeline_uuid()) :: :ok
   defp docker_rm_images(pipeline_uuid) do
-    {cmd_out, 0} = System.cmd("docker", ["image", "ls", "*:#{pipeline_uuid}", "--format", "{{.Repository}}", "--quiet"])
-    repositories = String.split(cmd_out, "\n", trim: true)
+    image_ls_args = ["image", "ls", fq_image("*", pipeline_uuid), "--format", "{{.Repository}}:{{.Tag}}", "--quiet"]
+    {cmd_out, 0} = System.cmd("docker", image_ls_args)
 
-    if repositories != [] do
-      images_ids = Enum.map(repositories, &fq_image(&1, pipeline_uuid))
-      _ = System.cmd("docker", ["image", "rm" | images_ids], stderr_to_stdout: true)
+    images = String.split(cmd_out, "\n", trim: true)
+
+    if images != [] do
+      _ = System.cmd("docker", ["image", "rm" | images], stderr_to_stdout: true)
     end
 
     :ok
