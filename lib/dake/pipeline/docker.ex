@@ -4,16 +4,55 @@ defmodule Dake.Pipeline.Docker do
 
   require Logger
 
+  @buildkit_version "v0.12.3"
+  @buildkit_builder_name "dake"
+  @registry "localhost:7100"
+
+  # aaa
+
   @spec fq_image(Type.tgid(), Type.pipeline_uuid()) :: String.t()
-  def fq_image(tgid, pipeline_uuid), do: "#{tgid}:#{pipeline_uuid}"
+  def fq_image(tgid, pipeline_uuid), do: "#{@registry}/#{tgid}:#{pipeline_uuid}"
 
   @spec fq_output_container(Type.tgid(), Type.pipeline_uuid()) :: String.t()
   def fq_output_container(tgid, pipeline_uuid), do: "output-#{tgid}-#{pipeline_uuid}"
 
+  @spec docker_buildkit_bootstrap(Run.t(), Type.tgid()) :: :ok
+  def docker_buildkit_bootstrap(%Run{} = run, tgid) do
+    args = [
+      "buildx",
+      "create",
+      "--name",
+      @buildkit_builder_name,
+      "--driver",
+      "docker-container",
+      "--driver-opt",
+      "image=moby/buildkit:#{@buildkit_version},network=host"
+    ]
+
+    into = Reporter.collector(run.ns, tgid, :log)
+
+    System.cmd("docker", args, stderr_to_stdout: true, into: into)
+
+    :ok
+  end
+
   @spec docker_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
   def docker_build(%Run{} = run, tgid, args, pipeline_uuid) do
     docker = System.find_executable("docker")
-    args = [docker, "buildx", "build", "--ssh=default" | args]
+
+    cache_ref = fq_image(tgid, "cache")
+
+    registry_cache = [
+      "--builder",
+      @buildkit_builder_name,
+      "--push",
+      "--cache-to",
+      "type=registry,ref=#{cache_ref},mode=max",
+      "--cache-from",
+      "type=registry,ref=#{cache_ref}"
+    ]
+
+    args = [docker, "buildx", "build", "--ssh=default"] ++ registry_cache ++ args
     into = Reporter.collector(run.ns, tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)

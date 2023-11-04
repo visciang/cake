@@ -15,6 +15,8 @@ defimpl Dake.Cmd, for: Dake.Cli.Run do
 
     {:ok, limiter} = Limiter.start_link(run.parallelism)
 
+    Pipeline.Docker.docker_buildkit_bootstrap(run, run.tgid)
+
     Pipeline.build(run, dakefile, graph)
     |> Dask.async(limiter)
     |> Dask.await(run.timeout)
