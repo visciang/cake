@@ -35,7 +35,7 @@ jobs:
             *) export DAKE_VERSION=development ;;
           esac
 
-          echo "##[set-output name=version;]$DAKE_VERSION"
+          echo "version=$DAKE_VERSION" >> $GITHUB_OUTPUT
       -
         name: Build and push
         uses: docker/build-push-action@v5
