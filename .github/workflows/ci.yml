@@ -46,6 +46,5 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           push: true
-          load: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/dake:${{ steps.dake_version.outputs.version }}
           target: dake.app
