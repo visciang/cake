@@ -1,6 +1,6 @@
 app:
     @output /out
-    FROM alpine
+    FROM docker.io/alpine
     COPY x /out/x
     COPY ${DAKE_INCLUDE_CTX}/file /file
     ARG XXX

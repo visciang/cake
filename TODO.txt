@@ -19,7 +19,7 @@ NOTE:
   BUILDKIT_BUILDER_NAME=dake
 
   DOCKER_REGISTRY_VERSION=2.8.3
-  DOCKER_REGISTRY_HOST=localhost:7100
+  DOCKER_REGISTRY_HOST=localhost:7000
 
   docker run --rm -d -p 7000:7000 --name registry registry:${DOCKER_REGISTRY_VERSION}
 

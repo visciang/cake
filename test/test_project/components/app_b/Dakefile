@@ -1,6 +1,6 @@
 app:
     @output /out
-    FROM alpine
+    FROM docker.io/alpine
     COPY b /out/b
     CMD ["cat", "/out/b"]
 
