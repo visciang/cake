@@ -5,7 +5,7 @@ defmodule Dake.Pipeline.Docker do
   require Logger
 
   @spec fq_image(Type.tgid(), Type.pipeline_uuid()) :: String.t()
-  def fq_image(tgid, pipeline_uuid), do: "dake/#{tgid}:#{pipeline_uuid}"
+  def fq_image(tgid, pipeline_uuid), do: "#{tgid}:#{pipeline_uuid}"
 
   @spec fq_output_container(Type.tgid(), Type.pipeline_uuid()) :: String.t()
   def fq_output_container(tgid, pipeline_uuid), do: "output-#{tgid}-#{pipeline_uuid}"
