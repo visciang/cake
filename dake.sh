@@ -9,7 +9,13 @@ case $(uname) in
     Linux) SSH_AUTH_SOCK="$SSH_AUTH_SOCK" ;;
 esac
 
-docker run --init --rm -ti --network=host \
+if [ "$CI" == "true" ]; then
+    OPTS=""
+else
+    OPTS="-ti"
+fi
+
+docker run $OPTS --init --rm --network=host \
     -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:$PWD" -w "$PWD" \
     -e SSH_AUTH_SOCK="$SSH_AUTH_SOCK" -v "$SSH_AUTH_SOCK:$SSH_AUTH_SOCK" \
     -e LOG_LEVEL=${LOG_LEVEL:-notice} \
