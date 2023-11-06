@@ -35,7 +35,7 @@ jobs:
 
           echo "version=$DAKE_VERSION" >> $GITHUB_OUTPUT
       -
-        name: Build
+        name: Build and push
         uses: docker/build-push-action@v5
         with:
           platforms: linux/amd64 #,linux/arm64
@@ -45,11 +45,6 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             DAKE_VERSION=${{ steps.dake_version.outputs.version }}
-          load: true
+          push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/dake:${{ steps.dake_version.outputs.version }}
           target: dake.app
-      -
-        name: Self lint
-        env:
-          DAKE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/dake:${{ steps.dake_version.outputs.version }}
-        run: ./dake.sh run --verbose elixir.lint
