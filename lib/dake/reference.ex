@@ -98,6 +98,7 @@ defmodule Dake.Reference do
         {:ok, Path.join(checkout_dir, "Dakefile")}
       else
         {action, _exit_status} ->
+          File.rm_rf!(checkout_dir)
           {:error, "#{action} error"}
       end
     end
@@ -105,8 +106,9 @@ defmodule Dake.Reference do
 
   @spec parse_git_url(String.t()) :: {:ok, repo :: String.t(), ref :: String.t()} | {:error, String.t()}
   defp parse_git_url(git_url) do
-    with %URI{path: repo, query: query} when query != nil <- URI.parse(git_url),
+    with %URI{query: query} = uri when query != nil <- URI.parse(git_url),
          %{"ref" => ref} <- URI.decode_query(query) do
+      repo = to_string(%URI{uri | query: nil})
       {:ok, repo, ref}
     else
       _ ->

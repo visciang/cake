@@ -1,4 +1,5 @@
-@include git+git@github.com:visciang/dake-elixir.git?ref=0.1.0 ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli-buildx graphviz"
+# @include git+git@github.com:visciang/dake-elixir.git?ref=0.1.0 ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli-buildx graphviz"
+@include git+https://github.com/visciang/dake-elixir.git?ref=0.1.0 ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli-buildx graphviz"
 
 dake.app:
     FROM +elixir.escript
