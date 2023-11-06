@@ -13,7 +13,8 @@ defmodule Dake.Pipeline.Docker do
   @spec docker_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
   def docker_build(%Run{} = run, tgid, args, pipeline_uuid) do
     docker = System.find_executable("docker")
-    args = [docker, "build", "--ssh=default" | args]
+    args = if System.get_env("SSH_AUTH_SOCK"), do: ["--ssh=default" | args], else: args
+    args = [docker, "build" | args]
     into = Reporter.collector(run.ns, tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)

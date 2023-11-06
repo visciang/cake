@@ -1,9 +1,8 @@
 #!/usr/bin/env sh
 
-set -ex
+set -e
 
 DAKE_IMAGE=${DAKE_IMAGE:-"dake:latest"}
-
 
 if [ "$CI" = "true" ]; then
     docker run --init --rm --network=host \
