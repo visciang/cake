@@ -50,4 +50,6 @@ jobs:
           target: dake.app
       -
         name: Self lint
-        run: DAKE_IMAGE=dake:${{ steps.dake_version.outputs.version }} ./dake.sh run --verbose elixir.lint
+        env:
+          DAKE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/dake:${{ steps.dake_version.outputs.version }}
+        run: ./dake.sh run --verbose elixir.lint
