@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-set -e
+set -ex
 
 DAKE_IMAGE=${DAKE_IMAGE:-"dake:latest"}
 
