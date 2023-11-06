@@ -1,9 +1,7 @@
 on:
   push:
-    tags:
-      - '*'
-    branches:
-      - main
+    tags: ['*']
+    branches: [main]
   pull_request:
 
 jobs:
@@ -31,8 +29,8 @@ jobs:
         run: |
           case $GITHUB_REF in
             refs/heads/main) export DAKE_VERSION=latest ;;
-            refs/tags/v*) export DAKE_VERSION=${GITHUB_REF#refs/tags/v} ;;
-            *) export DAKE_VERSION=development ;;
+            refs/tags/v*)    export DAKE_VERSION=${GITHUB_REF#refs/tags/v} ;;
+            *)               export DAKE_VERSION=development ;;
           esac
 
           echo "version=$DAKE_VERSION" >> $GITHUB_OUTPUT
@@ -45,6 +43,8 @@ jobs:
           file: ./Dockerfile.bootstrap
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            DAKE_VERSION=${{ steps.dake_version.outputs.version }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/dake:${{ steps.dake_version.outputs.version }}
           target: dake.app

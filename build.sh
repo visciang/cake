@@ -2,10 +2,9 @@
 
 set -e
 
-VERSION=$(grep -oE 'version: ("[0-9]+\.[0-9]+\.[0-9]+")' mix.exs | cut -d '"' -f 2)
+DAKE_VERSION=${DAKE_VERSION:-0.0.0}
 
-docker build --ssh=default --file Dockerfile.bootstrap --target dake.app --tag dake:latest .
+docker build --ssh=default --file Dockerfile.bootstrap --build-arg DAKE_VERSION=${DAKE_VERSION} --target dake.app --tag dake:latest .
 
-# eval "DAKE_IMAGE="dake:latest" ./dake.sh run elixir.lint"
-# eval "DAKE_IMAGE="dake:latest" ./dake.sh run --tag dake:$VERSION dake.app"
-# eval "DAKE_IMAGE="dake:$VERSION" ./dake.sh run --tag dake:latest dake.app"
+./dake.sh run --verbose elixir.lint
+./dake.sh run --tag dake:latest dake.app

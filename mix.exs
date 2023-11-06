@@ -4,7 +4,7 @@ defmodule Dake.MixProject do
   def project do
     [
       app: :dake,
-      version: "0.1.0",
+      version: System.get_env("DAKE_VERSION", "0.0.0"),
       elixir: "~> 1.15",
       preferred_cli_env: [
         coveralls: :test,

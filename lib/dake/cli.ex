@@ -53,7 +53,7 @@ defmodule Dake.Cli do
         {:error, err}
 
       :version ->
-        Dake.System.halt(:ok, Optimus.Title.title(optimus))
+        Dake.System.halt(:ok, Optimus.Title.title(optimus) |> IO.iodata_to_binary())
 
       :help ->
         {:ignore, Optimus.help(optimus)}
