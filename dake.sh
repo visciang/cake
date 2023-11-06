@@ -9,7 +9,7 @@ case $(uname) in
     Linux) SSH_AUTH_SOCK="$SSH_AUTH_SOCK" ;;
 esac
 
-if [ "$CI" == "true" ]; then
+if [ "$CI" = "true" ]; then
     OPTS=""
 else
     OPTS="-ti"
