@@ -12,9 +12,9 @@ defmodule Dake.Pipeline.Docker do
 
   @spec docker_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
   def docker_build(%Run{} = run, tgid, args, pipeline_uuid) do
-    docker = System.find_executable("docker")
+    podman = System.find_executable("podman")
     args = if System.get_env("SSH_AUTH_SOCK"), do: ["--ssh=default" | args], else: args
-    args = [docker, "build" | args]
+    args = [podman, "build" | args]
     into = Reporter.collector(run.ns, tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
@@ -27,11 +27,14 @@ defmodule Dake.Pipeline.Docker do
 
   @spec docker_shell(Type.tgid(), Type.pipeline_uuid()) :: :ok
   def docker_shell(tgid, pipeline_uuid) do
+    # TODO: rotto con podman, il problema sembra essere legato ad erlang / Port.
+    #       da shell dentro il container di dake posso fare un "podman run --rm -ti ..."
+
     ssh_auth_sock = System.fetch_env!("SSH_AUTH_SOCK")
     run_ssh_args = ["-e", "SSH_AUTH_SOCK=#{ssh_auth_sock}", "-v", "#{ssh_auth_sock}:#{ssh_auth_sock}"]
-    run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh"] ++ run_ssh_args ++ [fq_image(tgid, pipeline_uuid)]
+    run_cmd_args = ["run", "--privileged", "--rm", "-t", "-i", "--entrypoint", "sh"] ++ run_ssh_args ++ [fq_image(tgid, pipeline_uuid)]
     port_opts = [:nouse_stdio, :exit_status, args: run_cmd_args]
-    port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
+    port = Port.open({:spawn_executable, System.find_executable("podman")}, port_opts)
 
     receive do
       {^port, {:exit_status, _}} -> :ok
@@ -46,14 +49,14 @@ defmodule Dake.Pipeline.Docker do
     tmp_container = fq_output_container(tgid, pipeline_uuid)
 
     container_create_cmd = ["container", "create", "--name", tmp_container, docker_image]
-    {_, 0} = System.cmd("docker", container_create_cmd, stderr_to_stdout: true)
+    {_, 0} = System.cmd("podman", container_create_cmd, stderr_to_stdout: true)
 
     Enum.each(outputs, fn output ->
       output_dir = Path.join(Dir.output(), run.output_dir)
       container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", output_dir]
       into = Reporter.collector(run.ns, tgid, :log)
 
-      case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: into) do
+      case System.cmd("podman", container_cp_cmd, stderr_to_stdout: true, into: into) do
         {_, 0} -> :ok
         {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} output copy failed"
       end
@@ -72,14 +75,14 @@ defmodule Dake.Pipeline.Docker do
 
   @spec docker_rm_images(Type.pipeline_uuid()) :: :ok
   defp docker_rm_images(pipeline_uuid) do
-    image_ls_args = ["image", "ls", fq_image("*", pipeline_uuid), "--format", "{{.Repository}}:{{.Tag}}", "--quiet"]
-    {cmd_out, 0} = System.cmd("docker", image_ls_args)
+    image_ls_args = ["image", "ls", fq_image("*", pipeline_uuid), "--format", "{{.ID}}", "--quiet"]
+    {cmd_out, 0} = System.cmd("podman", image_ls_args)
 
-    images = String.split(cmd_out, "\n", trim: true)
+    images = String.split(cmd_out, "\n", trim: true) |> Enum.uniq()
 
-    if images != [] do
-      _ = System.cmd("docker", ["image", "rm" | images], stderr_to_stdout: true)
-    end
+    Enum.each(images, fn image ->
+      _ = System.cmd("podman", ["image", "untag", image], stderr_to_stdout: true)
+    end)
 
     :ok
   end
@@ -87,11 +90,11 @@ defmodule Dake.Pipeline.Docker do
   @spec docker_rm_containers(Type.pipeline_uuid()) :: :ok
   defp docker_rm_containers(pipeline_uuid) do
     cmd = ["container", "ls", "--all", "--filter", "name=#{fq_output_container(".*", pipeline_uuid)}", "--quiet"]
-    {cmd_out, 0} = System.cmd("docker", cmd)
+    {cmd_out, 0} = System.cmd("podman", cmd)
     containers_ids = String.split(cmd_out, "\n", trim: true)
 
     if containers_ids != [] do
-      _ = System.cmd("docker", ["container", "rm" | containers_ids], stderr_to_stdout: true)
+      _ = System.cmd("podman", ["container", "rm" | containers_ids], stderr_to_stdout: true)
     end
 
     :ok

@@ -10,8 +10,9 @@ case $(uname) in
     Linux) SSH_AUTH_SOCK="$SSH_AUTH_SOCK" ;;
 esac
 
-docker run --init --rm -ti --network=host \
-    -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:$PWD" -w "$PWD" \
+podman run --privileged --init --rm -ti --network=host \
+    -v "$PWD:$PWD" -w "$PWD" \
+    -v /tmp/podman/containers:/var/lib/containers \
     -e SSH_AUTH_SOCK="$SSH_AUTH_SOCK" -v "$SSH_AUTH_SOCK:$SSH_AUTH_SOCK" \
     -e LOG_LEVEL=${LOG_LEVEL:-notice} \
     $DAKE_IMAGE "$@"
