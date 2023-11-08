@@ -10,6 +10,8 @@ case $(uname) in
     Linux) SSH_AUTH_SOCK="$SSH_AUTH_SOCK" ;;
 esac
 
+mkdir -p /tmp/podman/containers
+
 podman run --privileged --init --rm -ti --network=host \
     -v "$PWD:$PWD" -w "$PWD" \
     -v /tmp/podman/containers:/var/lib/containers \

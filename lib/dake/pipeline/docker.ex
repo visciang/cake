@@ -32,7 +32,9 @@ defmodule Dake.Pipeline.Docker do
 
     ssh_auth_sock = System.fetch_env!("SSH_AUTH_SOCK")
     run_ssh_args = ["-e", "SSH_AUTH_SOCK=#{ssh_auth_sock}", "-v", "#{ssh_auth_sock}:#{ssh_auth_sock}"]
-    run_cmd_args = ["run", "--privileged", "--rm", "-t", "-i", "--entrypoint", "sh"] ++ run_ssh_args ++ [fq_image(tgid, pipeline_uuid)]
+
+    run_cmd_args = ["run", "--network", "host", "--rm", "-t", "-i", "--entrypoint", "sh"] ++ run_ssh_args ++ [fq_image(tgid, pipeline_uuid)]
+
     port_opts = [:nouse_stdio, :exit_status, args: run_cmd_args]
     port = Port.open({:spawn_executable, System.find_executable("podman")}, port_opts)
 
