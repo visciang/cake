@@ -3,12 +3,12 @@ defmodule Dake.Parser.Dakefile do
 
   defstruct path: ".", includes: [], args: [], targets: []
 
-  @type target :: Dake.Parser.Target.Docker.t() | Dake.Parser.Target.Alias.t()
+  @type target :: Dake.Parser.Target.Container.t() | Dake.Parser.Target.Alias.t()
 
   @type t :: %__MODULE__{
           path: Path.t(),
           includes: [Directive.Include.t()],
-          args: [Dake.Parser.Docker.Arg.t()],
+          args: [Dake.Parser.Container.Arg.t()],
           targets: [target()]
         }
 end

@@ -2,7 +2,7 @@ defimpl Dake.Cmd, for: Dake.Cli.Ls do
   alias Dake.Cli.Ls
   alias Dake.{Dag, Reporter, Type}
   alias Dake.Parser.Dakefile
-  alias Dake.Parser.Docker.Arg
+  alias Dake.Parser.Container.Arg
   alias Dake.Parser.Target
 
   @typep target_args :: %{Type.tgid() => [Arg.t()]}
@@ -31,9 +31,9 @@ defimpl Dake.Cmd, for: Dake.Cli.Ls do
   @spec target_args(Dakefile.t()) :: target_args()
   defp target_args(%Dakefile{} = dakefile) do
     dakefile.targets
-    |> Enum.filter(&match?(%Target.Docker{}, &1))
-    |> Map.new(fn %Target.Docker{} = docker ->
-      {docker.tgid, Enum.filter(docker.commands, &match?(%Arg{}, &1))}
+    |> Enum.filter(&match?(%Target.Container{}, &1))
+    |> Map.new(fn %Target.Container{} = container ->
+      {container.tgid, Enum.filter(container.commands, &match?(%Arg{}, &1))}
     end)
   end
 

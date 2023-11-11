@@ -1,7 +1,7 @@
 defmodule Dake.Preprocessor do
   alias Dake.Parser.Dakefile
   alias Dake.Parser.Directive.{Import, Include, Output}
-  alias Dake.Parser.Target.Docker
+  alias Dake.Parser.Target.Container
   alias Dake.Reference
 
   require Logger
@@ -31,7 +31,7 @@ defmodule Dake.Preprocessor do
       dakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Docker{}, &1)),
+        Access.filter(&match?(%Container{}, &1)),
         Access.key!(:directives),
         Access.filter(&match?(%Import{}, &1)),
         Access.key!(:ref)
@@ -91,7 +91,7 @@ defmodule Dake.Preprocessor do
       dakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Docker{}, &1)),
+        Access.filter(&match?(%Container{}, &1)),
         Access.key!(:directives),
         Access.all()
       ],
@@ -120,7 +120,7 @@ defmodule Dake.Preprocessor do
       dakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Docker{}, &1)),
+        Access.filter(&match?(%Container{}, &1)),
         Access.key!(:included_from_ref)
       ],
       dakefile_path

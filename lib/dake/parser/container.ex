@@ -1,11 +1,11 @@
-defprotocol Dake.Parser.Docker.Fmt do
+defprotocol Dake.Parser.Container.Fmt do
   @spec fmt(t()) :: String.t()
   def fmt(data)
 end
 
-defmodule Dake.Parser.Docker do
+defmodule Dake.Parser.Container do
   defmodule From do
-    # Docker `FROM <image> [AS <as>]`
+    # Container `FROM <image> [AS <as>]`
 
     @enforce_keys [:image]
     defstruct @enforce_keys ++ [:as]
@@ -17,7 +17,7 @@ defmodule Dake.Parser.Docker do
   end
 
   defmodule Arg do
-    # Docker `ARG <name>[=<default_value>]`
+    # Container `ARG <name>[=<default_value>]`
 
     @enforce_keys [:name]
     defstruct @enforce_keys ++ [:default_value]
@@ -29,10 +29,10 @@ defmodule Dake.Parser.Docker do
   end
 
   defmodule Command do
-    # Generic Docker command `INSTRUCTION [--option=value]* arguments`
+    # Generic Container command `INSTRUCTION [--option=value]* arguments`
 
     defmodule Option do
-      # Generic Docker option
+      # Generic Container option
 
       @enforce_keys [:name, :value]
       defstruct @enforce_keys
@@ -53,7 +53,7 @@ defmodule Dake.Parser.Docker do
           }
   end
 
-  defimpl Dake.Parser.Docker.Fmt, for: From do
+  defimpl Dake.Parser.Container.Fmt, for: From do
     @spec fmt(From.t()) :: String.t()
     def fmt(%From{} = from) do
       if from.as do
@@ -64,7 +64,7 @@ defmodule Dake.Parser.Docker do
     end
   end
 
-  defimpl Dake.Parser.Docker.Fmt, for: Arg do
+  defimpl Dake.Parser.Container.Fmt, for: Arg do
     @spec fmt(Arg.t()) :: String.t()
     def fmt(%Arg{} = arg) do
       if arg.default_value do
@@ -75,7 +75,7 @@ defmodule Dake.Parser.Docker do
     end
   end
 
-  defimpl Dake.Parser.Docker.Fmt, for: Command do
+  defimpl Dake.Parser.Container.Fmt, for: Command do
     @spec fmt(Command.t()) :: String.t()
     def fmt(%Command{} = command) do
       options = Enum.map_join(command.options, " ", &"--#{&1.name}=#{&1.value}")

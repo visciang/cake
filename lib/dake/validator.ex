@@ -1,6 +1,6 @@
 defmodule Dake.Validator do
   alias Dake.Dag
-  alias Dake.Parser.{Dakefile, Directive, Docker, Target}
+  alias Dake.Parser.{Container, Dakefile, Directive, Target}
 
   @type result() :: :ok | {:error, reason :: term()}
 
@@ -22,20 +22,20 @@ defmodule Dake.Validator do
 
     all_commands =
       dakefile.targets
-      |> Enum.filter(&match?(%Target.Docker{}, &1))
+      |> Enum.filter(&match?(%Target.Container{}, &1))
       |> Enum.flat_map(& &1.commands)
 
     tgids_referenced_in_from =
       all_commands
-      |> Enum.filter(&match?(%Docker.From{}, &1))
+      |> Enum.filter(&match?(%Container.From{}, &1))
       |> Enum.map(& &1.image)
 
     tgids_referenced_in_copy =
       all_commands
       |> get_in([
-        Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
+        Access.filter(&match?(%Container.Command{instruction: "COPY"}, &1)),
         Access.key!(:options),
-        Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
+        Access.filter(&match?(%Container.Command.Option{name: "from"}, &1)),
         Access.key!(:value)
       ])
       |> List.flatten()
@@ -61,8 +61,8 @@ defmodule Dake.Validator do
   defp check_push_targets(%Dakefile{} = dakefile, graph) do
     push_targets =
       Enum.filter(dakefile.targets, fn
-        %Target.Docker{} = docker ->
-          Enum.any?(docker.directives, &match?(%Directive.Push{}, &1))
+        %Target.Container{} = container ->
+          Enum.any?(container.directives, &match?(%Directive.Push{}, &1))
 
         _ ->
           false
@@ -81,14 +81,14 @@ defmodule Dake.Validator do
   @spec check_from(Dakefile.t(), Dag.graph()) :: result()
   defp check_from(%Dakefile{} = dakefile, _graph) do
     dakefile.targets
-    |> Enum.filter(&match?(%Target.Docker{}, &1))
-    |> Enum.reduce_while(:ok, fn %Target.Docker{tgid: tgid, commands: commands}, :ok ->
+    |> Enum.filter(&match?(%Target.Container{}, &1))
+    |> Enum.reduce_while(:ok, fn %Target.Container{tgid: tgid, commands: commands}, :ok ->
       case commands do
-        [%Docker.From{as: as} | _] when as != nil ->
+        [%Container.From{as: as} | _] when as != nil ->
           reason = "'FROM .. AS ..' form is not allowed, please remove the AS argument under #{tgid}"
           {:halt, {:error, reason}}
 
-        [%Docker.From{} | _] ->
+        [%Container.From{} | _] ->
           {:cont, :ok}
 
         _ ->

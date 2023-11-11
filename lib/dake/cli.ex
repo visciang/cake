@@ -68,7 +68,7 @@ defmodule Dake.Cli do
   defp optimus do
     Optimus.new!(
       name: "dake",
-      description: "dake (Docker-mAKE pipeline)",
+      description: "dake (Container-mAKE pipeline)",
       version: @version,
       subcommands: [
         run: [
@@ -107,7 +107,7 @@ defmodule Dake.Cli do
             tag: [
               long: "--tag",
               value_name: "TAG",
-              help: "Tag the target's docker image"
+              help: "Tag the target's container image"
             ],
             timeout: [
               long: "--timeout",

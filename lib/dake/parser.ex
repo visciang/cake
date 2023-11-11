@@ -1,5 +1,5 @@
 defmodule Dake.Parser do
-  alias Dake.Parser.{Dakefile, Directive, Docker, Target}
+  alias Dake.Parser.{Container, Dakefile, Directive, Target}
 
   import NimbleParsec
 
@@ -70,7 +70,7 @@ defmodule Dake.Parser do
     |> ignore(string("="))
     |> unwrap_and_tag(literal_value, :value)
     |> wrap()
-    |> map({:cast, [Docker.Command.Option]})
+    |> map({:cast, [Container.Command.Option]})
 
   command_options =
     command_option
@@ -90,7 +90,7 @@ defmodule Dake.Parser do
     )
     |> unwrap_and_tag(command_args, :arguments)
     |> wrap()
-    |> map({:cast, [Docker.Command]})
+    |> map({:cast, [Container.Command]})
 
   arg_name =
     utf8_char([?a..?z, ?A..?Z])
@@ -112,7 +112,7 @@ defmodule Dake.Parser do
       |> unwrap_and_tag(target_id, :as)
     )
     |> wrap()
-    |> map({:cast, [Docker.From]})
+    |> map({:cast, [Container.From]})
 
   arg =
     ignore(string("ARG"))
@@ -120,7 +120,7 @@ defmodule Dake.Parser do
     |> unwrap_and_tag(arg_name, :name)
     |> optional(unwrap_and_tag(arg_value, :default_value))
     |> wrap()
-    |> map({:cast, [Docker.Arg]})
+    |> map({:cast, [Container.Arg]})
 
   target_body_command =
     ignore(indent)
@@ -157,7 +157,7 @@ defmodule Dake.Parser do
       |> unwrap_and_tag(arg_name, :name)
       |> optional(unwrap_and_tag(arg_value, :default_value))
       |> wrap()
-      |> map({:cast, [Docker.Arg]})
+      |> map({:cast, [Container.Arg]})
     )
 
   import_directive =
@@ -200,7 +200,7 @@ defmodule Dake.Parser do
       |> concat(target_directive)
     )
 
-  target_docker =
+  target_container =
     unwrap_and_tag(target_id, :tgid)
     |> ignore(string(":"))
     |> ignore(nl)
@@ -210,7 +210,7 @@ defmodule Dake.Parser do
     )
     |> tag(target_commands, :commands)
     |> wrap()
-    |> map({:cast, [Target.Docker]})
+    |> map({:cast, [Target.Container]})
 
   alias_targets =
     target_id
@@ -230,7 +230,7 @@ defmodule Dake.Parser do
   target =
     choice([
       target_alias,
-      target_docker
+      target_container
     ])
 
   global_args =

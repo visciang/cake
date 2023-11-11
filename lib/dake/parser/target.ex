@@ -11,7 +11,7 @@ defmodule Dake.Parser.Target do
           }
   end
 
-  defmodule Docker do
+  defmodule Container do
     # target:
     #     @output output/
     #     FROM image
@@ -27,9 +27,9 @@ defmodule Dake.Parser.Target do
             | Dake.Parser.Directive.Push.t()
 
     @type command ::
-            Dake.Parser.Docker.Arg.t()
-            | Dake.Parser.Docker.From.t()
-            | Dake.Parser.Docker.Command.t()
+            Dake.Parser.Container.Arg.t()
+            | Dake.Parser.Container.From.t()
+            | Dake.Parser.Container.Command.t()
 
     @type t :: %__MODULE__{
             tgid: Dake.Type.tgid(),

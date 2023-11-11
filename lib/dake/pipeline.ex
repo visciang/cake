@@ -4,8 +4,8 @@ end
 
 defmodule Dake.Pipeline do
   alias Dake.Cli.Run
-  alias Dake.Parser.{Dakefile, Directive, Docker, Target}
-  alias Dake.Pipeline.Docker, as: DockerCmd
+  alias Dake.Parser.{Container, Dakefile, Directive, Target}
+  alias Dake.Pipeline.Container, as: ContainerCmd
   alias Dake.{Dag, Dir, Reference, Reporter, Type}
 
   require Logger
@@ -56,8 +56,8 @@ defmodule Dake.Pipeline do
         %Target.Alias{} ->
           :ok
 
-        %Target.Docker{} = docker ->
-          dask_job_docker(run, dakefile, docker, tgid, pipeline_uuid)
+        %Target.Container{} = container ->
+          dask_job_container(run, dakefile, container, tgid, pipeline_uuid)
       end
 
       :ok
@@ -85,52 +85,52 @@ defmodule Dake.Pipeline do
     Dask.job(dask, tgid, job_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec dask_job_docker(Run.t(), Dakefile.t(), Target.Docker.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
-  defp dask_job_docker(%Run{} = run, %Dakefile{} = dakefile, %Target.Docker{} = docker, tgid, pipeline_uuid) do
+  @spec dask_job_container(Run.t(), Dakefile.t(), Target.Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
+  defp dask_job_container(%Run{} = run, %Dakefile{} = dakefile, %Target.Container{} = container, tgid, pipeline_uuid) do
     Logger.info("start for #{inspect(tgid)}", pipeline: pipeline_uuid)
 
-    dask_job_docker_imports(run, docker, pipeline_uuid)
+    dask_job_container_imports(run, container, pipeline_uuid)
 
     job_uuid = to_string(System.unique_integer([:positive]))
-    docker_build_ctx_dir = Path.dirname(dakefile.path)
+    container_build_ctx_dir = Path.dirname(dakefile.path)
 
     build_relative_include_ctx_dir =
-      if docker.included_from_ref do
-        include_ctx_dir = Dir.local_include_ctx_dir(dakefile.path, docker.included_from_ref)
-        Path.relative_to(include_ctx_dir, docker_build_ctx_dir)
+      if container.included_from_ref do
+        include_ctx_dir = Dir.local_include_ctx_dir(dakefile.path, container.included_from_ref)
+        Path.relative_to(include_ctx_dir, container_build_ctx_dir)
       else
         ""
       end
 
     dakefile = insert_builtin_global_args(dakefile, pipeline_uuid)
-    docker = insert_builtin_docker_args(docker, build_relative_include_ctx_dir)
+    container = insert_builtin_container_args(container, build_relative_include_ctx_dir)
 
-    dockerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
-    write_dockerfile(dakefile.args, docker, dockerfile_path)
+    containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
+    write_containerfile(dakefile.args, container, containerfile_path)
 
-    args = docker_build_cmd_args(run, dockerfile_path, tgid, pipeline_uuid, docker_build_ctx_dir)
-    DockerCmd.docker_build(run, tgid, args, pipeline_uuid)
+    args = container_build_cmd_args(run, containerfile_path, tgid, pipeline_uuid, container_build_ctx_dir)
+    ContainerCmd.container_build(run, tgid, args, pipeline_uuid)
 
     if run.shell and tgid == run.tgid do
       Reporter.job_notice(run.ns, run.tgid, "\nStarting interactive shell:\n")
-      DockerCmd.docker_shell(tgid, pipeline_uuid)
+      ContainerCmd.container_shell(tgid, pipeline_uuid)
     end
 
     if run.output do
       outputs =
-        docker.directives
+        container.directives
         |> Enum.filter(&match?(%Directive.Output{}, &1))
         |> Enum.map(& &1.dir)
 
-      DockerCmd.docker_output(run, tgid, pipeline_uuid, outputs)
+      ContainerCmd.container_output(run, tgid, pipeline_uuid, outputs)
     end
 
     :ok
   end
 
-  @spec dask_job_docker_imports(Run.t(), Target.Docker.t(), Type.pipeline_uuid()) :: :ok
-  defp dask_job_docker_imports(%Run{} = run, %Target.Docker{} = docker, pipeline_uuid) do
-    docker.directives
+  @spec dask_job_container_imports(Run.t(), Target.Container.t(), Type.pipeline_uuid()) :: :ok
+  defp dask_job_container_imports(%Run{} = run, %Target.Container{} = container, pipeline_uuid) do
+    container.directives
     |> Enum.filter(&match?(%Directive.Import{}, &1))
     |> Enum.each(fn %Directive.Import{} = import_ ->
       import_dakefile_path =
@@ -151,13 +151,13 @@ defmodule Dake.Pipeline do
       cmd_res =
         Dake.cmd(
           %Run{
-            ns: run.ns ++ [docker.tgid],
+            ns: run.ns ++ [container.tgid],
             tgid: import_.target,
             args: Enum.map(import_.args, &{&1.name, &1.default_value}),
             push: import_.push and run.push,
             output: import_.output and run.output,
             output_dir: import_.as,
-            tag: DockerCmd.fq_image(import_.as, pipeline_uuid),
+            tag: ContainerCmd.fq_image(import_.as, pipeline_uuid),
             timeout: :infinity,
             parallelism: run.parallelism,
             verbose: run.verbose,
@@ -187,18 +187,18 @@ defmodule Dake.Pipeline do
     end
 
     job_on_exit_fn = fn _, _, _ ->
-      DockerCmd.docker_cleanup(pipeline_uuid)
+      ContainerCmd.container_cleanup(pipeline_uuid)
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec docker_build_cmd_args(Run.t(), Path.t(), Type.tgid(), Type.pipeline_uuid(), Path.t()) :: [String.t()]
-  defp docker_build_cmd_args(%Run{} = run, dockerfile_path, tgid, pipeline_uuid, build_ctx) do
+  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), Type.pipeline_uuid(), Path.t()) :: [String.t()]
+  defp container_build_cmd_args(%Run{} = run, containerfile_path, tgid, pipeline_uuid, build_ctx) do
     Enum.concat([
       ["--progress", "plain"],
-      ["--file", dockerfile_path],
-      ["--tag", DockerCmd.fq_image(tgid, pipeline_uuid)],
+      ["--file", containerfile_path],
+      ["--tag", ContainerCmd.fq_image(tgid, pipeline_uuid)],
       if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
       Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
       [build_ctx]
@@ -208,8 +208,8 @@ defmodule Dake.Pipeline do
   @spec push_target?(Dakefile.target()) :: boolean()
   defp push_target?(%Target.Alias{}), do: false
 
-  defp push_target?(%Target.Docker{} = docker) do
-    Enum.any?(docker.directives, &match?(%Directive.Push{}, &1))
+  defp push_target?(%Target.Container{} = container) do
+    Enum.any?(container.directives, &match?(%Directive.Push{}, &1))
   end
 
   @spec validate_cmd(Run.t(), Dakefile.target()) :: :ok | no_return()
@@ -229,42 +229,42 @@ defmodule Dake.Pipeline do
   defp insert_builtin_global_args(%Dakefile{} = dakefile, pipeline_uuid) do
     %Dakefile{
       dakefile
-      | args: dakefile.args ++ [%Docker.Arg{name: "DAKE_PIPELINE_UUID", default_value: pipeline_uuid}]
+      | args: dakefile.args ++ [%Container.Arg{name: "DAKE_PIPELINE_UUID", default_value: pipeline_uuid}]
     }
   end
 
-  @spec insert_builtin_docker_args(Target.Docker.t(), Path.t()) :: Target.Docker.t()
-  defp insert_builtin_docker_args(%Target.Docker{} = docker, include_ctx_dir) do
-    from_idx = Enum.find_index(docker.commands, &match?(%Docker.From{}, &1))
-    {pre_from_cmds, [%Docker.From{} = from | post_from_cmds]} = Enum.split(docker.commands, from_idx)
+  @spec insert_builtin_container_args(Target.Container.t(), Path.t()) :: Target.Container.t()
+  defp insert_builtin_container_args(%Target.Container{} = container, include_ctx_dir) do
+    from_idx = Enum.find_index(container.commands, &match?(%Container.From{}, &1))
+    {pre_from_cmds, [%Container.From{} = from | post_from_cmds]} = Enum.split(container.commands, from_idx)
 
     commands =
       pre_from_cmds ++
-        [from, %Docker.Arg{name: "DAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
+        [from, %Container.Arg{name: "DAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
 
-    %Target.Docker{docker | commands: commands}
+    %Target.Container{container | commands: commands}
   end
 
-  @spec write_dockerfile([Docker.Arg.t()], Target.Docker.t(), Path.t()) :: :ok
-  defp write_dockerfile(args, %Target.Docker{} = docker, path) do
-    dockerfile = Enum.map_join(args ++ docker.commands, "\n", &Docker.Fmt.fmt(&1))
-    File.write!(path, dockerfile)
+  @spec write_containerfile([Container.Arg.t()], Target.Container.t(), Path.t()) :: :ok
+  defp write_containerfile(args, %Target.Container{} = container, path) do
+    containerfile = Enum.map_join(args ++ container.commands, "\n", &Container.Fmt.fmt(&1))
+    File.write!(path, containerfile)
 
     :ok
   end
 
   @spec fq_targets_image_ref(Type.pipeline_uuid(), Dakefile.t()) :: Dakefile.t()
   defp fq_targets_image_ref(pipeline_uuid, %Dakefile{} = dakefile) do
-    update_fn = fn "+" <> tgid -> DockerCmd.fq_image(tgid, pipeline_uuid) end
+    update_fn = fn "+" <> tgid -> ContainerCmd.fq_image(tgid, pipeline_uuid) end
 
     dakefile =
       update_in(
         dakefile,
         [
           Access.key!(:targets),
-          Access.filter(&match?(%Target.Docker{}, &1)),
+          Access.filter(&match?(%Target.Container{}, &1)),
           Access.key!(:commands),
-          Access.filter(&match?(%Docker.From{image: "+" <> _}, &1)),
+          Access.filter(&match?(%Container.From{image: "+" <> _}, &1)),
           Access.key!(:image)
         ],
         update_fn
@@ -274,11 +274,11 @@ defmodule Dake.Pipeline do
       dakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Target.Docker{}, &1)),
+        Access.filter(&match?(%Target.Container{}, &1)),
         Access.key!(:commands),
-        Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
+        Access.filter(&match?(%Container.Command{instruction: "COPY"}, &1)),
         Access.key!(:options),
-        Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
+        Access.filter(&match?(%Container.Command.Option{name: "from"}, &1)),
         Access.key!(:value)
       ],
       update_fn

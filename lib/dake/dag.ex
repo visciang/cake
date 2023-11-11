@@ -3,7 +3,7 @@ defmodule Dake.Dag do
     defexception [:message]
   end
 
-  alias Dake.Parser.{Dakefile, Docker, Target}
+  alias Dake.Parser.{Container, Dakefile, Target}
   alias Dake.Type
 
   @opaque graph :: :digraph.graph()
@@ -47,7 +47,7 @@ defmodule Dake.Dag do
   @spec add_vertices(:digraph.graph(), Dakefile.t()) :: :ok
   defp add_vertices(graph, %Dakefile{} = dakefile) do
     Enum.each(dakefile.targets, fn
-      %Target.Docker{tgid: tgid} ->
+      %Target.Container{tgid: tgid} ->
         :digraph.add_vertex(graph, tgid)
 
       %Target.Alias{tgid: tgid} ->
@@ -60,7 +60,7 @@ defmodule Dake.Dag do
   @spec add_edges(:digraph.graph(), Dakefile.t()) :: :ok
   defp add_edges(graph, %Dakefile{} = dakefile) do
     Enum.each(dakefile.targets, fn
-      %Target.Docker{tgid: downstream_tgid, commands: commands} ->
+      %Target.Container{tgid: downstream_tgid, commands: commands} ->
         add_command_edges(graph, commands, downstream_tgid)
 
       %Target.Alias{tgid: downstream_tgid, tgids: upstream_tgids} ->
@@ -72,19 +72,19 @@ defmodule Dake.Dag do
     :ok
   end
 
-  @spec add_command_edges(:digraph.graph(), [Target.Docker.command()], Type.tgid()) :: :ok
+  @spec add_command_edges(:digraph.graph(), [Target.Container.command()], Type.tgid()) :: :ok
   defp add_command_edges(graph, commands, downstream_tgid) do
     commands
-    |> Enum.filter(&match?(%Docker.From{image: "+" <> _}, &1))
-    |> Enum.each(fn %Docker.From{image: "+" <> upstream_tgid} ->
+    |> Enum.filter(&match?(%Container.From{image: "+" <> _}, &1))
+    |> Enum.each(fn %Container.From{image: "+" <> upstream_tgid} ->
       add_edge(graph, upstream_tgid, downstream_tgid)
     end)
 
     commands
     |> get_in([
-      Access.filter(&match?(%Docker.Command{instruction: "COPY"}, &1)),
+      Access.filter(&match?(%Container.Command{instruction: "COPY"}, &1)),
       Access.key!(:options),
-      Access.filter(&match?(%Docker.Command.Option{name: "from"}, &1)),
+      Access.filter(&match?(%Container.Command.Option{name: "from"}, &1)),
       Access.key!(:value)
     ])
     |> List.flatten()
