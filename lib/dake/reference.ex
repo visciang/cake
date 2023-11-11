@@ -32,7 +32,11 @@ defmodule Dake.Reference do
   end
 
   @impl true
-  def handle_call({:get_include, %Dakefile{} = dakefile, %Directive.Include{} = include}, _from, state) do
+  def handle_call(
+        {:get_include, %Dakefile{} = dakefile, %Directive.Include{} = include},
+        _from,
+        state
+      ) do
     res =
       case include.ref do
         "git+" <> git_url ->
@@ -104,15 +108,15 @@ defmodule Dake.Reference do
     end
   end
 
-  @spec parse_git_url(String.t()) :: {:ok, repo :: String.t(), ref :: String.t()} | {:error, String.t()}
+  @spec parse_git_url(String.t()) ::
+          {:ok, repo :: String.t(), ref :: String.t()} | {:error, String.t()}
   defp parse_git_url(git_url) do
-    with %URI{query: query} = uri when query != nil <- URI.parse(git_url),
-         %{"ref" => ref} <- URI.decode_query(query) do
-      repo = to_string(%URI{uri | query: nil})
-      {:ok, repo, ref}
-    else
+    case :string.split(git_url, "#", :trailing) do
+      [repo_url, ref] ->
+        {:ok, repo_url, ref}
+
       _ ->
-        {:error, "bad git repo format - expected <git_repo>?ref=<REF> where `ref` can be a commit hash or a tag"}
+        {:error, "bad git repo format - expected <git_repo>#<REF> where `ref` can be a commit hash / tag / branch"}
     end
   end
 
