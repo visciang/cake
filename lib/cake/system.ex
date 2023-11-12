@@ -1,4 +1,4 @@
-defmodule Dake.System do
+defmodule Cake.System do
   @dialyzer {:nowarn_function, halt: 1}
 
   @spec halt(:ok | :error, nil | String.t() | term()) :: no_return()

@@ -20,11 +20,11 @@ erl_crash.dump
 *.ez
 
 # Ignore package tarball (built via "mix hex.build").
-dake-*.tar
+cake-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
 
-/dake
+/cake
 _release/
-.dake/
+.cake/

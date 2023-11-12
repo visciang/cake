@@ -1,9 +1,9 @@
-defprotocol Dake.Parser.Container.Fmt do
+defprotocol Cake.Parser.Container.Fmt do
   @spec fmt(t()) :: String.t()
   def fmt(data)
 end
 
-defmodule Dake.Parser.Container do
+defmodule Cake.Parser.Container do
   defmodule From do
     # Container `FROM <image> [AS <as>]`
 
@@ -53,7 +53,7 @@ defmodule Dake.Parser.Container do
           }
   end
 
-  defimpl Dake.Parser.Container.Fmt, for: From do
+  defimpl Cake.Parser.Container.Fmt, for: From do
     @spec fmt(From.t()) :: String.t()
     def fmt(%From{} = from) do
       if from.as do
@@ -64,7 +64,7 @@ defmodule Dake.Parser.Container do
     end
   end
 
-  defimpl Dake.Parser.Container.Fmt, for: Arg do
+  defimpl Cake.Parser.Container.Fmt, for: Arg do
     @spec fmt(Arg.t()) :: String.t()
     def fmt(%Arg{} = arg) do
       if arg.default_value do
@@ -75,7 +75,7 @@ defmodule Dake.Parser.Container do
     end
   end
 
-  defimpl Dake.Parser.Container.Fmt, for: Command do
+  defimpl Cake.Parser.Container.Fmt, for: Command do
     @spec fmt(Command.t()) :: String.t()
     def fmt(%Command{} = command) do
       options = Enum.map_join(command.options, " ", &"--#{&1.name}=#{&1.value}")

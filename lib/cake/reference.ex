@@ -1,6 +1,6 @@
-defmodule Dake.Reference do
-  alias Dake.Parser.{Dakefile, Directive}
-  alias Dake.{Dir, Reporter}
+defmodule Cake.Reference do
+  alias Cake.Parser.{Cakefile, Directive}
+  alias Cake.{Dir, Reporter}
 
   require Logger
 
@@ -16,9 +16,9 @@ defmodule Dake.Reference do
     :ok
   end
 
-  @spec get_include(Dakefile.t(), Directive.Include.t()) :: result()
-  def get_include(%Dakefile{} = dakefile, %Directive.Include{} = include) do
-    GenServer.call(@name, {:get_include, dakefile, include}, :infinity)
+  @spec get_include(Cakefile.t(), Directive.Include.t()) :: result()
+  def get_include(%Cakefile{} = cakefile, %Directive.Include{} = include) do
+    GenServer.call(@name, {:get_include, cakefile, include}, :infinity)
   end
 
   @spec get_import(Directive.Import.t()) :: result()
@@ -33,7 +33,7 @@ defmodule Dake.Reference do
 
   @impl true
   def handle_call(
-        {:get_include, %Dakefile{} = dakefile, %Directive.Include{} = include},
+        {:get_include, %Cakefile{} = cakefile, %Directive.Include{} = include},
         _from,
         state
       ) do
@@ -45,11 +45,11 @@ defmodule Dake.Reference do
 
         local_path ->
           # include path normalizated to be relative to the project root directory
-          path = Path.join([Path.dirname(dakefile.path), local_path, "Dakefile"])
+          path = Path.join([Path.dirname(cakefile.path), local_path, "Cakefile"])
 
           case Path.safe_relative(path) do
             {:ok, path} ->
-              copy_include_ctx(dakefile, path)
+              copy_include_ctx(cakefile, path)
               {:ok, path}
 
             :error ->
@@ -73,7 +73,7 @@ defmodule Dake.Reference do
           git_ref(git_url)
 
         local_path ->
-          {:ok, Path.join(local_path, "Dakefile")}
+          {:ok, Path.join(local_path, "Cakefile")}
       end
       |> case do
         {:ok, _} = ok -> ok
@@ -85,11 +85,11 @@ defmodule Dake.Reference do
 
   @spec git_ref(String.t()) :: result()
   defp git_ref(git_url) do
-    checkout_dir = Path.join(Dake.Dir.git_ref(), git_url)
+    checkout_dir = Path.join(Cake.Dir.git_ref(), git_url)
 
     if File.dir?(checkout_dir) do
       Reporter.job_notice([], "git", "using cached repository")
-      {:ok, Path.join(checkout_dir, "Dakefile")}
+      {:ok, Path.join(checkout_dir, "Cakefile")}
     else
       File.mkdir_p!(checkout_dir)
 
@@ -99,7 +99,7 @@ defmodule Dake.Reference do
       with {:git_ref, {:ok, git_repo, git_ref}} <- {:git_ref, parse_git_url(git_url)},
            {:clone, {_, 0}} <- {:clone, System.cmd("git", ["clone", git_repo, "."], cmd_opts)},
            {:checkout, {_, 0}} <- {:checkout, System.cmd("git", ["checkout", git_ref], cmd_opts)} do
-        {:ok, Path.join(checkout_dir, "Dakefile")}
+        {:ok, Path.join(checkout_dir, "Cakefile")}
       else
         {action, _exit_status} ->
           File.rm_rf!(checkout_dir)
@@ -120,14 +120,14 @@ defmodule Dake.Reference do
     end
   end
 
-  @spec copy_include_ctx(Dakefile.t(), Path.t()) :: :ok
-  defp copy_include_ctx(%Dakefile{} = dakefile, included_dakefile_path) do
-    include_ctx_dir = Path.join(Path.dirname(included_dakefile_path), "ctx")
+  @spec copy_include_ctx(Cakefile.t(), Path.t()) :: :ok
+  defp copy_include_ctx(%Cakefile{} = cakefile, included_cakefile_path) do
+    include_ctx_dir = Path.join(Path.dirname(included_cakefile_path), "ctx")
 
-    dest = Dir.local_include_ctx_dir(dakefile.path, included_dakefile_path)
+    dest = Dir.local_include_ctx_dir(cakefile.path, included_cakefile_path)
 
     if File.exists?(include_ctx_dir) and not File.exists?(dest) do
-      Logger.info("from #{inspect(included_dakefile_path)}")
+      Logger.info("from #{inspect(included_cakefile_path)}")
 
       File.rm_rf!(dest)
       File.mkdir_p!(dest)

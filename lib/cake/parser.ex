@@ -1,10 +1,10 @@
-defmodule Dake.Parser do
-  alias Dake.Parser.{Container, Dakefile, Directive, Target}
+defmodule Cake.Parser do
+  alias Cake.Parser.{Cakefile, Container, Directive, Target}
 
   import NimbleParsec
 
   @type result ::
-          {:ok, Dakefile.t()}
+          {:ok, Cakefile.t()}
           | {:error, {context :: String.t(), line :: pos_integer(), column :: pos_integer()}}
 
   nl = string("\n")
@@ -265,7 +265,7 @@ defmodule Dake.Parser do
       |> concat(include_directive)
     )
 
-  dakefile =
+  cakefile =
     ignore(repeat(ignorable_line))
     |> optional(tag(global_args, :args))
     |> ignore(repeat(ignorable_line))
@@ -281,20 +281,20 @@ defmodule Dake.Parser do
     |> ignore(repeat(ignorable_line))
     |> eos()
     |> wrap()
-    |> map({:cast, [Dakefile]})
+    |> map({:cast, [Cakefile]})
 
-  defparsec :dakefile, dakefile
+  defparsec :cakefile, cakefile
 
   @doc """
-  Parse a `Dakefile`.
+  Parse a `Cakefile`.
   """
   @spec parse(String.t(), Path.t()) :: result()
   def parse(content, path) do
     content
-    |> dakefile()
+    |> cakefile()
     |> case do
-      {:ok, [dakefile], "" = _rest, _context, _position, _byte_offset} ->
-        {:ok, %Dakefile{dakefile | path: path}}
+      {:ok, [cakefile], "" = _rest, _context, _position, _byte_offset} ->
+        {:ok, %Cakefile{cakefile | path: path}}
 
       {:error, _reason, _rest, _context, {line, offset_to_start_of_line}, byte_offset} ->
         column = byte_offset - offset_to_start_of_line

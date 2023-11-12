@@ -2,9 +2,9 @@
 
 set -e
 
-DAKE_VERSION=${DAKE_VERSION:-latest}
+CAKE_VERSION=${CAKE_VERSION:-latest}
 
-docker build --ssh=default --file Containerfile.bootstrap --build-arg DAKE_VERSION=${DAKE_VERSION} --target dake.app --tag dake:latest .
+docker build --ssh=default --file Containerfile.bootstrap --build-arg CAKE_VERSION=${CAKE_VERSION} --target cake.app --tag cake:latest .
 
-./dake.sh run --verbose elixir.lint
-./dake.sh run --tag dake:latest dake.app
+./cake.sh run --verbose elixir.lint
+./cake.sh run --tag cake:latest cake.app

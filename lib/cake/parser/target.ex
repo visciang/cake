@@ -1,4 +1,4 @@
-defmodule Dake.Parser.Target do
+defmodule Cake.Parser.Target do
   defmodule Alias do
     # Alias target group `alias: <target>+`
 
@@ -6,8 +6,8 @@ defmodule Dake.Parser.Target do
     defstruct @enforce_keys
 
     @type t :: %__MODULE__{
-            tgid: Dake.Type.tgid(),
-            tgids: [Dake.Type.tgid(), ...]
+            tgid: Cake.Type.tgid(),
+            tgids: [Cake.Type.tgid(), ...]
           }
   end
 
@@ -22,17 +22,17 @@ defmodule Dake.Parser.Target do
     defstruct @enforce_keys ++ [included_from_ref: nil, directives: []]
 
     @type directive ::
-            Dake.Parser.Directive.Import.t()
-            | Dake.Parser.Directive.Output.t()
-            | Dake.Parser.Directive.Push.t()
+            Cake.Parser.Directive.Import.t()
+            | Cake.Parser.Directive.Output.t()
+            | Cake.Parser.Directive.Push.t()
 
     @type command ::
-            Dake.Parser.Container.Arg.t()
-            | Dake.Parser.Container.From.t()
-            | Dake.Parser.Container.Command.t()
+            Cake.Parser.Container.Arg.t()
+            | Cake.Parser.Container.From.t()
+            | Cake.Parser.Container.Command.t()
 
     @type t :: %__MODULE__{
-            tgid: Dake.Type.tgid(),
+            tgid: Cake.Type.tgid(),
             directives: [directive()],
             commands: [command()],
             included_from_ref: nil | String.t()

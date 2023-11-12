@@ -7,7 +7,7 @@ TODO
 - "service tests"
     docker compose like (build --network ?)
 - local task
-- Dakefile FROM DOCKERFILE
+- Cakefile FROM DOCKERFILE
 - dot
 ? private targets (.target)
 
@@ -16,7 +16,7 @@ TODO
 NOTE:
 
   BUILDKIT_VERSION=v0.12.3
-  BUILDKIT_BUILDER_NAME=dake
+  BUILDKIT_BUILDER_NAME=cake
 
   DOCKER_REGISTRY_VERSION=2.8.3
   DOCKER_REGISTRY_HOST=localhost:7000

@@ -25,15 +25,15 @@ jobs:
         uses: docker/setup-buildx-action@v3
       -
         name: Version
-        id: dake_version
+        id: cake_version
         run: |
           case $GITHUB_REF in
-            refs/heads/main) export DAKE_VERSION=latest ;;
-            refs/tags/v*)    export DAKE_VERSION=${GITHUB_REF#refs/tags/v} ;;
-            *)               export DAKE_VERSION=development ;;
+            refs/heads/main) export CAKE_VERSION=latest ;;
+            refs/tags/v*)    export CAKE_VERSION=${GITHUB_REF#refs/tags/v} ;;
+            *)               export CAKE_VERSION=development ;;
           esac
 
-          echo "version=$DAKE_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$CAKE_VERSION" >> $GITHUB_OUTPUT
       -
         name: Build and push
         uses: docker/build-push-action@v5
@@ -44,7 +44,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            DAKE_VERSION=${{ steps.dake_version.outputs.version }}
+            CAKE_VERSION=${{ steps.cake_version.outputs.version }}
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/dake:${{ steps.dake_version.outputs.version }}
-          target: dake.app
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/cake:${{ steps.cake_version.outputs.version }}
+          target: cake.app

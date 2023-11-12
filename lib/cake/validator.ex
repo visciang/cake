@@ -1,27 +1,27 @@
-defmodule Dake.Validator do
-  alias Dake.Dag
-  alias Dake.Parser.{Container, Dakefile, Directive, Target}
+defmodule Cake.Validator do
+  alias Cake.Dag
+  alias Cake.Parser.{Cakefile, Container, Directive, Target}
 
   @type result() :: :ok | {:error, reason :: term()}
 
-  @spec check(Dakefile.t(), Dag.graph()) :: result()
-  def check(%Dakefile{} = dakefile, graph) do
-    with :ok <- check_alias_targets(dakefile, graph),
-         :ok <- check_push_targets(dakefile, graph),
-         :ok <- check_from(dakefile, graph) do
+  @spec check(Cakefile.t(), Dag.graph()) :: result()
+  def check(%Cakefile{} = cakefile, graph) do
+    with :ok <- check_alias_targets(cakefile, graph),
+         :ok <- check_push_targets(cakefile, graph),
+         :ok <- check_from(cakefile, graph) do
       :ok
     end
   end
 
-  @spec check_alias_targets(Dakefile.t(), Dag.graph()) :: result()
-  defp check_alias_targets(%Dakefile{} = dakefile, _graph) do
+  @spec check_alias_targets(Cakefile.t(), Dag.graph()) :: result()
+  defp check_alias_targets(%Cakefile{} = cakefile, _graph) do
     alias_tgids =
-      dakefile.targets
+      cakefile.targets
       |> Enum.filter(&match?(%Target.Alias{}, &1))
       |> MapSet.new(& &1.tgid)
 
     all_commands =
-      dakefile.targets
+      cakefile.targets
       |> Enum.filter(&match?(%Target.Container{}, &1))
       |> Enum.flat_map(& &1.commands)
 
@@ -57,10 +57,10 @@ defmodule Dake.Validator do
     end
   end
 
-  @spec check_push_targets(Dakefile.t(), Dag.graph()) :: result()
-  defp check_push_targets(%Dakefile{} = dakefile, graph) do
+  @spec check_push_targets(Cakefile.t(), Dag.graph()) :: result()
+  defp check_push_targets(%Cakefile{} = cakefile, graph) do
     push_targets =
-      Enum.filter(dakefile.targets, fn
+      Enum.filter(cakefile.targets, fn
         %Target.Container{} = container ->
           Enum.any?(container.directives, &match?(%Directive.Push{}, &1))
 
@@ -78,9 +78,9 @@ defmodule Dake.Validator do
     end
   end
 
-  @spec check_from(Dakefile.t(), Dag.graph()) :: result()
-  defp check_from(%Dakefile{} = dakefile, _graph) do
-    dakefile.targets
+  @spec check_from(Cakefile.t(), Dag.graph()) :: result()
+  defp check_from(%Cakefile{} = cakefile, _graph) do
+    cakefile.targets
     |> Enum.filter(&match?(%Target.Container{}, &1))
     |> Enum.reduce_while(:ok, fn %Target.Container{tgid: tgid, commands: commands}, :ok ->
       case commands do

@@ -1,9 +1,9 @@
-defmodule Dake.MixProject do
+defmodule Cake.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :dake,
+      app: :cake,
       version: "0.0.0",
       elixir: "~> 1.15",
       preferred_cli_env: [
@@ -19,7 +19,7 @@ defmodule Dake.MixProject do
       ],
       deps: deps(),
       escript: [
-        main_module: Dake,
+        main_module: Cake,
         emu_args: "-noinput"
       ]
     ]

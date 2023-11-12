@@ -1,4 +1,4 @@
-defmodule Dake.Reporter.Status do
+defmodule Cake.Reporter.Status do
   @type t :: :ok | :timeout | {:error, reason :: term(), stacktrace :: nil | String.t()}
 
   defmacro ok do

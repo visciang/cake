@@ -1,10 +1,10 @@
-defmodule Dake do
-  alias Dake.{Cli, Cmd, Dag, Dir, Parser, Preprocessor, Reference, Reporter, Validator}
-  alias Dake.Parser.Dakefile
+defmodule Cake do
+  alias Cake.{Cli, Cmd, Dag, Dir, Parser, Preprocessor, Reference, Reporter, Validator}
+  alias Cake.Parser.Cakefile
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
-    setup_dake_dirs()
+    setup_cake_dirs()
 
     Reporter.start_link()
     Reference.start_link()
@@ -17,22 +17,22 @@ defmodule Dake do
     Reporter.stop(cmd_res)
 
     case cmd_res do
-      :ok -> Dake.System.halt(:ok)
-      {:ignore, reason} -> Dake.System.halt(:ok, reason)
-      {:error, reason} -> Dake.System.halt(:error, reason)
-      :timeout -> Dake.System.halt(:error, "timeout")
+      :ok -> Cake.System.halt(:ok)
+      {:ignore, reason} -> Cake.System.halt(:ok, reason)
+      {:error, reason} -> Cake.System.halt(:error, reason)
+      :timeout -> Cake.System.halt(:error, "timeout")
     end
   end
 
   @spec cmd(Cmd.t(), Path.t()) :: Cmd.result()
   def cmd(cmd, dir \\ ".") do
-    dakefile_path = Path.join(dir, "Dakefile")
+    cakefile_path = Path.join(dir, "Cakefile")
 
-    with {:ok, dakefile} <- load_and_parse_dakefile(dakefile_path),
-         {:preprocess, {:ok, dakefile}} <- {:preprocess, Preprocessor.expand(dakefile, args(cmd))},
-         {:dag, {:ok, graph}} <- {:dag, Dag.extract(dakefile)},
-         {:validator, :ok} <- {:validator, Validator.check(dakefile, graph)} do
-      Cmd.exec(cmd, dakefile, graph)
+    with {:ok, cakefile} <- load_and_parse_cakefile(cakefile_path),
+         {:preprocess, {:ok, cakefile}} <- {:preprocess, Preprocessor.expand(cakefile, args(cmd))},
+         {:dag, {:ok, graph}} <- {:dag, Dag.extract(cakefile)},
+         {:validator, :ok} <- {:validator, Validator.check(cakefile, graph)} do
+      Cmd.exec(cmd, cakefile, graph)
     else
       {:error, _} = error ->
         error
@@ -48,23 +48,23 @@ defmodule Dake do
     end
   end
 
-  @spec load_and_parse_dakefile(Path.t()) :: {:ok, Dakefile.t()} | {:error, reason :: String.t()}
-  def load_and_parse_dakefile(path) do
+  @spec load_and_parse_cakefile(Path.t()) :: {:ok, Cakefile.t()} | {:error, reason :: String.t()}
+  def load_and_parse_cakefile(path) do
     with {:read, {:ok, file}} <- {:read, File.read(path)},
-         {:parse, {:ok, dakefile}} <- {:parse, Parser.parse(file, path)} do
-      {:ok, dakefile}
+         {:parse, {:ok, cakefile}} <- {:parse, Parser.parse(file, path)} do
+      {:ok, cakefile}
     else
       {:read, {:error, reason}} ->
         {:error, "Cannot open #{path}: (#{:file.format_error(reason)})"}
 
       {:parse, {:error, {content, line, column}}} ->
-        ctx_msg = dakefile_error_context(content, line, column)
-        {:error, "Dakefile syntax error at #{path}:#{line}:#{column}\n#{ctx_msg}"}
+        ctx_msg = cakefile_error_context(content, line, column)
+        {:error, "Cakefile syntax error at #{path}:#{line}:#{column}\n#{ctx_msg}"}
     end
   end
 
-  @spec setup_dake_dirs :: :ok
-  defp setup_dake_dirs do
+  @spec setup_cake_dirs :: :ok
+  defp setup_cake_dirs do
     File.mkdir_p!(Dir.log())
 
     [Dir.tmp(), Dir.output(), Dir.include_ctx(File.cwd!())]
@@ -81,10 +81,10 @@ defmodule Dake do
 
   defp args(_cmd), do: %{}
 
-  @spec dakefile_error_context(String.t(), pos_integer(), pos_integer()) :: String.t()
-  defp dakefile_error_context(dakefile_content, line, column) do
+  @spec cakefile_error_context(String.t(), pos_integer(), pos_integer()) :: String.t()
+  defp cakefile_error_context(cakefile_content, line, column) do
     error_line =
-      dakefile_content
+      cakefile_content
       |> String.split("\n")
       |> Enum.at(line - 1)
 

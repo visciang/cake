@@ -1,10 +1,10 @@
-defmodule Dake.Reporter do
+defmodule Cake.Reporter do
   use GenServer
 
-  alias Dake.Dir
-  alias Dake.Reporter.{Collector, Status}
+  alias Cake.Dir
+  alias Cake.Reporter.{Collector, Status}
 
-  require Dake.Reporter.Status
+  require Cake.Reporter.Status
 
   @typep ansidata :: IO.ANSI.ansidata()
 
@@ -37,7 +37,7 @@ defmodule Dake.Reporter do
     :ok
   end
 
-  @spec stop(Dake.Cmd.result()) :: :ok
+  @spec stop(Cake.Cmd.result()) :: :ok
   def stop(workflow_status) do
     GenServer.call(@name, {:stop, workflow_status}, :infinity)
   end

@@ -1,24 +1,24 @@
-defmodule Dake.Pipeline.Error do
+defmodule Cake.Pipeline.Error do
   defexception [:message]
 end
 
-defmodule Dake.Pipeline do
-  alias Dake.Cli.Run
-  alias Dake.Parser.{Container, Dakefile, Directive, Target}
-  alias Dake.Pipeline.Container, as: ContainerCmd
-  alias Dake.{Dag, Dir, Reference, Reporter, Type}
+defmodule Cake.Pipeline do
+  alias Cake.Cli.Run
+  alias Cake.Parser.{Cakefile, Container, Directive, Target}
+  alias Cake.Pipeline.Container, as: ContainerCmd
+  alias Cake.{Dag, Dir, Reference, Reporter, Type}
 
   require Logger
-  require Dake.Reporter.Status
+  require Cake.Reporter.Status
 
-  @spec build(Run.t(), Dakefile.t(), Dag.graph()) :: Dask.t()
-  def build(%Run{} = run, %Dakefile{} = dakefile, graph) do
+  @spec build(Run.t(), Cakefile.t(), Dag.graph()) :: Dask.t()
+  def build(%Run{} = run, %Cakefile{} = cakefile, graph) do
     pipeline_uuid = pipeline_uuid()
 
-    Logger.info("#{inspect(dakefile.path)}", pipeline: pipeline_uuid)
+    Logger.info("#{inspect(cakefile.path)}", pipeline: pipeline_uuid)
 
-    dakefile = fq_targets_image_ref(pipeline_uuid, dakefile)
-    targets_map = Map.new(dakefile.targets, &{&1.tgid, &1})
+    cakefile = fq_targets_image_ref(pipeline_uuid, cakefile)
+    targets_map = Map.new(cakefile.targets, &{&1.tgid, &1})
     pipeline_tgids = Dag.reaching_tgids(graph, run.tgid)
 
     validate_cmd(run, Map.fetch!(targets_map, run.tgid))
@@ -33,7 +33,7 @@ defmodule Dake.Pipeline do
     dask =
       Enum.reduce(pipeline_tgids, Dask.new(), fn tgid, dask ->
         target = Map.fetch!(targets_map, tgid)
-        build_dask_job(run, dakefile, dask, tgid, target, pipeline_uuid)
+        build_dask_job(run, cakefile, dask, tgid, target, pipeline_uuid)
       end)
 
     dask =
@@ -46,9 +46,9 @@ defmodule Dake.Pipeline do
     Dask.flow(dask, run.tgid, :cleanup)
   end
 
-  @spec build_dask_job(Run.t(), Dakefile.t(), Dask.t(), Type.tgid(), Dakefile.target(), Type.pipeline_uuid()) ::
+  @spec build_dask_job(Run.t(), Cakefile.t(), Dask.t(), Type.tgid(), Cakefile.target(), Type.pipeline_uuid()) ::
           Dask.t()
-  defp build_dask_job(%Run{} = run, %Dakefile{} = dakefile, dask, tgid, target, pipeline_uuid) do
+  defp build_dask_job(%Run{} = run, %Cakefile{} = cakefile, dask, tgid, target, pipeline_uuid) do
     job_fn = fn ^tgid, _upstream_jobs_status ->
       Reporter.job_start(run.ns, tgid)
 
@@ -57,7 +57,7 @@ defmodule Dake.Pipeline do
           :ok
 
         %Target.Container{} = container ->
-          dask_job_container(run, dakefile, container, tgid, pipeline_uuid)
+          dask_job_container(run, cakefile, container, tgid, pipeline_uuid)
       end
 
       :ok
@@ -71,7 +71,7 @@ defmodule Dake.Pipeline do
         :job_timeout ->
           Reporter.job_end(run.ns, tgid, Reporter.Status.timeout())
 
-        {:job_error, %Dake.Pipeline.Error{} = err, _stacktrace} ->
+        {:job_error, %Cake.Pipeline.Error{} = err, _stacktrace} ->
           Reporter.job_end(run.ns, tgid, Reporter.Status.error(err.message, nil))
 
         {:job_error, reason, stacktrace} ->
@@ -85,28 +85,28 @@ defmodule Dake.Pipeline do
     Dask.job(dask, tgid, job_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec dask_job_container(Run.t(), Dakefile.t(), Target.Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
-  defp dask_job_container(%Run{} = run, %Dakefile{} = dakefile, %Target.Container{} = container, tgid, pipeline_uuid) do
+  @spec dask_job_container(Run.t(), Cakefile.t(), Target.Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
+  defp dask_job_container(%Run{} = run, %Cakefile{} = cakefile, %Target.Container{} = container, tgid, pipeline_uuid) do
     Logger.info("start for #{inspect(tgid)}", pipeline: pipeline_uuid)
 
     dask_job_container_imports(run, container, pipeline_uuid)
 
     job_uuid = to_string(System.unique_integer([:positive]))
-    container_build_ctx_dir = Path.dirname(dakefile.path)
+    container_build_ctx_dir = Path.dirname(cakefile.path)
 
     build_relative_include_ctx_dir =
       if container.included_from_ref do
-        include_ctx_dir = Dir.local_include_ctx_dir(dakefile.path, container.included_from_ref)
+        include_ctx_dir = Dir.local_include_ctx_dir(cakefile.path, container.included_from_ref)
         Path.relative_to(include_ctx_dir, container_build_ctx_dir)
       else
         ""
       end
 
-    dakefile = insert_builtin_global_args(dakefile, pipeline_uuid)
+    cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     container = insert_builtin_container_args(container, build_relative_include_ctx_dir)
 
     containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
-    write_containerfile(dakefile.args, container, containerfile_path)
+    write_containerfile(cakefile.args, container, containerfile_path)
 
     args = container_build_cmd_args(run, containerfile_path, tgid, pipeline_uuid, container_build_ctx_dir)
     ContainerCmd.container_build(run, tgid, args, pipeline_uuid)
@@ -133,23 +133,23 @@ defmodule Dake.Pipeline do
     container.directives
     |> Enum.filter(&match?(%Directive.Import{}, &1))
     |> Enum.each(fn %Directive.Import{} = import_ ->
-      import_dakefile_path =
+      import_cakefile_path =
         case Reference.get_import(import_) do
-          {:ok, import_dakefile_path} -> import_dakefile_path
-          {:error, reason} -> raise Dake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}: #{reason}"
+          {:ok, import_cakefile_path} -> import_cakefile_path
+          {:error, reason} -> raise Cake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}: #{reason}"
         end
 
-      unless File.exists?(import_dakefile_path) do
-        raise Dake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}"
+      unless File.exists?(import_cakefile_path) do
+        raise Cake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}"
       end
 
       Logger.info(
-        "running pipeline for imported target #{inspect(import_.target)} dakefile=#{inspect(import_dakefile_path)}",
+        "running pipeline for imported target #{inspect(import_.target)} cakefile=#{inspect(import_cakefile_path)}",
         pipeline: pipeline_uuid
       )
 
       cmd_res =
-        Dake.cmd(
+        Cake.cmd(
           %Run{
             ns: run.ns ++ [container.tgid],
             tgid: import_.target,
@@ -172,10 +172,10 @@ defmodule Dake.Pipeline do
           :ok
 
         {:error, reason} ->
-          raise Dake.Pipeline.Error, "failed @import #{inspect(import_.ref)} build: #{inspect(reason)}"
+          raise Cake.Pipeline.Error, "failed @import #{inspect(import_.ref)} build: #{inspect(reason)}"
 
         :timeout ->
-          raise Dake.Pipeline.Error, "timeout"
+          raise Cake.Pipeline.Error, "timeout"
       end
     end)
   end
@@ -205,31 +205,31 @@ defmodule Dake.Pipeline do
     ])
   end
 
-  @spec push_target?(Dakefile.target()) :: boolean()
+  @spec push_target?(Cakefile.target()) :: boolean()
   defp push_target?(%Target.Alias{}), do: false
 
   defp push_target?(%Target.Container{} = container) do
     Enum.any?(container.directives, &match?(%Directive.Push{}, &1))
   end
 
-  @spec validate_cmd(Run.t(), Dakefile.target()) :: :ok | no_return()
+  @spec validate_cmd(Run.t(), Cakefile.target()) :: :ok | no_return()
   defp validate_cmd(%Run{} = run, target) do
     if run.push and push_target?(target) do
-      Dake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
+      Cake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
     end
 
     if run.shell and match?(%Target.Alias{}, target) do
-      Dake.System.halt(:error, "cannot shell into and \"alias\" target")
+      Cake.System.halt(:error, "cannot shell into and \"alias\" target")
     end
 
     :ok
   end
 
-  @spec insert_builtin_global_args(Dakefile.t(), Type.pipeline_uuid()) :: Dakefile.t()
-  defp insert_builtin_global_args(%Dakefile{} = dakefile, pipeline_uuid) do
-    %Dakefile{
-      dakefile
-      | args: dakefile.args ++ [%Container.Arg{name: "DAKE_PIPELINE_UUID", default_value: pipeline_uuid}]
+  @spec insert_builtin_global_args(Cakefile.t(), Type.pipeline_uuid()) :: Cakefile.t()
+  defp insert_builtin_global_args(%Cakefile{} = cakefile, pipeline_uuid) do
+    %Cakefile{
+      cakefile
+      | args: cakefile.args ++ [%Container.Arg{name: "CAKE_PIPELINE_UUID", default_value: pipeline_uuid}]
     }
   end
 
@@ -240,7 +240,7 @@ defmodule Dake.Pipeline do
 
     commands =
       pre_from_cmds ++
-        [from, %Container.Arg{name: "DAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
+        [from, %Container.Arg{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
 
     %Target.Container{container | commands: commands}
   end
@@ -253,13 +253,13 @@ defmodule Dake.Pipeline do
     :ok
   end
 
-  @spec fq_targets_image_ref(Type.pipeline_uuid(), Dakefile.t()) :: Dakefile.t()
-  defp fq_targets_image_ref(pipeline_uuid, %Dakefile{} = dakefile) do
+  @spec fq_targets_image_ref(Type.pipeline_uuid(), Cakefile.t()) :: Cakefile.t()
+  defp fq_targets_image_ref(pipeline_uuid, %Cakefile{} = cakefile) do
     update_fn = fn "+" <> tgid -> ContainerCmd.fq_image(tgid, pipeline_uuid) end
 
-    dakefile =
+    cakefile =
       update_in(
-        dakefile,
+        cakefile,
         [
           Access.key!(:targets),
           Access.filter(&match?(%Target.Container{}, &1)),
@@ -271,7 +271,7 @@ defmodule Dake.Pipeline do
       )
 
     update_in(
-      dakefile,
+      cakefile,
       [
         Access.key!(:targets),
         Access.filter(&match?(%Target.Container{}, &1)),

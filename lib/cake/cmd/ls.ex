@@ -1,16 +1,16 @@
-defimpl Dake.Cmd, for: Dake.Cli.Ls do
-  alias Dake.Cli.Ls
-  alias Dake.{Dag, Reporter, Type}
-  alias Dake.Parser.Dakefile
-  alias Dake.Parser.Container.Arg
-  alias Dake.Parser.Target
+defimpl Cake.Cmd, for: Cake.Cli.Ls do
+  alias Cake.Cli.Ls
+  alias Cake.{Dag, Reporter, Type}
+  alias Cake.Parser.Cakefile
+  alias Cake.Parser.Container.Arg
+  alias Cake.Parser.Target
 
   @typep target_args :: %{Type.tgid() => [Arg.t()]}
 
-  @spec exec(Ls.t(), Dakefile.t(), Dag.graph()) :: :ok
-  def exec(%Ls{}, %Dakefile{} = dakefile, graph) do
-    global_args = dakefile.args
-    target_args = target_args(dakefile)
+  @spec exec(Ls.t(), Cakefile.t(), Dag.graph()) :: :ok
+  def exec(%Ls{}, %Cakefile{} = cakefile, graph) do
+    global_args = cakefile.args
+    target_args = target_args(cakefile)
 
     if global_args != [] do
       Reporter.job_notice([], "ls", "\nGlobal arguments:")
@@ -28,9 +28,9 @@ defimpl Dake.Cmd, for: Dake.Cli.Ls do
     :ok
   end
 
-  @spec target_args(Dakefile.t()) :: target_args()
-  defp target_args(%Dakefile{} = dakefile) do
-    dakefile.targets
+  @spec target_args(Cakefile.t()) :: target_args()
+  defp target_args(%Cakefile{} = cakefile) do
+    cakefile.targets
     |> Enum.filter(&match?(%Target.Container{}, &1))
     |> Map.new(fn %Target.Container{} = container ->
       {container.tgid, Enum.filter(container.commands, &match?(%Arg{}, &1))}

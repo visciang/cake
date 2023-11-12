@@ -1,4 +1,4 @@
-defmodule Dake.Reporter.Collector do
+defmodule Cake.Reporter.Collector do
   @enforce_keys [:job_ns, :job_id, :type]
   defstruct @enforce_keys
 
@@ -11,9 +11,9 @@ defmodule Dake.Reporter.Collector do
         }
 end
 
-defimpl Collectable, for: Dake.Reporter.Collector do
-  alias Dake.Reporter
-  require Dake.Reporter.Status
+defimpl Collectable, for: Cake.Reporter.Collector do
+  alias Cake.Reporter
+  require Cake.Reporter.Status
 
   @typep collector_fn :: (any(), :done | :halt | {:cont, any()} -> :ok | Reporter.Collector.t())
 

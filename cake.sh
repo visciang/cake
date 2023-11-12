@@ -2,7 +2,7 @@
 
 set -e
 
-DAKE_IMAGE=${DAKE_IMAGE:-"dake:latest"}
+CAKE_IMAGE=${CAKE_IMAGE:-"cake:latest"}
 
 
 case $(uname) in
@@ -14,4 +14,4 @@ docker run --init --rm -ti --network=host \
     -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:$PWD" -w "$PWD" \
     -e SSH_AUTH_SOCK="$SSH_AUTH_SOCK" -v "$SSH_AUTH_SOCK:$SSH_AUTH_SOCK" \
     -e LOG_LEVEL=${LOG_LEVEL:-notice} \
-    $DAKE_IMAGE "$@"
+    $CAKE_IMAGE "$@"

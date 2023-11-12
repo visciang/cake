@@ -1,21 +1,21 @@
-defmodule Dake.Dag do
+defmodule Cake.Dag do
   defmodule Error do
     defexception [:message]
   end
 
-  alias Dake.Parser.{Container, Dakefile, Target}
-  alias Dake.Type
+  alias Cake.Parser.{Cakefile, Container, Target}
+  alias Cake.Type
 
   @opaque graph :: :digraph.graph()
   @type result :: {:ok, graph()} | {:error, reason :: term()}
 
-  @spec extract(Dakefile.t()) :: result()
-  def extract(%Dakefile{} = dakefile) do
+  @spec extract(Cakefile.t()) :: result()
+  def extract(%Cakefile{} = cakefile) do
     graph = :digraph.new([:acyclic])
-    add_vertices(graph, dakefile)
+    add_vertices(graph, cakefile)
 
     try do
-      add_edges(graph, dakefile)
+      add_edges(graph, cakefile)
 
       {:ok, graph}
     rescue
@@ -44,9 +44,9 @@ defmodule Dake.Dag do
     :digraph_utils.reaching([tgid], graph)
   end
 
-  @spec add_vertices(:digraph.graph(), Dakefile.t()) :: :ok
-  defp add_vertices(graph, %Dakefile{} = dakefile) do
-    Enum.each(dakefile.targets, fn
+  @spec add_vertices(:digraph.graph(), Cakefile.t()) :: :ok
+  defp add_vertices(graph, %Cakefile{} = cakefile) do
+    Enum.each(cakefile.targets, fn
       %Target.Container{tgid: tgid} ->
         :digraph.add_vertex(graph, tgid)
 
@@ -57,9 +57,9 @@ defmodule Dake.Dag do
     :ok
   end
 
-  @spec add_edges(:digraph.graph(), Dakefile.t()) :: :ok
-  defp add_edges(graph, %Dakefile{} = dakefile) do
-    Enum.each(dakefile.targets, fn
+  @spec add_edges(:digraph.graph(), Cakefile.t()) :: :ok
+  defp add_edges(graph, %Cakefile{} = cakefile) do
+    Enum.each(cakefile.targets, fn
       %Target.Container{tgid: downstream_tgid, commands: commands} ->
         add_command_edges(graph, commands, downstream_tgid)
 

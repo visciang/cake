@@ -1,5 +1,5 @@
-defmodule Dake.Cli do
-  alias Dake.{Cmd, Dir, Type}
+defmodule Cake.Cli do
+  alias Cake.{Cmd, Dir, Type}
 
   defmodule Ls do
     defstruct []
@@ -53,7 +53,7 @@ defmodule Dake.Cli do
         {:error, err}
 
       :version ->
-        Dake.System.halt(:ok, Optimus.Title.title(optimus) |> IO.iodata_to_binary())
+        Cake.System.halt(:ok, Optimus.Title.title(optimus) |> IO.iodata_to_binary())
 
       :help ->
         {:ignore, Optimus.help(optimus)}
@@ -67,8 +67,8 @@ defmodule Dake.Cli do
   @spec optimus :: Optimus.t()
   defp optimus do
     Optimus.new!(
-      name: "dake",
-      description: "dake (Container-mAKE pipeline)",
+      name: "cake",
+      description: "cake (Container-mAKE pipeline)",
       version: @version,
       subcommands: [
         run: [

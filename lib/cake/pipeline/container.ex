@@ -1,6 +1,6 @@
-defmodule Dake.Pipeline.Container do
-  alias Dake.Cli.Run
-  alias Dake.{Dir, Reporter, Type}
+defmodule Cake.Pipeline.Container do
+  alias Cake.Cli.Run
+  alias Cake.{Dir, Reporter, Type}
 
   require Logger
 
@@ -19,9 +19,9 @@ defmodule Dake.Pipeline.Container do
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
 
-    case System.cmd("/usr/bin/dake_cmd.sh", args, stderr_to_stdout: true, into: into) do
+    case System.cmd("/usr/bin/cake_cmd.sh", args, stderr_to_stdout: true, into: into) do
       {_, 0} -> :ok
-      {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} failed"
+      {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} failed"
     end
   end
 
@@ -55,7 +55,7 @@ defmodule Dake.Pipeline.Container do
 
       case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: into) do
         {_, 0} -> :ok
-        {_, _exit_status} -> raise Dake.Pipeline.Error, "Target #{tgid} output copy failed"
+        {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} output copy failed"
       end
 
       Reporter.job_output(run.ns, tgid, "#{output} -> #{output_dir}")

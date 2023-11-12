@@ -1,4 +1,4 @@
-defmodule Dake.Parser.Directive do
+defmodule Cake.Parser.Directive do
   defmodule Output do
     # `@output <dir>`
 
@@ -26,7 +26,7 @@ defmodule Dake.Parser.Directive do
 
     @type t :: %__MODULE__{
             ref: String.t(),
-            args: [Dake.Parser.Container.Arg.t()]
+            args: [Cake.Parser.Container.Arg.t()]
           }
   end
 
@@ -42,7 +42,7 @@ defmodule Dake.Parser.Directive do
             as: String.t(),
             output: boolean(),
             push: boolean(),
-            args: [Dake.Parser.Container.Arg.t()]
+            args: [Cake.Parser.Container.Arg.t()]
           }
   end
 end
