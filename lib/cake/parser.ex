@@ -9,7 +9,7 @@ defmodule Cake.Parser do
 
   nl = string("\n")
   line = utf8_string([not: ?\n], min: 0)
-  space = string(" ")
+  space = string(" ") |> optional(ignore(string("\\\n")))
   spaces = times(space, min: 1)
   indent = string("    ")
 
@@ -25,7 +25,7 @@ defmodule Cake.Parser do
     |> repeat(
       lookahead_not(string("\""))
       |> choice([
-        string(~S(\")) |> replace("\""),
+        string(~S/\"/) |> replace(~S/"/),
         utf8_char([])
       ])
     )
@@ -51,10 +51,9 @@ defmodule Cake.Parser do
 
   command_args =
     repeat(
-      lookahead_not(nl)
-      |> choice([
+      choice([
         ignore(string("\\\n")),
-        utf8_char([])
+        utf8_char(not: ?\n)
       ])
     )
     |> reduce({List, :to_string, []})
@@ -285,9 +284,6 @@ defmodule Cake.Parser do
 
   defparsec :cakefile, cakefile
 
-  @doc """
-  Parse a `Cakefile`.
-  """
   @spec parse(String.t(), Path.t()) :: result()
   def parse(content, path) do
     content

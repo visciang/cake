@@ -4,7 +4,6 @@ set -e
 
 CAKE_IMAGE=${CAKE_IMAGE:-"cake:latest"}
 
-
 case $(uname) in
     Darwin) SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock ;;
     Linux) SSH_AUTH_SOCK="$SSH_AUTH_SOCK" ;;
