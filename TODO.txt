@@ -31,5 +31,5 @@ NOTE:
           --push \
           -t ${DOCKER_REGISTRY_HOST}/my-alpine:latest \
           --cache-from=type=registry,ref=${DOCKER_REGISTRY_HOST}/my-alpine \
-          --cache-to=type=registry,ref=${DOCKER_REGISTRY_HOST}/my-alpine,mode=max \
+          --cache-to=type=registry,ref=${DOCKER_REGISTRY_HOST}/my-alpine:cache,mode=max \
           .
