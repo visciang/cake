@@ -1,11 +1,19 @@
 TODO
 
-- run against a private buildkit instance
-  - "run --load" (flag)
-- include / import cycles
-- secrets mount
+- semplificare?
+    @import --output --as=app_ta components/app_ta app
+    FROM app_ta:${CAKE_PIPELINE_UUID}
+
+  usando --build-context:
+    docker buildx build --builder dake --file Containerfile.1 --build-context test=docker-image://target:test .
+
+
 - "service tests"
     docker compose like (build --network ?)
+- run against a private buildkit instance (implies the use of an external registry)
+- include / import cycles
+- secrets mount
+- matrix
 - local task
 - Cakefile FROM DOCKERFILE
 - dot
