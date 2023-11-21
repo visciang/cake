@@ -2,8 +2,6 @@ defmodule Cake do
   alias Cake.{Cli, Cmd, Dag, Dir, Parser, Preprocessor, Reference, Reporter, Validator}
   alias Cake.Parser.Cakefile
 
-  # test
-
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
     setup_cake_dirs()
