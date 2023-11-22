@@ -108,7 +108,9 @@ defmodule Cake.Pipeline do
     containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Containerfile")
     write_containerfile(cakefile.args, container, containerfile_path)
 
-    args = container_build_cmd_args(run, containerfile_path, tgid, push_target?(container), pipeline_uuid, container_build_ctx_dir)
+    push? = push_target?(container)
+    args = container_build_cmd_args(run, containerfile_path, tgid, push?, pipeline_uuid, container_build_ctx_dir)
+
     ContainerCmd.container_build(run, tgid, args, pipeline_uuid)
 
     if run.shell and tgid == run.tgid do
@@ -193,7 +195,9 @@ defmodule Cake.Pipeline do
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), boolean(), Type.pipeline_uuid(), Path.t()) :: [String.t()]
+  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), boolean(), Type.pipeline_uuid(), Path.t()) :: [
+          String.t()
+        ]
   defp container_build_cmd_args(%Run{} = run, containerfile_path, tgid, push_target?, pipeline_uuid, build_ctx) do
     Enum.concat([
       ["--progress", "plain"],
