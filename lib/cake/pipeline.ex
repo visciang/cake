@@ -108,7 +108,7 @@ defmodule Cake.Pipeline do
     containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Containerfile")
     write_containerfile(cakefile.args, container, containerfile_path)
 
-    args = container_build_cmd_args(run, containerfile_path, tgid, pipeline_uuid, container_build_ctx_dir)
+    args = container_build_cmd_args(run, containerfile_path, tgid, push_target?(container), pipeline_uuid, container_build_ctx_dir)
     ContainerCmd.container_build(run, tgid, args, pipeline_uuid)
 
     if run.shell and tgid == run.tgid do
@@ -193,11 +193,12 @@ defmodule Cake.Pipeline do
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), Type.pipeline_uuid(), Path.t()) :: [String.t()]
-  defp container_build_cmd_args(%Run{} = run, containerfile_path, tgid, pipeline_uuid, build_ctx) do
+  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), boolean(), Type.pipeline_uuid(), Path.t()) :: [String.t()]
+  defp container_build_cmd_args(%Run{} = run, containerfile_path, tgid, push_target?, pipeline_uuid, build_ctx) do
     Enum.concat([
       ["--progress", "plain"],
       ["--file", containerfile_path],
+      if(run.push and push_target?, do: ["--no-cache"], else: []),
       ["--tag", ContainerCmd.fq_image(tgid, pipeline_uuid)],
       if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
       Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
@@ -214,7 +215,7 @@ defmodule Cake.Pipeline do
 
   @spec validate_cmd(Run.t(), Cakefile.target()) :: :ok | no_return()
   defp validate_cmd(%Run{} = run, target) do
-    if run.push and push_target?(target) do
+    if not run.push and push_target?(target) do
       Cake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
     end
 
