@@ -1,6 +1,6 @@
 defimpl Cake.Cmd, for: Cake.Cli.Run do
   alias Cake.Cli.Run
-  alias Cake.{Cmd, Dag, Pipeline, Reporter}
+  alias Cake.{Cmd, Dag, Pipeline, Reporter, Type}
   alias Cake.Parser.Cakefile
   alias Dask.Limiter
 
@@ -9,8 +9,11 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
     Reporter.verbose(run.verbose)
     Reporter.logs_to_file(run.save_logs)
 
-    unless run.tgid in Dag.tgids(graph) do
-      Cake.System.halt(:error, "Unknown target '#{run.tgid}'")
+    tgids = Dag.tgids(graph)
+
+    unless run.tgid in tgids do
+      maybe_tgid = did_you_mean(run.tgid, tgids)
+      Cake.System.halt(:error, "Did you mean '#{maybe_tgid}'?'")
     end
 
     {:ok, limiter} = Limiter.start_link(run.parallelism)
@@ -23,5 +26,12 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
       {:error, _} = error -> error
       :timeout -> :timeout
     end
+  end
+
+  @spec did_you_mean(Type.tgid(), [Type.tgid()]) :: Type.tgid() | nil
+  defp did_you_mean(requested_tgids, available_tgids) do
+    available_tgids
+    |> Enum.sort_by(&String.jaro_distance(requested_tgids, &1), :desc)
+    |> List.first()
   end
 end

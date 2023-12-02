@@ -18,9 +18,9 @@ defmodule Cake do
 
     case cmd_res do
       :ok -> Cake.System.halt(:ok)
+      :timeout -> Cake.System.halt(:error, "timeout")
       {:ignore, reason} -> Cake.System.halt(:ok, reason)
       {:error, reason} -> Cake.System.halt(:error, reason)
-      :timeout -> Cake.System.halt(:error, "timeout")
     end
   end
 
@@ -28,13 +28,13 @@ defmodule Cake do
   def cmd(cmd, dir \\ ".") do
     cakefile_path = Path.join(dir, "Cakefile")
 
-    with {:ok, cakefile} <- load_and_parse_cakefile(cakefile_path),
+    with {:parse, {:ok, cakefile}} <- {:parse, load_and_parse_cakefile(cakefile_path)},
          {:preprocess, {:ok, cakefile}} <- {:preprocess, Preprocessor.expand(cakefile, args(cmd))},
          {:dag, {:ok, graph}} <- {:dag, Dag.extract(cakefile)},
          {:validator, :ok} <- {:validator, Validator.check(cakefile, graph)} do
       Cmd.exec(cmd, cakefile, graph)
     else
-      {:error, _} = error ->
+      {:parse, {:error, _}} = error ->
         error
 
       {:preprocess, {:error, reason}} ->
@@ -75,11 +75,12 @@ defmodule Cake do
   end
 
   @spec args(Cmd.t()) :: Preprocessor.args()
-  defp args(%Cli.Run{} = run) do
-    Map.new(run.args)
+  defp args(cmd) do
+    case cmd do
+      %Cli.Run{} -> Map.new(cmd.args)
+      _ -> %{}
+    end
   end
-
-  defp args(_cmd), do: %{}
 
   @spec cakefile_error_context(String.t(), pos_integer(), pos_integer()) :: String.t()
   defp cakefile_error_context(cakefile_content, line, column) do

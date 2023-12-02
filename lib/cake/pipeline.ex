@@ -5,11 +5,12 @@ end
 defmodule Cake.Pipeline do
   alias Cake.Cli.Run
   alias Cake.Parser.{Cakefile, Container, Directive, Target}
+  alias Cake.Pipeline.Compose, as: ComposeCmd
   alias Cake.Pipeline.Container, as: ContainerCmd
   alias Cake.{Dag, Dir, Reference, Reporter, Type}
 
-  require Logger
   require Cake.Reporter.Status
+  require Logger
 
   @spec build(Run.t(), Cakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Cakefile{} = cakefile, graph) do
@@ -57,7 +58,7 @@ defmodule Cake.Pipeline do
           :ok
 
         %Target.Container{} = container ->
-          dask_job_container(run, cakefile, container, tgid, pipeline_uuid)
+          dask_job(run, cakefile, container, tgid, pipeline_uuid)
       end
 
       :ok
@@ -83,6 +84,34 @@ defmodule Cake.Pipeline do
     end
 
     Dask.job(dask, tgid, job_fn, :infinity, job_on_exit_fn)
+  end
+
+  @spec dask_job(Run.t(), Cakefile.t(), Target.Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
+  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Target.Container{} = container, tgid, pipeline_uuid) do
+    if compose_run_target?(container) do
+      dask_job_compose_run(run, cakefile, container, tgid, pipeline_uuid)
+    else
+      dask_job_container(run, cakefile, container, tgid, pipeline_uuid)
+    end
+  end
+
+  @spec dask_job_compose_run(Run.t(), Cakefile.t(), Target.Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
+  defp dask_job_compose_run(%Run{} = run, %Cakefile{}, %Target.Container{} = container, tgid, pipeline_uuid) do
+    Logger.info("start for #{inspect(tgid)}", pipeline: pipeline_uuid)
+
+    dask_job_container_imports(run, container, pipeline_uuid)
+
+    container.directives
+    |> Enum.filter(&match?(%Directive.ComposeRun{}, &1))
+    |> Enum.each(fn %Directive.ComposeRun{} = cr ->
+      try do
+        ComposeCmd.run(run, cr, pipeline_uuid)
+      after
+        ComposeCmd.down(run, cr, pipeline_uuid)
+      end
+    end)
+
+    :ok
   end
 
   @spec dask_job_container(Run.t(), Cakefile.t(), Target.Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
@@ -195,9 +224,8 @@ defmodule Cake.Pipeline do
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), boolean(), Type.pipeline_uuid(), Path.t()) :: [
-          String.t()
-        ]
+  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), boolean(), Type.pipeline_uuid(), Path.t()) ::
+          [String.t()]
   defp container_build_cmd_args(%Run{} = run, containerfile_path, tgid, push_target?, pipeline_uuid, build_ctx) do
     Enum.concat([
       ["--progress", "plain"],
@@ -210,11 +238,17 @@ defmodule Cake.Pipeline do
     ])
   end
 
-  @spec push_target?(Cakefile.target()) :: boolean()
-  defp push_target?(%Target.Alias{}), do: false
+  @spec compose_run_target?(Target.Container.t()) :: boolean()
+  defp compose_run_target?(%Target.Container{} = target) do
+    Enum.any?(target.directives, &match?(%Directive.ComposeRun{}, &1))
+  end
 
-  defp push_target?(%Target.Container{} = container) do
-    Enum.any?(container.directives, &match?(%Directive.Push{}, &1))
+  @spec push_target?(Cakefile.target()) :: boolean()
+  defp push_target?(target) do
+    case target do
+      %Target.Container{} -> Enum.any?(target.directives, &match?(%Directive.Push{}, &1))
+      _ -> false
+    end
   end
 
   @spec validate_cmd(Run.t(), Cakefile.target()) :: :ok | no_return()

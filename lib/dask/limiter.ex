@@ -45,13 +45,13 @@ defmodule Dask.Limiter do
   # coveralls-ignore-stop
   def stats(limiter), do: GenServer.call(limiter, :stats, :infinity)
 
-  @impl true
+  @impl GenServer
   @spec init([non_neg_integer()]) :: {:ok, State.t()}
   def init([max_concurrency]) do
     {:ok, %State{max_concurrency: max_concurrency, running_jobs: %{}, waiting_list: []}}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call({:wait_my_turn, name}, {process, _} = from, %State{} = state) do
     Logger.debug("[process=#{inspect(process)}] (#{inspect(name)}) wait_my_turn #{inspect(state, pretty: true)}")
 
@@ -69,12 +69,12 @@ defmodule Dask.Limiter do
     end
   end
 
-  @impl true
+  @impl GenServer
   def handle_call(:stats, _from, %State{} = state) do
     {:reply, [running: map_size(state.running_jobs), waiting: length(state.waiting_list)], state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_info({:DOWN, _ref, :process, process, _reason}, %State{} = state) do
     Logger.debug("[process=#{inspect(process)}] job_end #{inspect(state, pretty: true)}")
 

@@ -38,11 +38,11 @@ defmodule Dask do
   end
 
   def flow(%__MODULE__{} = workflow, job_up, job_down) do
-    if not Map.has_key?(workflow.jobs, job_up) do
+    unless Map.has_key?(workflow.jobs, job_up) do
       raise Error, "Unknown job #{inspect(job_up)}"
     end
 
-    if not Map.has_key?(workflow.jobs, job_down) do
+    unless Map.has_key?(workflow.jobs, job_down) do
       raise Error, "Unknown job #{inspect(job_down)}"
     end
 
@@ -126,8 +126,9 @@ defmodule Dask do
 
         raise Error, "Cycle detected: #{cycle_path}"
 
+      # coveralls-ignore-start
+
       {:error, {:bad_vertex, %Job{id: job_id}}} ->
-        # coveralls-ignore-start
         raise Error, "Bad job: #{inspect(job_id)}"
 
       # coveralls-ignore-end

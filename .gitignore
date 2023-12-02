@@ -25,6 +25,8 @@ cake-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
-/cake
-_release/
+# erlang release
+/_release/
+
+# cake private build dir
 .cake/

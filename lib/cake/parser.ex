@@ -184,12 +184,29 @@ defmodule Cake.Parser do
     |> wrap()
     |> map({:cast, [Directive.Import]})
 
+  compose_run_args =
+    times(
+      ignore(spaces)
+      |> concat(literal_value),
+      min: 1
+    )
+
+  compose_run_directive =
+    ignore(string("@compose_run"))
+    |> ignore(spaces)
+    |> ignore(string("--file="))
+    |> unwrap_and_tag(literal_value, :file)
+    |> tag(compose_run_args, :args)
+    |> wrap()
+    |> map({:cast, [Directive.ComposeRun]})
+
   target_directive =
     ignore(indent)
     |> choice([
       output_directive,
       push_directive,
-      import_directive
+      import_directive,
+      compose_run_directive
     ])
 
   target_directives =
@@ -207,7 +224,7 @@ defmodule Cake.Parser do
       tag(target_directives, :directives)
       |> ignore(nl)
     )
-    |> tag(target_commands, :commands)
+    |> optional(tag(target_commands, :commands))
     |> wrap()
     |> map({:cast, [Target.Container]})
 

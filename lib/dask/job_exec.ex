@@ -8,9 +8,7 @@ defmodule Dask.JobExec do
       Logger.debug("START #{inspect(job.id)}  upstream_jobs_status: #{inspect(upstream_jobs_status)}")
 
       job_status = timed(fn -> exec_job_fun(job, limiter, upstream_jobs_status, job.id) end, job.timeout)
-
       job.on_exit.(job.id, upstream_jobs_status, job_status)
-
       Enum.each(downstream_job_pid_set, &send(&1, {job.id, job_status}))
 
       Logger.debug("END #{inspect(job.id)} status: #{inspect(job_status)}")
@@ -44,13 +42,7 @@ defmodule Dask.JobExec do
 
   @spec wait_upstream_job_task(Job.t(), Limiter.t(), MapSet.t(pid()), MapSet.t(pid()), Job.upstream_results()) ::
           Job.job_exec_result()
-  defp wait_upstream_job_task(
-         job,
-         limiter,
-         upstream_job_id_set,
-         downstream_job_pid_set,
-         upstream_jobs_status
-       ) do
+  defp wait_upstream_job_task(job, limiter, upstream_job_id_set, downstream_job_pid_set, upstream_jobs_status) do
     receive do
       {upstream_job_id, upstream_job_status} ->
         upstream_job_id_set = MapSet.delete(upstream_job_id_set, upstream_job_id)

@@ -45,4 +45,16 @@ defmodule Cake.Parser.Directive do
             args: [Cake.Parser.Container.Arg.t()]
           }
   end
+
+  defmodule ComposeRun do
+    # `@compose_run --file="dir/docker-compose.yml" [<arg>, ...]`.
+
+    @enforce_keys [:file, :args]
+    defstruct @enforce_keys
+
+    @type t :: %__MODULE__{
+            file: Path.t(),
+            args: [String.t(), ...]
+          }
+  end
 end

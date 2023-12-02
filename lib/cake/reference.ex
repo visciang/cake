@@ -26,17 +26,13 @@ defmodule Cake.Reference do
     GenServer.call(@name, {:get_import, import_}, :infinity)
   end
 
-  @impl true
+  @impl GenServer
   def init([]) do
     {:ok, %{}}
   end
 
-  @impl true
-  def handle_call(
-        {:get_include, %Cakefile{} = cakefile, %Directive.Include{} = include},
-        _from,
-        state
-      ) do
+  @impl GenServer
+  def handle_call({:get_include, %Cakefile{} = cakefile, %Directive.Include{} = include}, _from, state) do
     res =
       case include.ref do
         "git+" <> git_url ->
@@ -64,7 +60,7 @@ defmodule Cake.Reference do
     {:reply, res, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call({:get_import, %Directive.Import{} = import_}, _from, state) do
     res =
       case import_.ref do

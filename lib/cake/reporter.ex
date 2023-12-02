@@ -14,8 +14,6 @@ defmodule Cake.Reporter do
   @time_unit_scale 0.001
 
   defmodule State do
-    @moduledoc false
-
     @enforce_keys [:verbose, :logs_to_file, :logs_dir, :job_id_to_log_file, :start_time, :track]
     defstruct @enforce_keys
 
@@ -89,20 +87,22 @@ defmodule Cake.Reporter do
     %Collector{job_ns: job_ns, job_id: job_id, type: type}
   end
 
-  @impl true
+  @impl GenServer
   def init([]) do
-    {:ok,
-     %State{
-       verbose: false,
-       logs_to_file: false,
-       logs_dir: Path.join(Dir.log(), to_string(DateTime.utc_now())),
-       job_id_to_log_file: %{},
-       start_time: time(),
-       track: %{}
-     }}
+    state =
+      %State{
+        verbose: false,
+        logs_to_file: false,
+        logs_dir: Path.join(Dir.log(), to_string(DateTime.utc_now())),
+        job_id_to_log_file: %{},
+        start_time: time(),
+        track: %{}
+      }
+
+    {:ok, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_cast({:job_start, {job_ns, job_id} = job}, %State{} = state) do
     {state, log_file} = log_file(state, job)
 
@@ -145,7 +145,7 @@ defmodule Cake.Reporter do
     log_puts(log_file, ansidata, true)
 
     if status_info not in [nil, ""] do
-      log_puts(log_file, "  - #{status_info}", true)
+      log_puts(log_file, "    - #{status_info}", true)
     end
 
     state = put_in(state.track[job], status)
@@ -188,17 +188,17 @@ defmodule Cake.Reporter do
     {:noreply, state}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call({:verbose, enabled}, _from, %State{} = state) do
     {:reply, :ok, put_in(state.verbose, enabled)}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call({:logs_to_file, enabled}, _from, %State{} = state) do
     {:reply, :ok, put_in(state.logs_to_file, enabled)}
   end
 
-  @impl true
+  @impl GenServer
   def handle_call({:stop, reason}, _from, %State{} = state) do
     end_time = time()
 
@@ -264,7 +264,7 @@ defmodule Cake.Reporter do
     end
 
     if log_file != nil do
-      message = message |> List.flatten() |> Enum.reject(&is_atom(&1))
+      message = List.wrap(message) |> List.flatten() |> Enum.reject(&is_atom(&1))
       IO.write(log_file, [message, "\n"])
     end
   end

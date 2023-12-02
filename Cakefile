@@ -1,7 +1,8 @@
-# @include git+git@github.com:visciang/cake-elixir.git#main  \
-#          ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli-buildx graphviz"
+# @include git+git@github.com:visciang/cake-elixir.git#main
 @include git+https://github.com/visciang/cake-elixir.git#main \
-         ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli-buildx graphviz"
+         ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-compose docker-cli-buildx"
+
+all: elixir.lint cake.app
 
 cake.app:
     FROM +elixir.escript

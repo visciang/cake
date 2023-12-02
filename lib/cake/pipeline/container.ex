@@ -12,13 +12,13 @@ defmodule Cake.Pipeline.Container do
 
   @spec container_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
   def container_build(%Run{} = run, tgid, args, pipeline_uuid) do
-    container = System.find_executable("docker")
     args = if System.get_env("SSH_AUTH_SOCK"), do: ["--ssh=default" | args], else: args
-    args = [container, "build" | args]
+    args = [System.find_executable("docker"), "build" | args]
     into = Reporter.collector(run.ns, tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
 
+    # TODO shared function
     case System.cmd("/usr/bin/cake_cmd.sh", args, stderr_to_stdout: true, into: into) do
       {_, 0} -> :ok
       {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} failed"

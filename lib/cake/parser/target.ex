@@ -18,13 +18,14 @@ defmodule Cake.Parser.Target do
     #     ARG X=1
     #     RUN ...
 
-    @enforce_keys [:tgid, :commands]
-    defstruct @enforce_keys ++ [included_from_ref: nil, directives: []]
+    @enforce_keys [:tgid]
+    defstruct @enforce_keys ++ [included_from_ref: nil, directives: [], commands: []]
 
     @type directive ::
             Cake.Parser.Directive.Import.t()
             | Cake.Parser.Directive.Output.t()
             | Cake.Parser.Directive.Push.t()
+            | Cake.Parser.Directive.ComposeRun.t()
 
     @type command ::
             Cake.Parser.Container.Arg.t()
