@@ -12,7 +12,13 @@ defmodule Cake.Pipeline.Container do
 
   @spec container_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
   def container_build(%Run{} = run, tgid, args, pipeline_uuid) do
-    args = if System.get_env("SSH_AUTH_SOCK"), do: ["--ssh=default" | args], else: args
+    args =
+      if System.get_env("SSH_AUTH_SOCK", "") != "" do
+        ["--ssh=default" | args]
+      else
+        args
+      end
+
     args = [System.find_executable("docker"), "build" | args]
     into = Reporter.collector(run.ns, tgid, :log)
 
@@ -27,8 +33,14 @@ defmodule Cake.Pipeline.Container do
 
   @spec container_shell(Type.tgid(), Type.pipeline_uuid()) :: :ok
   def container_shell(tgid, pipeline_uuid) do
-    ssh_auth_sock = System.fetch_env!("SSH_AUTH_SOCK")
-    run_ssh_args = ["-e", "SSH_AUTH_SOCK=#{ssh_auth_sock}", "-v", "#{ssh_auth_sock}:#{ssh_auth_sock}"]
+    run_ssh_args =
+      if System.get_env("SSH_AUTH_SOCK", "") != "" do
+        ssh_auth_sock = System.fetch_env!("SSH_AUTH_SOCK")
+        ["-e", "SSH_AUTH_SOCK=#{ssh_auth_sock}", "-v", "#{ssh_auth_sock}:#{ssh_auth_sock}"]
+      else
+        []
+      end
+
     run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh"] ++ run_ssh_args ++ [fq_image(tgid, pipeline_uuid)]
     port_opts = [:nouse_stdio, :exit_status, args: run_cmd_args]
     port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
