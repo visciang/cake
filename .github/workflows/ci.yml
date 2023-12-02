@@ -51,5 +51,6 @@ jobs:
 
       - name: XXX
         run: |
+          CAKE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/cake:${{ steps.cake_version.outputs.version }}
           source priv/source.sh
           cake run --verbose all
