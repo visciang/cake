@@ -45,12 +45,6 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             CAKE_VERSION=${{ steps.cake_version.outputs.version }}
-          load: true
+          push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/cake:${{ steps.cake_version.outputs.version }}
           target: cake.app
-
-      - name: XXX
-        run: |
-          CAKE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/cake:${{ steps.cake_version.outputs.version }}
-          source priv/source.sh
-          cake run --verbose all
