@@ -40,7 +40,7 @@ jobs:
         with:
           platforms: linux/amd64 #,linux/arm64
           context: .
-          file: ./Containerfile.bootstrap
+          file: ./Containerfile
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
