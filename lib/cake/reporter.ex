@@ -251,7 +251,7 @@ defmodule Cake.Reporter do
   @spec report_line(ansidata(), [String.t()], ansidata(), nil | ansidata(), nil | ansidata()) :: ansidata()
   defp report_line(status_icon, job_ns, job_id, duration, description) do
     job_ns = if job_ns == [], do: "", else: ["(", Enum.join(job_ns, ", "), ") "]
-    line = ["[", status_icon, "]  ", :faint, job_ns, :reset, :bright, job_id, :reset]
+    line = ["[", status_icon, "]  ", :faint, job_ns, :reset, job_id, :reset]
     line = if duration, do: [line, ["  #{duration} "]], else: line
     line = if description, do: [line, :faint, "  ", description, :reset], else: line
     line
