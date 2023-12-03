@@ -21,8 +21,9 @@ defmodule Cake.Pipeline do
     cakefile = fq_targets_image_ref(pipeline_uuid, cakefile)
     targets_map = Map.new(cakefile.targets, &{&1.tgid, &1})
     pipeline_tgids = Dag.reaching_tgids(graph, run.tgid)
+    pipeline_target = Map.fetch!(targets_map, run.tgid)
 
-    validate_cmd(run, Map.fetch!(targets_map, run.tgid))
+    validate_cmd(run, pipeline_target)
 
     pipeline_tgids =
       if run.push do
