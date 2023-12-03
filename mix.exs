@@ -34,7 +34,7 @@ defmodule Cake.MixProject do
   defp deps do
     [
       {:optimus, github: "visciang/optimus"},
-      {:nimble_parsec, "~> 1.3", only: [:dev, :test], runtime: false},
+      {:nimble_parsec, "~> 1.3", only: [:dev, :test]},
       {:excoveralls, "~> 0.12", only: [:test]},
       {:ex_doc, "~> 0.16", only: [:dev], runtime: false},
       {:credo, "~> 1.0", only: [:dev], runtime: false},
