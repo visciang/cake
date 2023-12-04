@@ -1,6 +1,6 @@
 # Cake
 
-Cake (acronym for **C**ontainerized m**AKE**) is a portable pipeline executor.
+Cake (**C**ontainerized m**AKE**) is a portable pipeline executor.
 
 ![dalle](./docs/cake.png)
 
