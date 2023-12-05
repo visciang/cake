@@ -1,7 +1,7 @@
 # Cake
 
 Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI/CD framework to
-define and execute "reproducible" pipelines that can run on any host with docker support,
+define and execute "reproducible" pipelines that can run on any host with docker support.
 
 ![dalle](./docs/cake.png)
 
