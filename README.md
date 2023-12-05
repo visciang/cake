@@ -1,11 +1,9 @@
 # Cake
 
-Cake (**C**ontainerized m**AKE**) is a portable pipeline executor.
+Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI/CD framework to
+define and execute "reproducible" pipelines that can run on on any host with docker support,
 
 ![dalle](./docs/cake.png)
-
-It can be used as a CI/CD framework to define and execute "reproducible" pipelines
-that can run on on any host with docker support.
 
 ## Features and characteristics
 
