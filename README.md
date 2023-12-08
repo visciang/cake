@@ -119,7 +119,3 @@ The image is available in the local docker registry:
 ## Install cake
 ### Native
 ### Dockerized
-### Shell aliases
-
-- Fish: `./priv/source.fish`
-- Sh: `./priv/source.sh`
