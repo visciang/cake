@@ -3,7 +3,7 @@
 set -e
 
 # bootstrap
-CAKE_VERSION=${CAKE_VERSION:-latest}
+CAKE_VERSION=${CAKE_VERSION:-0.0.0}
 docker build --file Containerfile --build-arg CAKE_VERSION=${CAKE_VERSION} --target cake.app --tag cake:latest .
 
 # cake building cake

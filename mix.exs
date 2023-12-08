@@ -4,7 +4,7 @@ defmodule Cake.MixProject do
   def project do
     [
       app: :cake,
-      version: "0.0.0",
+      version: System.get_env("CAKE_VERSION", "0.0.0"),
       elixir: "~> 1.15",
       preferred_cli_env: [
         coveralls: :test,
