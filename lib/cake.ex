@@ -1,11 +1,9 @@
 defmodule Cake do
-  alias Cake.{Cli, Cmd, Dag, Dir, Parser, Preprocessor, Reference, Reporter, Validator}
+  alias Cake.{Cli, Cmd, Dag, Parser, Preprocessor, Reference, Reporter, Validator}
   alias Cake.Parser.Cakefile
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
-    setup_cake_dirs()
-
     Reporter.start_link()
     Reference.start_link()
 
@@ -34,7 +32,7 @@ defmodule Cake do
          {:validator, :ok} <- {:validator, Validator.check(cakefile, graph)} do
       Cmd.exec(cmd, cakefile, graph)
     else
-      {:parse, {:error, _}} = error ->
+      {:parse, {:error, _} = error} ->
         error
 
       {:preprocess, {:error, reason}} ->
@@ -61,17 +59,6 @@ defmodule Cake do
         ctx_msg = cakefile_error_context(content, line, column)
         {:error, "Cakefile syntax error at #{path}:#{line}:#{column}\n#{ctx_msg}"}
     end
-  end
-
-  @spec setup_cake_dirs :: :ok
-  defp setup_cake_dirs do
-    File.mkdir_p!(Dir.log())
-
-    [Dir.tmp(), Dir.output(), Dir.include_ctx(File.cwd!())]
-    |> Enum.each(fn dir ->
-      File.rm_rf!(dir)
-      File.mkdir_p!(dir)
-    end)
   end
 
   @spec args(Cmd.t()) :: Preprocessor.args()

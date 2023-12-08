@@ -21,4 +21,15 @@ defmodule Cake.Dir do
     include_ctx_dir = include_ctx(cakefile_dir)
     Path.join(include_ctx_dir, include_dir)
   end
+
+  @spec setup_cake_dirs :: :ok
+  def setup_cake_dirs do
+    File.mkdir_p!(log())
+
+    [tmp(), output(), include_ctx(File.cwd!())]
+    |> Enum.each(fn dir ->
+      File.rm_rf!(dir)
+      File.mkdir_p!(dir)
+    end)
+  end
 end

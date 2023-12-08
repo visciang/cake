@@ -1,11 +1,13 @@
 defimpl Cake.Cmd, for: Cake.Cli.Run do
   alias Cake.Cli.Run
-  alias Cake.{Cmd, Dag, Pipeline, Reporter, Type}
+  alias Cake.{Cmd, Dag, Dir, Pipeline, Reporter, Type}
   alias Cake.Parser.Cakefile
   alias Dask.Limiter
 
   @spec exec(Run.t(), Cakefile.t(), Dag.graph()) :: Cmd.result()
   def exec(%Run{} = run, %Cakefile{} = cakefile, graph) do
+    Dir.setup_cake_dirs()
+
     Reporter.verbose(run.verbose)
     Reporter.logs_to_file(run.save_logs)
 

@@ -1,6 +1,6 @@
 defimpl Cake.Cmd, for: Cake.Cli.Ls do
   alias Cake.Cli.Ls
-  alias Cake.{Dag, Reporter, Type}
+  alias Cake.{Dag, Dir, Reporter, Type}
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Container.Arg
   alias Cake.Parser.Target
@@ -9,6 +9,8 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
   @spec exec(Ls.t(), Cakefile.t(), Dag.graph()) :: :ok
   def exec(%Ls{}, %Cakefile{} = cakefile, graph) do
+    Dir.setup_cake_dirs()
+
     global_args = cakefile.args
     target_args = target_args(cakefile)
 
