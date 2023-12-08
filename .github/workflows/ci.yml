@@ -28,9 +28,8 @@ jobs:
         id: cake_version
         run: |
           case $GITHUB_REF in
-            refs/heads/main) export CAKE_VERSION=latest ;;
             refs/tags/v*)    export CAKE_VERSION=${GITHUB_REF#refs/tags/v} ;;
-            *)               export CAKE_VERSION=development ;;
+            *)               export CAKE_VERSION=0.0.0 ;;
           esac
 
           echo "version=$CAKE_VERSION" >> $GITHUB_OUTPUT

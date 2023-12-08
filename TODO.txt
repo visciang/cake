@@ -8,11 +8,8 @@ TODO
     docker buildx build --builder dake --file Containerfile.1 --build-context test=docker-image://target:test .
 
 
-- "service tests"
-    docker compose like (build --network ?)
 - run against a private buildkit instance (implies the use of an external registry)
 - include / import cycles
-- secrets mount
 - matrix
 - local task
 - Cakefile FROM DOCKERFILE
