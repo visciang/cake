@@ -8,7 +8,20 @@ defmodule Cake.Cli do
   end
 
   defmodule Run do
-    @enforce_keys [:ns, :tgid, :args, :push, :output, :tag, :timeout, :parallelism, :verbose, :save_logs, :shell]
+    @enforce_keys [
+      :ns,
+      :tgid,
+      :args,
+      :push,
+      :output,
+      :tag,
+      :timeout,
+      :parallelism,
+      :verbose,
+      :save_logs,
+      :shell,
+      :secrets
+    ]
     defstruct @enforce_keys ++ [output_dir: ""]
 
     @type arg :: {name :: String.t(), value :: String.t()}
@@ -24,7 +37,8 @@ defmodule Cake.Cli do
             parallelism: pos_integer(),
             verbose: boolean(),
             save_logs: boolean(),
-            shell: boolean()
+            shell: boolean(),
+            secrets: [String.t()]
           }
   end
 
@@ -109,6 +123,13 @@ defmodule Cake.Cli do
               value_name: "TAG",
               help: "Tag the target's container image"
             ],
+            secret: [
+              long: "--secret",
+              value_name: "SECRET",
+              multiple: true,
+              parser: &parser_secret_option/1,
+              help: "Secret to expose to the build (ref. to 'docker build --secret')"
+            ],
             timeout: [
               long: "--timeout",
               value_name: "TIMEOUT",
@@ -155,7 +176,8 @@ defmodule Cake.Cli do
           parallelism: cli.options.parallelism,
           verbose: cli.flags.verbose,
           save_logs: cli.flags.save_logs,
-          shell: cli.flags.shell
+          shell: cli.flags.shell,
+          secrets: cli.options.secret
         }
 
         {:ok, run}
@@ -177,5 +199,16 @@ defmodule Cake.Cli do
           {:halt, {:error, "bad target argument: #{bad_arg}"}}
       end
     end)
+  end
+
+  @spec parser_secret_option(String.t()) :: Optimus.parser_result()
+  defp parser_secret_option(option) do
+    re = ~S"id=\w+(,(src|source)=.+)?"
+
+    if option =~ ~r/^#{re}$/ do
+      {:ok, option}
+    else
+      {:error, "supported format is '#{re}'"}
+    end
   end
 end

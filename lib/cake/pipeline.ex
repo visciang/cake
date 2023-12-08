@@ -194,7 +194,8 @@ defmodule Cake.Pipeline do
             parallelism: run.parallelism,
             verbose: run.verbose,
             save_logs: run.save_logs,
-            shell: false
+            shell: false,
+            secrets: run.secrets
           },
           import_.ref
         )
@@ -235,6 +236,7 @@ defmodule Cake.Pipeline do
       ["--tag", ContainerCmd.fq_image(tgid, pipeline_uuid)],
       if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
       Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
+      Enum.flat_map(run.secrets, fn secret -> ["--secret", secret] end),
       [build_ctx]
     ])
   end
