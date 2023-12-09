@@ -19,7 +19,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
       Enum.each(global_args, &Reporter.job_notice([], "ls", " - #{fmt_arg(&1)}"))
     end
 
-    Reporter.job_notice([], "ls", "\nTargets (with arguments):")
+    Reporter.job_notice([], "ls", "\nTargets:")
 
     graph
     |> Dag.tgids()

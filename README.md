@@ -8,6 +8,7 @@ define and execute "reproducible" pipelines that can run on any host with docker
 ## Features and characteristics
 
 - DAG pipeline definition with a Dockerfile-like syntax
+- Buildkit free (it is not a buildkit frontend)
 - Implicit docker-like caching
 - Parallel jobs execution
 - Parametrizable pipeline and job (ref. `ARGS`)
@@ -54,7 +55,7 @@ Let's start to list the available targets
     [!]  ls   | Global arguments:
     [!]  ls   |  - ALPINE_VERSION="3.18.5"
     [!]  ls   |
-    [!]  ls   | Targets (with arguments):
+    [!]  ls   | Targets:
     [!]  ls   |  - build
     [!]  ls   |  - app
 
