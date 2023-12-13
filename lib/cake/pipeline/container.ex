@@ -10,8 +10,8 @@ defmodule Cake.Pipeline.Container do
   @spec fq_output_container(Type.tgid(), Type.pipeline_uuid()) :: String.t()
   def fq_output_container(tgid, pipeline_uuid), do: "output-#{tgid}-#{pipeline_uuid}"
 
-  @spec container_build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
-  def container_build(%Run{} = run, tgid, args, pipeline_uuid) do
+  @spec build(Run.t(), Type.tgid(), [String.t()], Type.pipeline_uuid()) :: :ok
+  def build(%Run{} = run, tgid, args, pipeline_uuid) do
     args =
       if System.get_env("SSH_AUTH_SOCK", "") != "" do
         ["--ssh=default" | args]
@@ -31,8 +31,8 @@ defmodule Cake.Pipeline.Container do
     end
   end
 
-  @spec container_shell(Type.tgid(), Type.pipeline_uuid()) :: :ok
-  def container_shell(tgid, pipeline_uuid) do
+  @spec shell(Type.tgid(), Type.pipeline_uuid()) :: :ok
+  def shell(tgid, pipeline_uuid) do
     run_ssh_args =
       if System.get_env("SSH_AUTH_SOCK", "") != "" do
         ssh_auth_sock = System.fetch_env!("SSH_AUTH_SOCK")
@@ -52,8 +52,8 @@ defmodule Cake.Pipeline.Container do
     :ok
   end
 
-  @spec container_output(Run.t(), Type.tgid(), Type.pipeline_uuid(), [Path.t()]) :: :ok
-  def container_output(%Run{} = run, tgid, pipeline_uuid, outputs) do
+  @spec output(Run.t(), Type.tgid(), Type.pipeline_uuid(), [Path.t()]) :: :ok
+  def output(%Run{} = run, tgid, pipeline_uuid, outputs) do
     container_image = fq_image(tgid, pipeline_uuid)
     tmp_container = fq_output_container(tgid, pipeline_uuid)
 
@@ -76,14 +76,14 @@ defmodule Cake.Pipeline.Container do
     :ok
   end
 
-  @spec container_cleanup(Type.pipeline_uuid()) :: :ok
-  def container_cleanup(pipeline_uuid) do
-    container_rm_containers(pipeline_uuid)
-    container_rm_images(pipeline_uuid)
+  @spec cleanup(Type.pipeline_uuid()) :: :ok
+  def cleanup(pipeline_uuid) do
+    rm_containers(pipeline_uuid)
+    rm_images(pipeline_uuid)
   end
 
-  @spec container_rm_images(Type.pipeline_uuid()) :: :ok
-  defp container_rm_images(pipeline_uuid) do
+  @spec rm_images(Type.pipeline_uuid()) :: :ok
+  defp rm_images(pipeline_uuid) do
     image_ls_args = ["image", "ls", fq_image("*", pipeline_uuid), "--format", "{{.Repository}}:{{.Tag}}", "--quiet"]
     {cmd_out, 0} = System.cmd("docker", image_ls_args)
 
@@ -96,8 +96,8 @@ defmodule Cake.Pipeline.Container do
     :ok
   end
 
-  @spec container_rm_containers(Type.pipeline_uuid()) :: :ok
-  defp container_rm_containers(pipeline_uuid) do
+  @spec rm_containers(Type.pipeline_uuid()) :: :ok
+  defp rm_containers(pipeline_uuid) do
     cmd = ["container", "ls", "--all", "--filter", "name=#{fq_output_container(".*", pipeline_uuid)}", "--quiet"]
     {cmd_out, 0} = System.cmd("docker", cmd)
     containers_ids = String.split(cmd_out, "\n", trim: true)

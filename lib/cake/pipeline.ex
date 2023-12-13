@@ -141,11 +141,11 @@ defmodule Cake.Pipeline do
     push? = push_target?(container)
     args = container_build_cmd_args(run, containerfile_path, tgid, push?, pipeline_uuid, container_build_ctx_dir)
 
-    ContainerCmd.container_build(run, tgid, args, pipeline_uuid)
+    ContainerCmd.build(run, tgid, args, pipeline_uuid)
 
     if run.shell and tgid == run.tgid do
       Reporter.job_notice(run.ns, run.tgid, "\nStarting interactive shell:\n")
-      ContainerCmd.container_shell(tgid, pipeline_uuid)
+      ContainerCmd.shell(tgid, pipeline_uuid)
     end
 
     if run.output do
@@ -154,7 +154,7 @@ defmodule Cake.Pipeline do
         |> Enum.filter(&match?(%Directive.Output{}, &1))
         |> Enum.map(& &1.dir)
 
-      ContainerCmd.container_output(run, tgid, pipeline_uuid, outputs)
+      ContainerCmd.output(run, tgid, pipeline_uuid, outputs)
     end
 
     :ok
@@ -220,7 +220,7 @@ defmodule Cake.Pipeline do
     end
 
     job_on_exit_fn = fn _, _, _ ->
-      ContainerCmd.container_cleanup(pipeline_uuid)
+      ContainerCmd.cleanup(pipeline_uuid)
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)

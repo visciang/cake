@@ -19,14 +19,15 @@ TODO
 
 
 NOTE:
+  ------------------- BUILDKIT --------------------
 
   BUILDKIT_VERSION=v0.12.3
   BUILDKIT_BUILDER_NAME=cake
 
   DOCKER_REGISTRY_VERSION=2.8.3
-  DOCKER_REGISTRY_HOST=localhost:7000
+  DOCKER_REGISTRY_HOST=localhost:8000
 
-  docker run --rm -d -p 7000:7000 --name registry registry:${DOCKER_REGISTRY_VERSION}
+  docker run --rm -d -p 8000:5000 --name registry registry:latest
 
   docker buildx create --name=${BUILDKIT_BUILDER_NAME} --driver=docker-container --driver-opt=image=moby/buildkit:${BUILDKIT_VERSION},network=host
 
@@ -38,3 +39,14 @@ NOTE:
           --cache-from=type=registry,ref=${DOCKER_REGISTRY_HOST}/my-alpine \
           --cache-to=type=registry,ref=${DOCKER_REGISTRY_HOST}/my-alpine:cache,mode=max \
           .
+
+  ------------------- KANIKO --------------------
+
+  THE KANIKO CACHE IS GOOD! IT STORES ALL THE LAYER IN THE REGISTRY
+
+  docker run --rm -d -p 8000:5000 --name registry registry:latest
+
+  docker run --rm -ti --network=host -v $PWD:/workspace -w /workspace gcr.io/kaniko-project/executor:latest \
+       --destination=localhost:8000/cake:kaniko --dockerfile ./Containerfile \
+       --cache --cache-copy-layers --cache-run-layers \
+       --skip-push-permission-check --insecure
