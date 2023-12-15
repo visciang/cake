@@ -135,7 +135,7 @@ defmodule Cake.Pipeline do
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     container = insert_builtin_container_args(container, build_relative_include_ctx_dir)
 
-    containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Containerfile")
+    containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
     write_containerfile(cakefile.args, container, containerfile_path)
 
     push? = push_target?(container)

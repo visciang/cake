@@ -5,7 +5,7 @@ TODO
     FROM app_ta:${CAKE_PIPELINE_UUID}
 
   usando --build-context:
-    docker buildx build --builder dake --file Containerfile.1 --build-context test=docker-image://target:test .
+    docker buildx build --builder dake --file Dockerfile.1 --build-context test=docker-image://target:test .
 
 
 - run against a private buildkit instance (implies the use of an external registry)
@@ -47,6 +47,6 @@ NOTE:
   docker run --rm -d -p 8000:5000 --name registry registry:latest
 
   docker run --rm -ti --network=host -v $PWD:/workspace -w /workspace gcr.io/kaniko-project/executor:latest \
-       --destination=localhost:8000/cake:kaniko --dockerfile ./Containerfile \
+       --destination=localhost:8000/cake:kaniko --dockerfile ./Dockerfile \
        --cache --cache-copy-layers --cache-run-layers \
        --skip-push-permission-check --insecure

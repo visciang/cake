@@ -39,7 +39,7 @@ jobs:
         with:
           platforms: linux/amd64 #,linux/arm64
           context: .
-          file: ./Containerfile
+          file: ./Dockerfile
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
