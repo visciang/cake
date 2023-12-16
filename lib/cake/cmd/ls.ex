@@ -1,6 +1,6 @@
 defimpl Cake.Cmd, for: Cake.Cli.Ls do
   alias Cake.Cli.Ls
-  alias Cake.{Dag, Dir, Reporter, Type}
+  alias Cake.{Dag, Dir, Type}
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Container.Arg
   alias Cake.Parser.Target
@@ -15,17 +15,17 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
     target_args = target_args(cakefile)
 
     if global_args != [] do
-      Reporter.job_notice([], "ls", "\nGlobal arguments:")
-      Enum.each(global_args, &Reporter.job_notice([], "ls", " - #{fmt_arg(&1)}"))
+      IO.puts("\nGlobal arguments:")
+      Enum.each(global_args, &IO.puts(" - #{fmt_arg(&1)}"))
     end
 
-    Reporter.job_notice([], "ls", "\nTargets:")
+    IO.puts("\nTargets:")
 
     graph
     |> Dag.tgids()
     |> Enum.sort()
     |> Enum.map(&fmt_target(&1, target_args))
-    |> Enum.each(&Reporter.job_notice([], "ls", " - #{&1}"))
+    |> Enum.each(&IO.puts(" - #{&1}"))
 
     :ok
   end

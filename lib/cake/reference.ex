@@ -36,8 +36,8 @@ defmodule Cake.Reference do
     res =
       case include.ref do
         "git+" <> git_url ->
-          Reporter.job_notice([], "git", "@include #{git_url}")
-          git_ref(git_url)
+          Reporter.job_notice([], "@include", "#{git_url}")
+          git_ref("@include", git_url)
 
         local_path ->
           # include path normalizated to be relative to the project root directory
@@ -65,8 +65,8 @@ defmodule Cake.Reference do
     res =
       case import_.ref do
         "git+" <> git_url ->
-          Reporter.job_notice([], "git", "@import #{git_url}")
-          git_ref(git_url)
+          Reporter.job_notice([], "@import", "#{git_url}")
+          git_ref("@import", git_url)
 
         local_path ->
           {:ok, Path.join(local_path, "Cakefile")}
@@ -79,14 +79,14 @@ defmodule Cake.Reference do
     {:reply, res, state}
   end
 
-  @spec git_ref(String.t()) :: result()
-  defp git_ref(git_url) do
+  @spec git_ref(String.t(), String.t()) :: result()
+  defp git_ref(job_id, git_url) do
     checkout_dir = Path.join(Cake.Dir.git_ref(), git_url)
     into = Reporter.collector([], "git", :log)
     cmd_opts = [stderr_to_stdout: true, cd: checkout_dir, into: into]
 
     if File.dir?(checkout_dir) do
-      Reporter.job_notice([], "git", "using cached repository")
+      Reporter.job_notice([], job_id, "using cached repository")
 
       # pull from remote (if on a branch)
       _ = System.cmd("git", ["pull"], cmd_opts)
