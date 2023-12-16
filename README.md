@@ -51,13 +51,12 @@ Let's start to list the available targets
 
     $ cake ls
 
-    [!]  ls   |
-    [!]  ls   | Global arguments:
-    [!]  ls   |  - ALPINE_VERSION="3.18.5"
-    [!]  ls   |
-    [!]  ls   | Targets:
-    [!]  ls   |  - build
-    [!]  ls   |  - app
+     Global arguments:
+      - ALPINE_VERSION="3.18.5"
+
+     Targets:
+      - build
+      - app
 
 We can now run the pipeline to build the `app` target
 
@@ -101,7 +100,7 @@ Let's produce and tag a docker image of the `app` target:
 The image is available in the local docker registry:
 
     $ docker run --rm hello:latest
-    
+
     Hello!
 
 ## Cakefile reference
