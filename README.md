@@ -104,8 +104,82 @@ The image is available in the local docker registry:
     Hello!
 
 ## Cakefile reference
+
 ### Targets
+
+Targets in Cake represent the addressable and executable entities within a pipeline. They identify the jobs that build the Directed Acyclic Graph (DAG) of the pipeline.
+
+A target is defined as a logical step or action within the pipeline. Each target can encapsulate one or more jobs and typically corresponds to a specific task or operation to be performed. For instance, in the example Cakefile:
+
+```Dockerfile
+build:
+    FROM alpine:3.18.5
+    RUN apk add --no-cache gcc libc-dev
+    COPY hello.c .
+    RUN gcc hello.c -o /hello
+
+app:
+    FROM alpine:3.18.5
+    COPY --from=+build /hello /usr/bin/hello
+    ENTRYPOINT ["/usr/bin/hello"]
+```
+
+- `build` and `app` are targets defined in the Cakefile.
+- each target (`build` and `app`) encompasses a series of Docker-like commands, forming the jobs required to accomplish the specified task.
+
 ### DAG
+
+Targets collectively form the Directed Acyclic Graph (DAG) of the pipeline. The DAG represents the workflow of tasks and their dependencies, ensuring a structured execution flow without circular references.
+
+- **Dependencies**: targets can have dependencies on other targets. For example, the app target depends on the successful execution of the build target in the example above.
+
+- **Execution Order**: Cake determines the execution order based on the DAG structure, ensuring that dependent targets are executed only after their dependencies successfully complete.
+
+#### Implicit Target Dependencies
+
+Within the Cakefile, target dependencies are implicitly established through specific instructions within each target definition.
+
+Reference to a target are expressed conventionally with `+target`.
+
+- `FROM +dependency` instruction
+
+  The `FROM +dependency` instruction within a target denotes a direct dependency on another previously defined target. When a target specifies a base image using this syntax, it creates a dependency on a target labeled as `dependency`.
+
+  For instance:
+
+  ```Dockerfile
+  toolchain:
+    FROM alpine:3.18.5
+    # ...
+
+  compile:
+      FROM +toolchain
+      # ...
+
+  test:
+      FROM +compile
+      # ...
+  ```
+
+  In the above example `test` depends on `compile` and `compile` on `toolchain`.
+
+- `COPY from=+dependency` instruction
+
+  The `COPY from=+dependency` instruction is used to copy specific files or artifacts produced by a previously executed target. This instruction creates a direct dependency on the target labeled as `dependency`, as it must complete successfully for the `COPY` instruction to operate correctly.
+
+  ```Dockerfile
+  app:
+    FROM alpine:3.18.5
+    COPY --from=+build /hello /usr/bin/hello
+    ENTRYPOINT ["/usr/bin/hello"]
+  ```
+
+  In the example above, `COPY --from=+build /hello /usr/bin/hello` within the `app` target indicates that `app` depends on the completion of `build`. If the `build` target has not correctly generated the `/hello` file, the `app` target will fail during execution.
+
+#### Dependencies and DAG Structure
+
+Utilizing these instructions allows Cake to implicitly construct the Directed Acyclic Graph (DAG) structure of the pipeline. Each `FROM +dependency` and `COPY from=+dependency` instruction defines a dependency relationship between targets, ensuring that targets are executed in the correct order based on their dependencies.
+
 ### Caching
 ### Parametrization
 ### Directives
