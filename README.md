@@ -103,7 +103,11 @@ The image is available in the local docker registry:
 
     Hello!
 
-## Cakefile reference
+## Cakefile
+
+Cake pipelines are defined via `Cakefile`.
+
+The `Cakefile` of a project pipeline should sit at the root directory of the project.
 
 ### Targets
 
@@ -137,9 +141,7 @@ Targets collectively form the Directed Acyclic Graph (DAG) of the pipeline. The 
 
 #### Implicit Target Dependencies
 
-Within the Cakefile, target dependencies are implicitly established through specific instructions within each target definition.
-
-Reference to a target are expressed conventionally with `+target`.
+Within the Cakefile, target dependencies are implicitly established through specific instructions within each target definition. Reference to a target are expressed conventionally with `+target`.
 
 - `FROM +dependency` instruction
 
@@ -181,12 +183,130 @@ Reference to a target are expressed conventionally with `+target`.
 Utilizing these instructions allows Cake to implicitly construct the Directed Acyclic Graph (DAG) structure of the pipeline. Each `FROM +dependency` and `COPY from=+dependency` instruction defines a dependency relationship between targets, ensuring that targets are executed in the correct order based on their dependencies.
 
 ### Caching
-### Parametrization
+Cake utilizes a Dockerfile-like syntax and implicitly inherits Docker's caching semantics to optimize the pipeline execution by caching intermediate artifacts.
+
+#### Implicit Caching
+
+The caching mechanism in Cake relies on Docker's layer caching. When a target is executed, the docker builder checks for existing intermediate artifacts and layers cached from previous runs. If the commands and instructions in a target have not changed since the last run and the base image and dependencies remain the same, the builder uses the cached layers instead of rebuilding the entire target. This significantly speeds up subsequent executions of the pipeline.
+
+#### Cache Invalidation
+
+Cake invalidates the cache for a specific target if any of the following occurs:
+
+- Changes are made to the target's instructions or commands.
+- The base image or dependencies specified in the FROM instruction are updated.
+- Any dependency used in a target has altered outputs since the last build.
+
+#### Leverage for Faster Builds
+
+By leveraging Docker's caching mechanisms, the docker builder optimizes build times by avoiding redundant execution of unchanged commands or layers, ensuring that only modified parts of the pipeline are rebuilt. This behavior effectively enhances productivity and speeds up the development and deployment cycles.
+
+### Pipeline Parametrization
+
+Cake supports parameterization to enhance the flexibility and reusability of pipelines. Parameters enable the customization of pipeline behavior and settings without altering the pipeline structure itself.
+
+#### Using Parameters
+
+Parameters in Cake are defined using the `ARG` keyword within the Cakefile. These parameters can be set with default values or overridden when executing the pipeline.
+
+Parameters in Cake can be either global or local to specific targets, providing granular control over their scope and applicability within the pipeline.
+
+
+##### Global Parameters
+
+Global parameters, declared at the top of the Cakefile using the ARG keyword, are accessible throughout the entire pipeline, allowing for consistent values across multiple targets.
+
+```Dockerfile
+ARG ALPINE_VERSION=3.14.5
+```
+
+##### Local Parameters
+
+Local parameters are defined within individual targets and are specific to those targets. They enable customization on a per-target basis, allowing for different values to be used within separate parts of the pipeline.
+
+```Dockerfile
+target:
+    ARG SOME_PARAMETER=default_value
+    # Target-specific instructions using SOME_PARAMETER
+```
+
+#### Overriding Parameters
+
+When running the pipeline, parameters can be overridden via the command line, allowing for dynamic configurations.
+
+Command line override:
+
+```bash
+cake run --build-arg ALPINE_VERSION=3.15.2 app
+```
+
+#### Enhancing Flexibility
+
+Parameterization enables the creation of versatile pipelines that can adapt to different environments, requirements, or specific use cases by adjusting values without modifying the underlying pipeline structure. This capability fosters easier management and deployment of pipelines across various scenarios.
+
+The distinction between global and local parameters grants flexibility in managing values across the pipeline. Global parameters offer consistency and ease of management across multiple targets, while local parameters provide targeted customization for specific parts of the pipeline.
+
 ### Directives
+
+Directives in Cake are declarations that enforce the underlying Docker-like semantics, enhancing pipeline integration within CI while promoting composability and reusability.
+
+The conventions for directives follow the format `@directive_name`.
+
 #### Output
+
+Format: `@output <dir>`
+
+Used to output artifacts from a target to the host filesystem.
+
+Example:
+
+```Dockerfile
+test:
+    @output ./coverage
+    FROM +compile
+    # RUN test with coverage
+```
+
+Note: output take effect only if the run command includes the `--output` flag.
+
 #### Push
+
+Format: `@push`
+
+Identifies non-cacheable targets, primarily used for side-effects (e.g. deployments).
+
+Note: push targets can only be executed if the run commands include the `--push` flag
+
 #### Include
+
+`@include <ref> [<arg>, ...]`
+
+Includes an external Cakefile "template". The directive should be defined before any target.
+
+The reference to the Cakefile can be a local path (`./local_dir`) or a remote Git URL (`git+https://github.com/username/cake-template.git#main` or `git+git@github.com:visciang/cake-elixir.git#1.0.0`).
+
+If the included Cakefile has parameter they can be specified via args
+
+Example:
+
+```Dockerfile
+@include git+https://github.com/visciang/cake-elixir.git#main \
+         ELIXIR_ESCRIPT_EXTRA_APK="bash git"
+```
+
 #### Import
+
+`@import [--ouput] [--push] --as=<as> <ref> <target> [<arg>, ...]`
+
+Imports a remote `<target>` from `<ref>`, building the referenced target and making it available in the current target scope with the `<as>` identifier.
+
+```Dockerfile
+app:
+    @import --as=imported_target components/app_ta app
+    FROM imported_target:${CAKE_PIPELINE_UUID}
+    # ...
+```
+
 ### Aliases
 ### Integration tests
 
