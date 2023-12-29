@@ -16,37 +16,29 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
     if global_args != [] do
       IO.puts("\nGlobal arguments:")
-      Enum.each(global_args, &IO.puts(" - #{fmt_arg(&1)}"))
+
+      for arg <- global_args,
+          do: IO.puts(" - #{fmt_arg(arg)}")
     end
 
     IO.puts("\nTargets:")
 
-    graph
-    |> Dag.tgids()
-    |> Enum.sort()
-    |> Enum.map(&fmt_target(&1, target_args))
-    |> Enum.each(&IO.puts(" - #{&1}"))
+    for tgid <- Dag.tgids(graph) |> Enum.sort(),
+        do: IO.puts(" - #{fmt_target(tgid, target_args)}")
 
     :ok
   end
 
   @spec target_args(Cakefile.t()) :: target_args()
   defp target_args(%Cakefile{} = cakefile) do
-    cakefile.targets
-    |> Enum.filter(&match?(%Target.Container{}, &1))
-    |> Map.new(fn %Target.Container{} = container ->
-      {container.tgid, Enum.filter(container.commands, &match?(%Arg{}, &1))}
-    end)
+    for %Target{} = target <- cakefile.targets, into: %{} do
+      {target.tgid, for(%Arg{} = arg <- target.commands, do: arg)}
+    end
   end
 
   @spec fmt_arg(Arg.t()) :: String.t()
-  defp fmt_arg(%Arg{} = arg) do
-    if arg.default_value do
-      "#{arg.name}=#{inspect(arg.default_value)}"
-    else
-      arg.name
-    end
-  end
+  defp fmt_arg(%Arg{default_value: nil} = arg), do: arg.name
+  defp fmt_arg(%Arg{} = arg), do: "#{arg.name}=#{inspect(arg.default_value)}"
 
   @spec fmt_target(Type.tgid(), target_args()) :: IO.chardata()
   defp fmt_target(tgid, target_args) do

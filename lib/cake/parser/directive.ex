@@ -1,12 +1,12 @@
 defmodule Cake.Parser.Directive do
   defmodule Output do
-    # `@output <dir>`
+    # `@output <path>`
 
-    @enforce_keys [:dir]
+    @enforce_keys [:path]
     defstruct @enforce_keys
 
     @type t :: %__MODULE__{
-            dir: Path.t()
+            path: Path.t()
           }
   end
 
@@ -43,18 +43,6 @@ defmodule Cake.Parser.Directive do
             output: boolean(),
             push: boolean(),
             args: [Cake.Parser.Container.Arg.t()]
-          }
-  end
-
-  defmodule ComposeRun do
-    # `@compose_run --file="dir/docker-compose.yml" [<arg>, ...]`.
-
-    @enforce_keys [:file, :args]
-    defstruct @enforce_keys
-
-    @type t :: %__MODULE__{
-            file: Path.t(),
-            args: [String.t(), ...]
           }
   end
 end

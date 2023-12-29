@@ -9,7 +9,9 @@ defmodule Dask.JobExec do
 
       job_status = timed(fn -> exec_job_fun(job, limiter, upstream_jobs_status, job.id) end, job.timeout)
       job.on_exit.(job.id, upstream_jobs_status, job_status)
-      Enum.each(downstream_job_pid_set, &send(&1, {job.id, job_status}))
+
+      for downstream_job_pid <- downstream_job_pid_set,
+          do: send(downstream_job_pid, {job.id, job_status})
 
       Logger.debug("END #{inspect(job.id)} status: #{inspect(job_status)}")
 

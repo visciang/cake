@@ -30,11 +30,15 @@ defmodule Dask do
   @spec flow(t(), Job.id(), [Job.id()]) :: t()
   @spec flow(t(), [Job.id()], Job.id()) :: t()
   def flow(%__MODULE__{} = workflow, job_up, jobs_down) when is_list(jobs_down) do
-    Enum.reduce(jobs_down, workflow, &flow(&2, job_up, &1))
+    for job_down <- jobs_down, reduce: workflow do
+      workflow -> flow(workflow, job_up, job_down)
+    end
   end
 
   def flow(%__MODULE__{} = workflow, jobs_up, job_down) when is_list(jobs_up) do
-    Enum.reduce(jobs_up, workflow, &flow(&2, &1, job_down))
+    for job_up <- jobs_up, reduce: workflow do
+      workflow -> flow(workflow, job_up, job_down)
+    end
   end
 
   def flow(%__MODULE__{} = workflow, job_up, job_down) do
@@ -80,15 +84,14 @@ defmodule Dask do
   defp build_workflow_graph(%__MODULE__{jobs: jobs}) do
     graph = :digraph.new([:acyclic])
 
-    Enum.each(jobs, fn {_job_id, %Job{} = job} ->
+    for {_job_id, %Job{} = job} <- jobs do
       :digraph.add_vertex(graph, job, to_string(job.id))
-    end)
+    end
 
-    Enum.each(jobs, fn {_job_id, %Job{} = job} ->
-      Enum.each(job.downstream_jobs, fn downstream_job_id ->
-        add_edge(graph, job, jobs[downstream_job_id])
-      end)
-    end)
+    for {_job_id, %Job{} = job} <- jobs,
+        downstream_job_id <- job.downstream_jobs do
+      add_edge(graph, job, jobs[downstream_job_id])
+    end
 
     roots = Enum.filter(:digraph.vertices(graph), &(:digraph.in_degree(graph, &1) == 0))
     leafs = Enum.filter(:digraph.vertices(graph), &(:digraph.out_degree(graph, &1) == 0))
@@ -112,8 +115,8 @@ defmodule Dask do
     :digraph.add_vertex(graph, start_job, to_string(start_job.id))
     :digraph.add_vertex(graph, end_job, to_string(end_job.id))
 
-    Enum.each(roots, &:digraph.add_edge(graph, start_job, &1))
-    Enum.each(leafs, &:digraph.add_edge(graph, &1, end_job))
+    for root <- roots, do: :digraph.add_edge(graph, start_job, root)
+    for leaf <- leafs, do: :digraph.add_edge(graph, leaf, end_job)
 
     {graph, end_job}
   end

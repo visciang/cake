@@ -12,7 +12,8 @@ defmodule Dask.Dot do
     if MapSet.size(job.downstream_jobs) == 0 do
       [~s/#{inspect(job.id)}\n/]
     else
-      Enum.map(job.downstream_jobs, &~s/#{inspect(job.id)} -> #{inspect(&1)}\n/)
+      for downstream_job <- job.downstream_jobs,
+          do: ~s/#{inspect(job.id)} -> #{inspect(downstream_job)}\n/
     end
   end
 end

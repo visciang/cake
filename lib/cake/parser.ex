@@ -1,7 +1,8 @@
 defmodule Cake.Parser do
-  alias Cake.Parser.{Cakefile, Container, Directive, Target}
-
   import NimbleParsec
+
+  alias Cake.Parser.{Alias, Cakefile, Container, Target}
+  alias Cake.Parser.Directive.{Import, Include, Output, Push}
 
   @type result ::
           {:ok, Cakefile.t()}
@@ -141,14 +142,14 @@ defmodule Cake.Parser do
   output_directive =
     ignore(string("@output"))
     |> ignore(spaces)
-    |> unwrap_and_tag(line, :dir)
+    |> unwrap_and_tag(line, :path)
     |> wrap()
-    |> map({:cast, [Directive.Output]})
+    |> map({:cast, [Output]})
 
   push_directive =
     ignore(string("@push"))
     |> wrap()
-    |> map({:cast, [Directive.Push]})
+    |> map({:cast, [Push]})
 
   import_args =
     repeat(
@@ -182,31 +183,14 @@ defmodule Cake.Parser do
     |> unwrap_and_tag(literal_value, :target)
     |> optional(tag(import_args, :args))
     |> wrap()
-    |> map({:cast, [Directive.Import]})
-
-  compose_run_args =
-    times(
-      ignore(spaces)
-      |> concat(literal_value),
-      min: 1
-    )
-
-  compose_run_directive =
-    ignore(string("@compose_run"))
-    |> ignore(spaces)
-    |> ignore(string("--file="))
-    |> unwrap_and_tag(literal_value, :file)
-    |> tag(compose_run_args, :args)
-    |> wrap()
-    |> map({:cast, [Directive.ComposeRun]})
+    |> map({:cast, [Import]})
 
   target_directive =
     ignore(indent)
     |> choice([
       output_directive,
       push_directive,
-      import_directive,
-      compose_run_directive
+      import_directive
     ])
 
   target_directives =
@@ -226,7 +210,7 @@ defmodule Cake.Parser do
     )
     |> optional(tag(target_commands, :commands))
     |> wrap()
-    |> map({:cast, [Target.Container]})
+    |> map({:cast, [Target]})
 
   alias_targets =
     target_id
@@ -241,7 +225,7 @@ defmodule Cake.Parser do
     |> ignore(spaces)
     |> tag(alias_targets, :tgids)
     |> wrap()
-    |> map({:cast, [Target.Alias]})
+    |> map({:cast, [Alias]})
 
   target =
     choice([
@@ -271,7 +255,7 @@ defmodule Cake.Parser do
     |> unwrap_and_tag(literal_value, :ref)
     |> optional(tag(import_args, :args))
     |> wrap()
-    |> map({:cast, [Directive.Include]})
+    |> map({:cast, [Include]})
 
   include_directives =
     include_directive

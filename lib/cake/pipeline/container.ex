@@ -24,7 +24,6 @@ defmodule Cake.Pipeline.Container do
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
 
-    # TODO shared function
     case System.cmd("/usr/bin/cake_cmd.sh", args, stderr_to_stdout: true, into: into) do
       {_, 0} -> :ok
       {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} failed"
@@ -60,8 +59,9 @@ defmodule Cake.Pipeline.Container do
     container_create_cmd = ["container", "create", "--name", tmp_container, container_image]
     {_, 0} = System.cmd("docker", container_create_cmd, stderr_to_stdout: true)
 
-    Enum.each(outputs, fn output ->
-      output_dir = Path.join(Dir.output(), run.output_dir)
+    output_dir = Path.join(Dir.output(), run.output_dir)
+
+    for output <- outputs do
       container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", output_dir]
       into = Reporter.collector(run.ns, tgid, :log)
 
@@ -71,7 +71,7 @@ defmodule Cake.Pipeline.Container do
       end
 
       Reporter.job_output(run.ns, tgid, "#{output} -> #{output_dir}")
-    end)
+    end
 
     :ok
   end

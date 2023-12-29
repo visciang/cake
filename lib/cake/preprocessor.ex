@@ -1,7 +1,6 @@
 defmodule Cake.Preprocessor do
-  alias Cake.Parser.Cakefile
+  alias Cake.Parser.{Cakefile, Target}
   alias Cake.Parser.Directive.{Import, Include, Output}
-  alias Cake.Parser.Target.Container
   alias Cake.Reference
 
   require Logger
@@ -31,7 +30,7 @@ defmodule Cake.Preprocessor do
       cakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Container{}, &1)),
+        Access.filter(&match?(%Target{}, &1)),
         Access.key!(:directives),
         Access.filter(&match?(%Import{}, &1)),
         Access.key!(:ref)
@@ -71,17 +70,18 @@ defmodule Cake.Preprocessor do
 
   @spec rec_expand_included_cakefiles(Cakefile.t()) :: {:ok, [Cakefile.t()]} | {:error, reason :: String.t()}
   defp rec_expand_included_cakefiles(%Cakefile{} = cakefile) do
-    Enum.reduce_while(cakefile.includes, {:ok, []}, fn %Include{} = include, {:ok, included_cakefiles} ->
-      with {:ok, included_cakefile_path} <- Reference.get_include(cakefile, include),
-           Logger.info("cakefile=#{inspect(included_cakefile_path)}"),
-           {:ok, included_cakefile} <- Cake.load_and_parse_cakefile(included_cakefile_path),
-           included_cakefile = track_included_from(included_cakefile, included_cakefile_path),
-           {:ok, cakefile} <- expand(included_cakefile, %{}) do
-        {:cont, {:ok, included_cakefiles ++ [cakefile]}}
-      else
-        {:error, _} = error ->
-          {:halt, error}
-      end
+    Enum.reduce_while(cakefile.includes, {:ok, []}, fn
+      %Include{} = include, {:ok, included_cakefiles} ->
+        with {:ok, included_cakefile_path} <- Reference.get_include(cakefile, include),
+             Logger.info("cakefile=#{inspect(included_cakefile_path)}"),
+             {:ok, included_cakefile} <- Cake.load_and_parse_cakefile(included_cakefile_path),
+             included_cakefile = track_included_from(included_cakefile, included_cakefile_path),
+             {:ok, cakefile} <- expand(included_cakefile, %{}) do
+          {:cont, {:ok, included_cakefiles ++ [cakefile]}}
+        else
+          {:error, _} = error ->
+            {:halt, error}
+        end
     end)
   end
 
@@ -91,12 +91,12 @@ defmodule Cake.Preprocessor do
       cakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Container{}, &1)),
+        Access.filter(&match?(%Target{}, &1)),
         Access.key!(:directives),
         Access.all()
       ],
       fn
-        %Output{} = output -> %Output{output | dir: expand_vars(output.dir, args)}
+        %Output{} = output -> %Output{output | path: expand_vars(output.path, args)}
         other_directive -> other_directive
       end
     )
@@ -120,7 +120,7 @@ defmodule Cake.Preprocessor do
       cakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Container{}, &1)),
+        Access.filter(&match?(%Target{}, &1)),
         Access.key!(:included_from_ref)
       ],
       cakefile_path

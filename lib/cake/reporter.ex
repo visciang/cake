@@ -18,6 +18,7 @@ defmodule Cake.Reporter do
     defstruct @enforce_keys
 
     @type job :: {job_ns :: [String.t()], job_id :: String.t()}
+    @type job_status :: %{job() => Status.t() | {:running, start_time :: integer()}}
 
     @type t :: %__MODULE__{
             verbose: boolean(),
@@ -25,7 +26,7 @@ defmodule Cake.Reporter do
             logs_dir: Path.t(),
             job_id_to_log_file: %{job() => File.io_device()},
             start_time: integer(),
-            track: %{job() => Status.t() | {:running, start_time :: integer()}}
+            track: job_status()
           }
   end
 
@@ -134,7 +135,7 @@ defmodule Cake.Reporter do
     end_time = time()
 
     start_time =
-      case Map.get(state.track, job) do
+      case state.track[job] do
         {:running, start_time} -> start_time
         _ -> end_time
       end
@@ -156,23 +157,19 @@ defmodule Cake.Reporter do
   def handle_cast({:job_log, {job_ns, job_id} = job, message}, %State{} = state) do
     {state, log_file} = log_file(state, job)
 
-    message
-    |> String.split(~r/\R/)
-    |> Enum.each(fn line ->
+    for line <- String.split(message, ~r/\R/) do
       ansidata = report_line(".", job_ns, job_id, nil, " | #{line}")
       log_puts(log_file, ansidata, state.verbose)
-    end)
+    end
 
     {:noreply, state}
   end
 
   def handle_cast({:job_notice, {job_ns, job_id}, message}, %State{} = state) do
-    message
-    |> String.split(~r/\R/)
-    |> Enum.each(fn line ->
+    for line <- String.split(message, ~r/\R/) do
       ansidata = report_line("!", job_ns, job_id, nil, " | #{line}")
       log_puts(nil, ansidata, true)
-    end)
+    end
 
     {:noreply, state}
   end
@@ -199,48 +196,49 @@ defmodule Cake.Reporter do
   end
 
   @impl GenServer
-  def handle_call({:stop, reason}, _from, %State{} = state) do
+  def handle_call({:stop, workflow_status}, _from, %State{} = state) do
     end_time = time()
 
     if state.logs_to_file do
       log_stdout_puts("\nLogs directory: #{state.logs_dir}")
 
-      state.job_id_to_log_file
-      |> Map.values()
-      |> Enum.each(&File.close/1)
+      for {_job_id, file} <- state.job_id_to_log_file do
+        File.close(file)
+      end
     end
 
-    end_message =
-      case reason do
-        :ok ->
-          count = state.track |> Map.values() |> Enum.count(&(&1 == :ok))
-          [:green, "Completed (#{count} jobs)", :reset]
+    end_message = end_message(workflow_status, state.track)
 
-        {:ignore, _} ->
-          nil
-
-        {:error, _} ->
-          failed =
-            state.track
-            |> Enum.filter(fn {_job, status} ->
-              match?(Status.error(_, _), status) or match?(Status.timeout(), status)
-            end)
-            |> Enum.map(fn {job, _status} ->
-              "\n- #{inspect(job)}"
-            end)
-
-          [:red, "Failed jobs:", :reset, failed, "\n"]
-
-        :timeout ->
-          [:red, "Timeout", :reset]
-      end
-
-    if end_message != nil do
+    if end_message do
       duration = delta_time_string(end_time - state.start_time)
       log_stdout_puts(["\n", end_message, " (#{duration})\n"])
     end
 
     {:stop, :normal, :ok, state}
+  end
+
+  @spec end_message(Cake.Cmd.result(), State.job_status()) :: IO.ANSI.ansidata()
+  defp end_message(workflow_status, jobs_status) do
+    case workflow_status do
+      :ok ->
+        count = Enum.count(Map.values(jobs_status), &(&1 == :ok))
+        [:green, "Completed (#{count} jobs)", :reset]
+
+      {:ignore, _} ->
+        nil
+
+      {:error, _} ->
+        failed =
+          for {job, status} <- jobs_status,
+              match?(Status.error(_, _), status) or match?(Status.timeout(), status) do
+            "- #{inspect(job)}\n"
+          end
+
+        [:red, "Failed jobs:\n", :reset, failed, "\n"]
+
+      :timeout ->
+        [:red, "Timeout", :reset]
+    end
   end
 
   @spec delta_time_string(number()) :: String.t()

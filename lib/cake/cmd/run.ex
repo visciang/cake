@@ -31,9 +31,9 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
   end
 
   @spec did_you_mean(Type.tgid(), [Type.tgid()]) :: Type.tgid() | nil
-  defp did_you_mean(requested_tgids, available_tgids) do
+  defp did_you_mean(requested_tgid, available_tgids) do
     available_tgids
-    |> Enum.sort_by(&String.jaro_distance(requested_tgids, &1), :desc)
+    |> Enum.sort_by(&String.jaro_distance(requested_tgid, &1), :desc)
     |> List.first()
   end
 end

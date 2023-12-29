@@ -1,42 +1,24 @@
 defmodule Cake.Parser.Target do
-  defmodule Alias do
-    # Alias target group `alias: <target>+`
+  # target:
+  #     @output output/
+  #     FROM image
+  #     ARG X=1
+  #     RUN ...
 
-    @enforce_keys [:tgid, :tgids]
-    defstruct @enforce_keys
+  alias Cake.Parser.Container.{Arg, Command, From}
+  alias Cake.Parser.Directive.{Import, Output, Push}
+  alias Cake.Type
 
-    @type t :: %__MODULE__{
-            tgid: Cake.Type.tgid(),
-            tgids: [Cake.Type.tgid(), ...]
-          }
-  end
+  @enforce_keys [:tgid]
+  defstruct @enforce_keys ++ [included_from_ref: nil, directives: [], commands: []]
 
-  defmodule Container do
-    # target:
-    #     @output output/
-    #     FROM image
-    #     ARG X=1
-    #     RUN ...
+  @type directive :: Import.t() | Output.t() | Push.t()
+  @type command :: Arg.t() | From.t() | Command.t()
 
-    @enforce_keys [:tgid]
-    defstruct @enforce_keys ++ [included_from_ref: nil, directives: [], commands: []]
-
-    @type directive ::
-            Cake.Parser.Directive.Import.t()
-            | Cake.Parser.Directive.Output.t()
-            | Cake.Parser.Directive.Push.t()
-            | Cake.Parser.Directive.ComposeRun.t()
-
-    @type command ::
-            Cake.Parser.Container.Arg.t()
-            | Cake.Parser.Container.From.t()
-            | Cake.Parser.Container.Command.t()
-
-    @type t :: %__MODULE__{
-            tgid: Cake.Type.tgid(),
-            directives: [directive()],
-            commands: [command()],
-            included_from_ref: nil | String.t()
-          }
-  end
+  @type t :: %__MODULE__{
+          tgid: Type.tgid(),
+          directives: [directive()],
+          commands: [command()],
+          included_from_ref: nil | String.t()
+        }
 end

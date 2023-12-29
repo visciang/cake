@@ -3,7 +3,8 @@ defmodule Cake.Dag do
     defexception [:message]
   end
 
-  alias Cake.Parser.{Cakefile, Container, Target}
+  alias Cake.Parser.{Alias, Cakefile, Target}
+  alias Cake.Parser.Container.{Command, From}
   alias Cake.Type
 
   @opaque graph :: :digraph.graph()
@@ -46,51 +47,45 @@ defmodule Cake.Dag do
 
   @spec add_vertices(:digraph.graph(), Cakefile.t()) :: :ok
   defp add_vertices(graph, %Cakefile{} = cakefile) do
-    Enum.each(cakefile.targets, fn
-      %Target.Container{tgid: tgid} ->
-        :digraph.add_vertex(graph, tgid)
-
-      %Target.Alias{tgid: tgid} ->
-        :digraph.add_vertex(graph, tgid)
-    end)
+    for target <- cakefile.targets do
+      case target do
+        %Target{tgid: tgid} -> :digraph.add_vertex(graph, tgid)
+        %Alias{tgid: tgid} -> :digraph.add_vertex(graph, tgid)
+      end
+    end
 
     :ok
   end
 
   @spec add_edges(:digraph.graph(), Cakefile.t()) :: :ok
   defp add_edges(graph, %Cakefile{} = cakefile) do
-    Enum.each(cakefile.targets, fn
-      %Target.Container{tgid: downstream_tgid, commands: commands} ->
-        add_command_edges(graph, commands, downstream_tgid)
+    for target <- cakefile.targets do
+      case target do
+        %Target{tgid: downstream_tgid, commands: commands} ->
+          add_command_edges(graph, commands, downstream_tgid)
 
-      %Target.Alias{tgid: downstream_tgid, tgids: upstream_tgids} ->
-        Enum.each(upstream_tgids, fn upstream_tgid ->
-          add_edge(graph, upstream_tgid, downstream_tgid)
-        end)
-    end)
+        %Alias{tgid: downstream_tgid, tgids: upstream_tgids} ->
+          for upstream_tgid <- upstream_tgids do
+            add_edge(graph, upstream_tgid, downstream_tgid)
+          end
+      end
+    end
 
     :ok
   end
 
-  @spec add_command_edges(:digraph.graph(), [Target.Container.command()], Type.tgid()) :: :ok
+  @spec add_command_edges(:digraph.graph(), [Target.command()], Type.tgid()) :: :ok
   defp add_command_edges(graph, commands, downstream_tgid) do
-    commands
-    |> Enum.filter(&match?(%Container.From{image: "+" <> _}, &1))
-    |> Enum.each(fn %Container.From{image: "+" <> upstream_tgid} ->
+    for %From{image: "+" <> upstream_tgid} <- commands do
       add_edge(graph, upstream_tgid, downstream_tgid)
-    end)
+    end
 
-    commands
-    |> get_in([
-      Access.filter(&match?(%Container.Command{instruction: "COPY"}, &1)),
-      Access.key!(:options),
-      Access.filter(&match?(%Container.Command.Option{name: "from"}, &1)),
-      Access.key!(:value)
-    ])
-    |> List.flatten()
-    |> Enum.each(fn "+" <> upstream_tgid ->
+    for %Command{instruction: "COPY", options: options} <- commands,
+        %Command.Option{name: "from", value: "+" <> upstream_tgid} <- options do
       add_edge(graph, upstream_tgid, downstream_tgid)
-    end)
+    end
+
+    :ok
   end
 
   @spec add_edge(:digraph.graph(), Type.tgid(), Type.tgid()) :: :ok

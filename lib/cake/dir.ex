@@ -26,10 +26,11 @@ defmodule Cake.Dir do
   def setup_cake_dirs do
     File.mkdir_p!(log())
 
-    [tmp(), output(), include_ctx(File.cwd!())]
-    |> Enum.each(fn dir ->
+    for dir <- [tmp(), output(), include_ctx(File.cwd!())] do
       File.rm_rf!(dir)
       File.mkdir_p!(dir)
-    end)
+    end
+
+    :ok
   end
 end

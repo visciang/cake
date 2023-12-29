@@ -153,7 +153,7 @@ defmodule DakeTest.Dask do
   end
 
   defp assert_workflow_execution(expected_workflow_execution) do
-    Enum.each(expected_workflow_execution, &assert_received(^&1))
+    for expected <- expected_workflow_execution, do: &assert_received(^expected)
 
     receive do
       unexpected ->
