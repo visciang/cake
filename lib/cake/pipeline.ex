@@ -60,8 +60,8 @@ defmodule Cake.Pipeline do
         %Alias{} ->
           :ok
 
-        %Target{} = container ->
-          dask_job(run, cakefile, container, tgid, pipeline_uuid)
+        %Target{} = target ->
+          dask_job(run, cakefile, target, tgid, pipeline_uuid)
       end
 
       :ok
@@ -90,29 +90,29 @@ defmodule Cake.Pipeline do
   end
 
   @spec dask_job(Run.t(), Cakefile.t(), Target.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
-  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Target{} = container, tgid, pipeline_uuid) do
+  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Target{} = target, tgid, pipeline_uuid) do
     Logger.info("start for #{inspect(tgid)}", pipeline: pipeline_uuid)
 
-    dask_job_container_imports(run, container, pipeline_uuid)
+    dask_job_target_imports(run, target, pipeline_uuid)
 
     job_uuid = to_string(System.unique_integer([:positive]))
     container_build_ctx_dir = Path.dirname(cakefile.path)
 
     build_relative_include_ctx_dir =
-      if container.included_from_ref do
-        include_ctx_dir = Dir.local_include_ctx_dir(cakefile.path, container.included_from_ref)
+      if target.included_from_ref do
+        include_ctx_dir = Dir.local_include_ctx_dir(cakefile.path, target.included_from_ref)
         Path.relative_to(include_ctx_dir, container_build_ctx_dir)
       else
         ""
       end
 
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
-    container = insert_builtin_container_args(container, build_relative_include_ctx_dir)
+    target = insert_builtin_container_args(target, build_relative_include_ctx_dir)
 
     containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
-    write_containerfile(cakefile.args, container, containerfile_path)
+    write_containerfile(cakefile.args, target, containerfile_path)
 
-    push? = push_target?(container)
+    push? = push_target?(target)
     args = container_build_cmd_args(run, containerfile_path, tgid, push?, pipeline_uuid, container_build_ctx_dir)
 
     Container.build(run, tgid, args, pipeline_uuid)
@@ -123,16 +123,16 @@ defmodule Cake.Pipeline do
     end
 
     if run.output do
-      output_paths = for %Directive.Output{path: path} <- container.directives, do: path
+      output_paths = for %Directive.Output{path: path} <- target.directives, do: path
       Container.output(run, tgid, pipeline_uuid, output_paths)
     end
 
     :ok
   end
 
-  @spec dask_job_container_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: :ok
-  defp dask_job_container_imports(%Run{} = run, %Target{} = container, pipeline_uuid) do
-    for %Directive.Import{} = import_ <- container.directives do
+  @spec dask_job_target_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: :ok
+  defp dask_job_target_imports(%Run{} = run, %Target{} = target, pipeline_uuid) do
+    for %Directive.Import{} = import_ <- target.directives do
       import_cakefile_path =
         case Reference.get_import(import_) do
           {:ok, import_cakefile_path} -> import_cakefile_path
@@ -148,7 +148,7 @@ defmodule Cake.Pipeline do
         pipeline: pipeline_uuid
       )
 
-      run = run_for_import(run, container, pipeline_uuid, import_)
+      run = run_for_import(run, target, pipeline_uuid, import_)
 
       case Cake.cmd(run, import_.ref) do
         :ok ->
@@ -165,7 +165,7 @@ defmodule Cake.Pipeline do
     :ok
   end
 
-  @spec dask_job_container_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: Run.t()
+  @spec dask_job_target_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: Run.t()
   defp run_for_import(run, target, pipeline_uuid, import_) do
     %Run{
       ns: run.ns ++ [target.tgid],
@@ -242,20 +242,20 @@ defmodule Cake.Pipeline do
   end
 
   @spec insert_builtin_container_args(Target.t(), Path.t()) :: Target.t()
-  defp insert_builtin_container_args(%Target{} = container, include_ctx_dir) do
-    from_idx = Enum.find_index(container.commands, &match?(%From{}, &1))
-    {pre_from_cmds, [%From{} = from | post_from_cmds]} = Enum.split(container.commands, from_idx)
+  defp insert_builtin_container_args(%Target{} = target, include_ctx_dir) do
+    from_idx = Enum.find_index(target.commands, &match?(%From{}, &1))
+    {pre_from_cmds, [%From{} = from | post_from_cmds]} = Enum.split(target.commands, from_idx)
 
     commands =
       pre_from_cmds ++
         [from, %Arg{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
 
-    %Target{container | commands: commands}
+    %Target{target | commands: commands}
   end
 
   @spec write_containerfile([Arg.t()], Target.t(), Path.t()) :: :ok
-  defp write_containerfile(args, %Target{} = container, path) do
-    containerfile = Enum.map_join(args ++ container.commands, "\n", &Fmt.fmt(&1))
+  defp write_containerfile(args, %Target{} = target, path) do
+    containerfile = Enum.map_join(args ++ target.commands, "\n", &Fmt.fmt(&1))
     File.write!(path, containerfile)
 
     :ok
