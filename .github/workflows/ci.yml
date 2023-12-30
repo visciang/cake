@@ -47,3 +47,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/cake:${{ steps.cake_version.outputs.version }}
           target: cake.app
+
+      - name: cake building cake
+        run: priv/cake run --verbose all
