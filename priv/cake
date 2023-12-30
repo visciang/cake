@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-CAKE_IMAGE=${CAKE_IMAGE:-"visciang/cake:latest"}
+CAKE_VERSION=${CAKE_VERSION:-"latest"}
+CAKE_IMAGE=${CAKE_IMAGE:-"visciang/cake:$CAKE_VERSION"}
 
 if [ "$(uname)" == "Darwin" ]; then
     SSH_AUTH_SOCK="/run/host-services/ssh-auth.sock"
