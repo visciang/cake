@@ -44,13 +44,10 @@ defmodule Cake.Preprocessor do
 
   @spec expand_includes(Cakefile.t()) :: result()
   defp expand_includes(%Cakefile{} = cakefile) do
+    includes_args = Enum.flat_map(cakefile.includes, & &1.args)
+
     case rec_expand_included_cakefiles(cakefile) do
       {:ok, included_cakefiles} ->
-        includes_args =
-          cakefile
-          |> get_in([Access.key!(:includes), Access.all(), Access.key!(:args)])
-          |> List.flatten()
-
         included_args = Enum.flat_map(included_cakefiles, & &1.args)
         included_targets = Enum.flat_map(included_cakefiles, & &1.targets)
 
