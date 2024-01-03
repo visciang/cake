@@ -121,7 +121,7 @@ defmodule Cake.Reporter.Interactive do
       end)
 
     ["\r", :clear_line, :blue, spinner_frame, :reset, " ", running_jobs]
-    |> IO.ANSI.format()
+    |> IO.ANSI.format_fragment()
     |> IO.write()
 
     next_spinner_frame_idx = rem(state.spinner_frame_idx + 1, map_size(@spinner_frames))

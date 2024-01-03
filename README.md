@@ -62,9 +62,7 @@ We can now run the pipeline to build the `app` target
 
     $ cake run app
 
-    +  build
     ✔  build   (10.542 s)
-    +  app
     ✔  app   (1.285 s)
 
     Completed (2 jobs) (11.973 s)

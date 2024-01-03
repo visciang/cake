@@ -116,33 +116,28 @@ defmodule Cake.Cli do
           options: [
             progress: [
               long: "--progress",
-              value_name: "PROGRESS",
               parser: &parser_progress_option/1,
               default: :interactive,
               help: "Set type of progress output - 'plain' or 'interactive'"
             ],
             tag: [
               long: "--tag",
-              value_name: "TAG",
               help: "Tag the target's container image"
             ],
             secret: [
               long: "--secret",
-              value_name: "SECRET",
               multiple: true,
               parser: &parser_secret_option/1,
               help: "Secret to expose to the build (ref. to 'docker build --secret')"
             ],
             timeout: [
               long: "--timeout",
-              value_name: "TIMEOUT",
               default: :infinity,
               parser: :integer,
               help: "Pipeline execution timeout (seconds or 'infinity')"
             ],
             parallelism: [
               long: "--parallelism",
-              value_name: "PARALLELISM",
               default: System.schedulers_online(),
               parser: :integer,
               help: "Pipeline max parallelism"
