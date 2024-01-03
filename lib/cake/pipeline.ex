@@ -177,7 +177,7 @@ defmodule Cake.Pipeline do
       tag: Container.fq_image(import_.as, pipeline_uuid),
       timeout: :infinity,
       parallelism: run.parallelism,
-      verbose: run.verbose,
+      progress: run.progress,
       save_logs: run.save_logs,
       shell: false,
       secrets: run.secrets
