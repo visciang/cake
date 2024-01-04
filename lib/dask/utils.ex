@@ -6,9 +6,14 @@ defmodule Dask.Utils do
   @divisor [@week, @day, @hour, @minute, 1]
 
   @spec seconds_to_compound_duration(number(), non_neg_integer()) :: String.t()
-  def seconds_to_compound_duration(sec, precision \\ 3) do
+  def seconds_to_compound_duration(sec, decimals \\ 3) do
     sec_int = trunc(sec)
-    sec_decimals = (sec - sec_int) |> to_string() |> String.slice(2, precision)
+
+    sec_decimals =
+      (sec - sec_int)
+      |> to_string()
+      |> String.slice(2, decimals)
+      |> String.pad_trailing(decimals, "0")
 
     {_, [s, m, h, d, w]} =
       for divisor <- @divisor, reduce: {sec_int, []} do

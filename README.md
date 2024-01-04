@@ -8,10 +8,10 @@ define and execute "reproducible" pipelines that can run on any host with docker
 ## Features and characteristics
 
 - DAG pipeline definition with a Dockerfile-like syntax
-- Buildkit free (it is not a buildkit frontend)
+- Not a Buildkit frontend
 - Implicit docker-like caching
 - Parallel jobs execution
-- Parametrizable pipeline and job (ref. `ARGS`)
+- Parametrizable pipelines and jobs (ref. `ARGS`)
 - Jobs can output artifacts to the host filesystem (ref. `@output`)
 - Jobs can be declared as non-cacheable (ref. `@push`)
 - Pipelines can include pipeline templates (ref. `@include`)

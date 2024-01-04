@@ -11,6 +11,7 @@ defmodule Cake.Reporter.Interactive do
   @behaviour Cake.Reporter
 
   alias Cake.Reporter
+  alias Cake.Reporter.Duration
   alias Cake.Reporter.Interactive.State
 
   require Cake.Reporter.Status
@@ -36,7 +37,7 @@ defmodule Cake.Reporter.Interactive do
   end
 
   def job_start(job, %State{} = state) do
-    state = put_in(state.jobs[job], %{start: System.monotonic_time(), outputs: []})
+    state = put_in(state.jobs[job], %{start: Duration.time(), outputs: []})
     state = render_spinner(state)
 
     {nil, state}
@@ -95,12 +96,12 @@ defmodule Cake.Reporter.Interactive do
 
     outputs_ansidata =
       for output <- outputs do
-        ["\n  ", :yellow, "←", :reset, " ", output]
+        ["\n   ", :yellow, "←", :reset, " ", output]
       end
 
     ansidata = [
       ["\r", :clear_line],
-      [status_icon, " ", :faint, job_ns, :reset, :bright, job_id, :reset, " (#{duration})", outputs_ansidata]
+      [status_icon, "  ", :faint, job_ns, :reset, :bright, job_id, :reset, "   (#{duration})", outputs_ansidata]
     ]
 
     IO.puts(IO.ANSI.format_fragment(ansidata))
@@ -112,15 +113,19 @@ defmodule Cake.Reporter.Interactive do
 
   defp render_spinner(%State{} = state) do
     spinner_frame = Map.fetch!(@spinner_frames, state.spinner_frame_idx)
+    now = Duration.time()
 
     running_jobs =
       state.jobs
       |> Enum.sort_by(fn {_job, %{start: start}} -> start end)
-      |> Enum.map_join(" | ", fn {{job_ns, job_id}, _} ->
-        "#{job_ns_to_string(job_ns)}#{job_id}"
+      |> Enum.map(fn {{job_ns, job_id}, %{start: start}} ->
+        job_ns = job_ns_to_string(job_ns)
+        duration = Duration.delta_time_string(now - start)
+        [job_ns, job_id, " (#{duration})"]
       end)
+      |> Enum.intersperse([:blue, " | ", :reset])
 
-    ["\r", :clear_line, :blue, spinner_frame, :reset, " ", running_jobs]
+    ["\r", :clear_line, :blue, spinner_frame, :reset, "  ", running_jobs]
     |> IO.ANSI.format_fragment()
     |> IO.write()
 

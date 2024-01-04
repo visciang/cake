@@ -30,7 +30,7 @@ defmodule Cake.Reporter do
   use GenServer
 
   alias Cake.{Dir, Reporter, Type}
-  alias Cake.Reporter.{Collector, State, Status}
+  alias Cake.Reporter.{Collector, Duration, State, Status}
 
   require Cake.Reporter.Status
 
@@ -46,9 +46,6 @@ defmodule Cake.Reporter do
   @callback info({reporter :: module(), msg :: term()}, reporter_state()) :: reporter_state()
 
   @name __MODULE__
-
-  @time_unit :millisecond
-  @time_unit_scale 0.001
 
   @spec start_link(progress :: Type.progress(), logs_to_file :: boolean()) :: :ok
   def start_link(progress, logs_to_file) do
@@ -86,11 +83,6 @@ defmodule Cake.Reporter do
     GenServer.cast(@name, {:job_output, {job_ns, job_id}, output_path})
   end
 
-  @spec time :: integer()
-  def time do
-    System.monotonic_time(@time_unit)
-  end
-
   @spec collector([String.t()], String.t(), Collector.report_type()) :: Collectable.t()
   def collector(job_ns, job_id, type) do
     %Collector{job_ns: job_ns, job_id: job_id, type: type}
@@ -110,7 +102,7 @@ defmodule Cake.Reporter do
         logs_to_file: logs_to_file,
         logs_dir: Path.join(Dir.log(), DateTime.utc_now() |> DateTime.to_iso8601()),
         job_id_to_log_file: %{},
-        start_time: time(),
+        start_time: Duration.time(),
         track: %{},
         reporter_state: reporter.init()
       }
@@ -126,7 +118,7 @@ defmodule Cake.Reporter do
     {ansidata, reporter_state} = state.reporter.job_start(job, state.reporter_state)
     log_to_file(state.logs_to_file, log_file, ansidata)
 
-    state = put_in(state.track[job], {:running, time()})
+    state = put_in(state.track[job], {:running, Duration.time()})
     state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
@@ -200,7 +192,7 @@ defmodule Cake.Reporter do
     end_message = end_message(workflow_status, state.track)
 
     if end_message do
-      duration = delta_time_string(time() - state.start_time)
+      duration = Duration.delta_time_string(Duration.time() - state.start_time)
       log_stdout_puts(["\n", end_message, " (#{duration})\n"])
     end
 
@@ -245,7 +237,7 @@ defmodule Cake.Reporter do
 
   @spec job_duration(State.job(), State.t()) :: String.t()
   defp job_duration(job, %State{} = state) do
-    end_time = time()
+    end_time = Duration.time()
 
     start_time =
       case state.track[job] do
@@ -253,12 +245,7 @@ defmodule Cake.Reporter do
         _ -> end_time
       end
 
-    delta_time_string(end_time - start_time)
-  end
-
-  @spec delta_time_string(number()) :: String.t()
-  defp delta_time_string(elapsed) do
-    Dask.Utils.seconds_to_compound_duration(elapsed * @time_unit_scale)
+    Duration.delta_time_string(end_time - start_time)
   end
 
   @spec log_to_file(emit? :: boolean(), File.io_device(), message :: nil | ansidata()) :: :ok
