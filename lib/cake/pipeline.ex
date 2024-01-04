@@ -168,6 +168,7 @@ defmodule Cake.Pipeline do
   @spec dask_job_target_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: Run.t()
   defp run_for_import(run, target, pipeline_uuid, import_) do
     %Run{
+      on_import?: true,
       ns: run.ns ++ [target.tgid],
       tgid: import_.target,
       args: for(arg <- import_.args, do: {arg.name, arg.default_value}),
