@@ -195,11 +195,12 @@ defmodule Cake.Reporter do
       end
     end
 
-    end_message = end_message(workflow_status, state.track)
-
-    if end_message do
+    unless match?({:ignore, _}, workflow_status) do
       duration = Duration.delta_time_string(Duration.time() - state.start_time)
-      log_stdout_puts(["\n", end_message, " (#{duration})\n"])
+      end_message = end_message(workflow_status, state.track)
+
+      log_stdout_puts(["\n", end_message, "\n"])
+      log_stdout_puts("Elapsed #{duration}\n")
     end
 
     {:stop, :normal, :ok, state}
@@ -217,24 +218,22 @@ defmodule Cake.Reporter do
   defp end_message(workflow_status, jobs_status) do
     case workflow_status do
       :ok ->
-        count = Enum.count(Map.values(jobs_status), &(&1 == :ok))
-        [:green, "Completed (#{count} jobs)", :reset]
-
-      {:ignore, _} ->
-        nil
+        [:green, "Run completed", :reset]
 
       {:error, _} ->
         failed =
           for {{job_ns, job_id}, status} <- jobs_status,
               match?(Status.error(_, _), status) or match?(Status.timeout(), status) do
             if job_ns == [] do
-              "- #{job_id}\n"
+              "- #{job_id}"
             else
-              "- (#{inspect(job_ns)}) #{job_id}\n"
+              "- (#{inspect(job_ns)}) #{job_id}"
             end
           end
 
-        [:red, "Failed jobs:", "\n", failed, "\n", :reset]
+        failed = Enum.join(failed, "\n")
+
+        [:red, "Failed jobs:", "\n", failed, :reset]
 
       :timeout ->
         [:red, "Timeout", :reset]
