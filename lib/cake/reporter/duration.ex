@@ -8,6 +8,6 @@ defmodule Cake.Reporter.Duration do
 
   @spec delta_time_string(elapsed_ms :: number()) :: String.t()
   def delta_time_string(elapsed_ms) do
-    Dask.Utils.seconds_to_compound_duration(elapsed_ms / 1_000)
+    Dask.Utils.seconds_to_compound_duration(elapsed_ms / 1_000, 1)
   end
 end

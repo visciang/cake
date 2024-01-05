@@ -44,7 +44,7 @@ defmodule Cake.Reporter do
   @callback init :: reporter_state()
   @callback job_start(State.job(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback job_end(State.job(), Status.t(), duration :: String.t(), reporter_state()) ::
-  {nil | ansidata(), reporter_state()}
+              {nil | ansidata(), reporter_state()}
   @callback job_log(State.job(), msg :: String.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback job_output(State.job(), output :: Path.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback info({reporter :: module(), msg :: term()}, reporter_state()) :: reporter_state()

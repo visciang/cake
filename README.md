@@ -62,10 +62,10 @@ We can now run the pipeline to build the `app` target
 
     $ cake run app
 
-    ✔  build   (10.542 s)
-    ✔  app   (1.285 s)
+    ✔  build   (10.5s)
+    ✔  app   (1.2s)
 
-    Completed (2 jobs) (11.973 s)
+    Completed (2 jobs) (11.9s)
 
 if we re-run the pipeline it will be a lot faster since it's fully cached.
 
@@ -79,7 +79,7 @@ Let's produce and tag a docker image of the `app` target:
 
     +  build
     ...
-    ✔  build   (0.323 s)
+    ✔  build   (0.3s)
     +  app
     ...
     …  app   | #7 CACHED
@@ -91,9 +91,9 @@ Let's produce and tag a docker image of the `app` target:
     …  app   | #8 naming to docker.io/library/hello done
     …  app   | #8 DONE 0.0s
     …  app   |
-    ✔  app   (0.282 s)
+    ✔  app   (0.2s)
 
-    Completed (2 jobs) (0.737 s)
+    Completed (2 jobs) (0.7s)
 
 The image is available in the local docker registry:
 
