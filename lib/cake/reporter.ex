@@ -1,4 +1,5 @@
 defmodule Cake.Reporter.State do
+  alias Cake.Reporter
   alias Cake.Reporter.Status
 
   @enforce_keys [
@@ -16,7 +17,7 @@ defmodule Cake.Reporter.State do
   @type job_status :: %{job() => Status.t() | {:running, start_time :: integer()}}
 
   @type t :: %__MODULE__{
-          reporter: module(),
+          reporter: Reporter.behaviour(),
           logs_to_file: boolean(),
           logs_dir: Path.t(),
           job_id_to_log_file: %{job() => File.io_device()},
@@ -34,16 +35,21 @@ defmodule Cake.Reporter do
 
   require Cake.Reporter.Status
 
-  @type reporter_state :: term()
   @typep ansidata :: IO.ANSI.ansidata()
 
+  # ---- behaviour
+
+  @type reporter_state :: term()
+  @type behaviour :: module()
   @callback init :: reporter_state()
   @callback job_start(State.job(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback job_end(State.job(), Status.t(), duration :: String.t(), reporter_state()) ::
-              {nil | ansidata(), reporter_state()}
+  {nil | ansidata(), reporter_state()}
   @callback job_log(State.job(), msg :: String.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback job_output(State.job(), output :: Path.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback info({reporter :: module(), msg :: term()}, reporter_state()) :: reporter_state()
+
+  # ----
 
   @name __MODULE__
 
