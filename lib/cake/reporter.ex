@@ -213,7 +213,7 @@ defmodule Cake.Reporter do
     {:noreply, state}
   end
 
-  @spec end_message(Cake.Cmd.result(), State.job_status()) :: ansidata()
+  @spec end_message(Cake.Cmd.result(), State.job_status()) :: nil | ansidata()
   defp end_message(workflow_status, jobs_status) do
     case workflow_status do
       :ok ->
