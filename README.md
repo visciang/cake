@@ -8,10 +8,10 @@ define and execute "reproducible" pipelines that can run on any host with docker
 ## Features and characteristics
 
 - DAG pipeline definition with a Dockerfile-like syntax
-- Buildkit free (it is not a buildkit frontend)
+- Not a Buildkit frontend
 - Implicit docker-like caching
 - Parallel jobs execution
-- Parametrizable pipeline and job (ref. `ARGS`)
+- Parametrizable pipelines and jobs (ref. `ARGS`)
 - Jobs can output artifacts to the host filesystem (ref. `@output`)
 - Jobs can be declared as non-cacheable (ref. `@push`)
 - Pipelines can include pipeline templates (ref. `@include`)
@@ -62,40 +62,42 @@ We can now run the pipeline to build the `app` target
 
     $ cake run app
 
-    [+]  build
-    [✔]  build   (10.542 s)
-    [+]  app
-    [✔]  app   (1.285 s)
+    ✔  build   (10.5s)
+    ✔  app   (1.2s)
 
-    Completed (2 jobs) (11.973 s)
+    Run completed: ✔ 2, ✘ 0, ⏰ 0
+
+    Elapsed 11.9s
 
 if we re-run the pipeline it will be a lot faster since it's fully cached.
 
-To see all the logs of the pipeline you can use the `--verbose` option
+To see all the logs of the pipeline you can use the `--progress plain` option
 
-    $ cake run --verbose app
+    $ cake run --progress plain app
 
 Let's produce and tag a docker image of the `app` target:
 
-    $ cake run --verbose --tag hello:latest app
+    $ cake run --progress plain --tag hello:latest app
 
-    [+]  build
+    +  build
     ...
-    [✔]  build   (0.323 s)
-    [+]  app
+    ✔  build   (0.3s)
+    +  app
     ...
-    [.]  app   | #7 CACHED
-    [.]  app   |
-    [.]  app   | #8 exporting to image
-    [.]  app   | #8 exporting layers done
-    [.]  app   | #8 writing image sha256:00c838cf5b6710f1c9f7eca8e228eea53a799bd11b33a7136eec9631739e01b2 done
-    [.]  app   | #8 naming to docker.io/library/docker:heulj4ezcomi7tpo6n5437laoq done
-    [.]  app   | #8 naming to docker.io/library/hello done
-    [.]  app   | #8 DONE 0.0s
-    [.]  app   |
-    [✔]  app   (0.282 s)
+    …  app   | #7 CACHED
+    …  app   |
+    …  app   | #8 exporting to image
+    …  app   | #8 exporting layers done
+    …  app   | #8 writing image sha256:00c838cf5b6710f1c9f7eca8e228eea53a799bd11b33a7136eec9631739e01b2 done
+    …  app   | #8 naming to docker.io/library/docker:heulj4ezcomi7tpo6n5437laoq done
+    …  app   | #8 naming to docker.io/library/hello done
+    …  app   | #8 DONE 0.0s
+    …  app   |
+    ✔  app   (0.2s)
 
-    Completed (2 jobs) (0.737 s)
+    Run completed: ✔ 2, ✘ 0, ⏰ 0
+
+    Elapsed 0.7s
 
 The image is available in the local docker registry:
 

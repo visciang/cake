@@ -1,56 +1,67 @@
+defmodule Cake.Reporter.State do
+  alias Cake.Reporter
+  alias Cake.Reporter.Status
+
+  @enforce_keys [
+    :reporter,
+    :logs_to_file,
+    :logs_dir,
+    :job_id_to_log_file,
+    :start_time,
+    :track,
+    :reporter_state
+  ]
+  defstruct @enforce_keys
+
+  @type job :: {job_ns :: [String.t()], job_id :: String.t()}
+  @type job_status :: %{job() => Status.t() | {:running, start_time :: integer()}}
+
+  @type t :: %__MODULE__{
+          reporter: Reporter.behaviour(),
+          logs_to_file: boolean(),
+          logs_dir: Path.t(),
+          job_id_to_log_file: %{job() => File.io_device()},
+          start_time: integer(),
+          track: job_status(),
+          reporter_state: term()
+        }
+end
+
 defmodule Cake.Reporter do
   use GenServer
 
-  alias Cake.Dir
-  alias Cake.Reporter.{Collector, Status}
+  alias Cake.{Dir, Reporter, Type}
+  alias Cake.Reporter.{Collector, Duration, Icon, State, Status}
 
   require Cake.Reporter.Status
 
   @typep ansidata :: IO.ANSI.ansidata()
 
+  # ---- behaviour
+
+  @type reporter_state :: term()
+  @type behaviour :: module()
+  @callback init :: reporter_state()
+  @callback job_start(State.job(), reporter_state()) :: {nil | ansidata(), reporter_state()}
+  @callback job_end(State.job(), Status.t(), duration :: String.t(), reporter_state()) ::
+              {nil | ansidata(), reporter_state()}
+  @callback job_log(State.job(), msg :: String.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
+  @callback job_output(State.job(), output :: Path.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
+  @callback info({reporter :: module(), msg :: term()}, reporter_state()) :: reporter_state()
+
+  # ----
+
   @name __MODULE__
 
-  @time_unit :millisecond
-  @time_unit_scale 0.001
-
-  defmodule State do
-    @enforce_keys [:verbose, :logs_to_file, :logs_dir, :job_id_to_log_file, :start_time, :track]
-    defstruct @enforce_keys
-
-    @type job :: {job_ns :: [String.t()], job_id :: String.t()}
-    @type job_status :: %{job() => Status.t() | {:running, start_time :: integer()}}
-
-    @type t :: %__MODULE__{
-            verbose: boolean(),
-            logs_to_file: boolean(),
-            logs_dir: Path.t(),
-            job_id_to_log_file: %{job() => File.io_device()},
-            start_time: integer(),
-            track: job_status()
-          }
-  end
-
-  @spec start_link :: :ok
-  def start_link do
-    {:ok, _pid} = GenServer.start_link(__MODULE__, [], name: @name)
+  @spec start_link(progress :: Type.progress(), logs_to_file :: boolean()) :: :ok
+  def start_link(progress, logs_to_file) do
+    {:ok, _pid} = GenServer.start_link(__MODULE__, [progress, logs_to_file], name: @name)
     :ok
   end
 
   @spec stop(Cake.Cmd.result()) :: :ok
   def stop(workflow_status) do
     GenServer.call(@name, {:stop, workflow_status}, :infinity)
-  end
-
-  @spec verbose(boolean()) :: :ok
-  def verbose(enabled) do
-    GenServer.call(@name, {:verbose, enabled}, :infinity)
-    :ok
-  end
-
-  @spec logs_to_file(boolean()) :: :ok
-  def logs_to_file(enabled) do
-    GenServer.call(@name, {:logs_to_file, enabled})
-    :ok
   end
 
   @spec job_start([String.t()], String.t()) :: :ok
@@ -78,127 +89,104 @@ defmodule Cake.Reporter do
     GenServer.cast(@name, {:job_output, {job_ns, job_id}, output_path})
   end
 
-  @spec time :: integer()
-  def time do
-    System.monotonic_time(@time_unit)
-  end
-
   @spec collector([String.t()], String.t(), Collector.report_type()) :: Collectable.t()
   def collector(job_ns, job_id, type) do
     %Collector{job_ns: job_ns, job_id: job_id, type: type}
   end
 
   @impl GenServer
-  def init([]) do
+  def init([progress, logs_to_file]) do
+    reporter =
+      case progress do
+        :plain -> Reporter.Plain
+        :interactive -> Reporter.Interactive
+      end
+
     state =
       %State{
-        verbose: false,
-        logs_to_file: false,
-        logs_dir: Path.join(Dir.log(), to_string(DateTime.utc_now())),
+        reporter: reporter,
+        logs_to_file: logs_to_file,
+        logs_dir: Path.join(Dir.log(), DateTime.utc_now() |> DateTime.to_iso8601()),
         job_id_to_log_file: %{},
-        start_time: time(),
-        track: %{}
+        start_time: Duration.time(),
+        track: %{},
+        reporter_state: reporter.init()
       }
 
     {:ok, state}
   end
 
   @impl GenServer
-  def handle_cast({:job_start, {job_ns, job_id} = job}, %State{} = state) do
-    {state, log_file} = log_file(state, job)
+  def handle_cast({:job_start, job}, %State{} = state) do
+    state = set_log_file(job, state)
+    log_file = get_log_file(job, state)
 
-    ansidata = report_line("+", job_ns, [:faint, job_id, :reset], nil, nil)
-    log_puts(log_file, ansidata, true)
+    {ansidata, reporter_state} = state.reporter.job_start(job, state.reporter_state)
+    log_to_file(state.logs_to_file, log_file, ansidata)
 
-    state = put_in(state.track[job], {:running, time()})
+    state = put_in(state.track[job], {:running, Duration.time()})
+    state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
-  def handle_cast({:job_end, {job_ns, job_id} = job, status}, %State{} = state) do
-    {state, log_file} = log_file(state, job)
+  def handle_cast({:job_end, job, status}, %State{} = state) do
+    log_file = get_log_file(job, state)
 
-    {job_id, status_icon, status_info} =
-      case status do
-        Status.ok() ->
-          {[:green, job_id, :reset], [:green, "✔", :reset], nil}
-
-        Status.error(reason, stacktrace) ->
-          reason_str = if is_binary(reason), do: reason, else: inspect(reason)
-          reason_str = if stacktrace != nil, do: [reason_str, "\n", stacktrace], else: reason_str
-          {[:red, job_id, :reset], [:red, "✘", :reset], reason_str}
-
-        Status.timeout() ->
-          {[:red, job_id, :reset], "⏰", nil}
-      end
-
-    end_time = time()
-
-    start_time =
-      case state.track[job] do
-        {:running, start_time} -> start_time
-        _ -> end_time
-      end
-
-    duration = " (#{delta_time_string(end_time - start_time)}) "
-
-    ansidata = report_line(status_icon, job_ns, job_id, duration, nil)
-    log_puts(log_file, ansidata, true)
-
-    if status_info not in [nil, ""] do
-      log_puts(log_file, "    - #{status_info}", true)
-    end
+    duration = job_duration(job, state)
+    {ansidata, reporter_state} = state.reporter.job_end(job, status, duration, state.reporter_state)
+    log_to_file(state.logs_to_file, log_file, ansidata)
 
     state = put_in(state.track[job], status)
+    state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
-  def handle_cast({:job_log, {job_ns, job_id} = job, message}, %State{} = state) do
-    {state, log_file} = log_file(state, job)
+  def handle_cast({:job_log, job, message}, %State{} = state) do
+    log_file = get_log_file(job, state)
 
-    for line <- String.split(message, ~r/\R/) do
-      ansidata = report_line("…", job_ns, job_id, nil, " | #{line}")
-      log_puts(log_file, ansidata, state.verbose)
-    end
+    reporter_state =
+      for line <- String.split(message, ~r/\R/), reduce: state.reporter_state do
+        reporter_state ->
+          {ansidata, reporter_state} = state.reporter.job_log(job, line, reporter_state)
+          log_to_file(state.logs_to_file, log_file, ansidata)
+
+          reporter_state
+      end
+
+    state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
-  def handle_cast({:job_notice, {job_ns, job_id}, message}, %State{} = state) do
-    for line <- String.split(message, ~r/\R/) do
-      ansidata = report_line("!", job_ns, job_id, nil, " | #{line}")
-      log_puts(nil, ansidata, true)
-    end
+  def handle_cast({:job_notice, job, message}, %State{} = state) do
+    reporter_state =
+      for line <- String.split(message, ~r/\R/), reduce: state.reporter_state do
+        reporter_state ->
+          {_ansidata, reporter_state} = state.reporter.job_notice(job, line, reporter_state)
+
+          reporter_state
+      end
+
+    state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
   def handle_cast({:job_output, job, output_path}, %State{} = state) do
-    {state, log_file} = log_file(state, {job_ns, job_id} = job)
+    log_file = get_log_file(job, state)
 
-    status_icon = [:yellow, "←", :reset]
-    job_id = [:yellow, job_id, :reset]
-    ansidata = report_line(status_icon, job_ns, job_id, nil, " | output: #{output_path}")
-    log_puts(log_file, ansidata, true)
+    {ansidata, reporter_state} = state.reporter.job_output(job, output_path, state.reporter_state)
+    log_to_file(state.logs_to_file, log_file, ansidata)
+
+    state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
   @impl GenServer
-  def handle_call({:verbose, enabled}, _from, %State{} = state) do
-    {:reply, :ok, put_in(state.verbose, enabled)}
-  end
-
-  @impl GenServer
-  def handle_call({:logs_to_file, enabled}, _from, %State{} = state) do
-    {:reply, :ok, put_in(state.logs_to_file, enabled)}
-  end
-
-  @impl GenServer
   def handle_call({:stop, workflow_status}, _from, %State{} = state) do
-    end_time = time()
-
     if state.logs_to_file do
       log_stdout_puts("\nLogs directory: #{state.logs_dir}")
 
@@ -207,86 +195,109 @@ defmodule Cake.Reporter do
       end
     end
 
-    end_message = end_message(workflow_status, state.track)
+    unless match?({:ignore, _}, workflow_status) do
+      duration = Duration.delta_time_string(Duration.time() - state.start_time)
+      end_message = end_message(workflow_status, state.track)
 
-    if end_message do
-      duration = delta_time_string(end_time - state.start_time)
-      log_stdout_puts(["\n", end_message, " (#{duration})\n"])
+      log_stdout_puts(["\n", end_message, "\n"])
+      log_stdout_puts("Elapsed #{duration}\n")
     end
 
     {:stop, :normal, :ok, state}
   end
 
-  @spec end_message(Cake.Cmd.result(), State.job_status()) :: IO.ANSI.ansidata()
+  @impl GenServer
+  def handle_info({reporter, _} = info, %State{reporter: reporter} = state) do
+    reporter_state = reporter.info(info, state.reporter_state)
+    state = put_in(state.reporter_state, reporter_state)
+
+    {:noreply, state}
+  end
+
+  @spec end_message(Cake.Cmd.result(), State.job_status()) :: nil | ansidata()
   defp end_message(workflow_status, jobs_status) do
     case workflow_status do
       :ok ->
-        count = Enum.count(Map.values(jobs_status), &(&1 == :ok))
-        [:green, "Completed (#{count} jobs)", :reset]
-
-      {:ignore, _} ->
-        nil
+        [:green, "Run completed: ", :reset, status_count_message(jobs_status)]
 
       {:error, _} ->
         failed =
-          for {job, status} <- jobs_status,
+          for {{job_ns, job_id}, status} <- jobs_status,
               match?(Status.error(_, _), status) or match?(Status.timeout(), status) do
-            "- #{inspect(job)}\n"
+            if job_ns == [] do
+              "- #{job_id}"
+            else
+              "- (#{inspect(job_ns)}) #{job_id}"
+            end
           end
 
-        [:red, "Failed jobs:\n", :reset, failed, "\n"]
+        failed = Enum.join(failed, "\n")
+
+        [:red, "Run failed: ", :reset, status_count_message(jobs_status), "\n", :red, failed, :reset]
 
       :timeout ->
-        [:red, "Timeout", :reset]
+        [:red, "Run timeout: ", :reset, status_count_message(jobs_status)]
     end
   end
 
-  @spec delta_time_string(number()) :: String.t()
-  defp delta_time_string(elapsed) do
-    Dask.Utils.seconds_to_compound_duration(elapsed * @time_unit_scale)
+  @spec status_count_message(State.job_status()) :: ansidata()
+  defp status_count_message(jobs_status) do
+    freq_by_status =
+      jobs_status
+      |> Map.values()
+      |> Enum.frequencies_by(fn
+        Status.ok() -> :ok
+        Status.error(_, _) -> :error
+        Status.timeout() -> :timeout
+      end)
+
+    freq_by_status = Map.merge(%{ok: 0, error: 0, timeout: 0}, freq_by_status)
+
+    res =
+      for status <- [:ok, :error, :timeout] do
+        count = Map.get(freq_by_status, status, 0)
+        [apply(Icon, status, []), " ", to_string(count)]
+      end
+
+    Enum.intersperse(res, ", ")
   end
 
-  @spec report_line(ansidata(), [String.t()], ansidata(), nil | ansidata(), nil | ansidata()) :: ansidata()
-  defp report_line(status_icon, job_ns, job_id, duration, description) do
-    job_ns = if job_ns == [], do: "", else: ["(", Enum.join(job_ns, ", "), ") "]
-    line = [status_icon, :reset, "  ", :faint, job_ns, :reset, :bright, job_id, :reset]
-    line = if duration, do: [line, ["  #{duration} "]], else: line
-    line = if description, do: [line, :faint, "  ", description, :reset], else: line
-    line
+  @spec job_duration(State.job(), State.t()) :: String.t()
+  defp job_duration(job, %State{} = state) do
+    end_time = Duration.time()
+
+    start_time =
+      case state.track[job] do
+        {:running, start_time} -> start_time
+        _ -> end_time
+      end
+
+    Duration.delta_time_string(end_time - start_time)
   end
 
-  @spec log_puts(nil | File.io_device(), IO.ANSI.ansidata(), boolean()) :: :ok
-  defp log_puts(log_file, message, stdout?) do
-    if stdout? do
-      log_stdout_puts(message)
-    end
+  @spec log_to_file(emit? :: boolean(), File.io_device(), message :: nil | ansidata()) :: :ok
+  defp log_to_file(false, _log_file, _message), do: :ok
+  defp log_to_file(true, _log_file, nil), do: :ok
 
-    if log_file != nil do
-      message = List.wrap(message) |> List.flatten() |> Enum.reject(&is_atom(&1))
-      IO.write(log_file, [message, "\n"])
-    end
+  defp log_to_file(true, log_file, message) do
+    message = IO.ANSI.format_fragment(message, false)
+    IO.write(log_file, [message, "\n"])
   end
 
-  @spec log_stdout_puts(IO.ANSI.ansidata()) :: :ok
+  @spec log_stdout_puts(ansidata()) :: :ok
   defp log_stdout_puts(message) do
     message |> IO.ANSI.format() |> IO.puts()
     :ok
   end
 
-  @spec log_file(State.t(), State.job()) :: {State.t(), nil | File.io_device()}
-  defp log_file(%State{logs_to_file: false} = state, _job) do
-    {state, nil}
-  end
+  @spec get_log_file(State.job(), State.t()) :: nil | File.io_device()
+  defp get_log_file(_job, %State{logs_to_file: false}), do: nil
+  defp get_log_file(job, %State{} = state), do: state.job_id_to_log_file[job]
 
-  defp log_file(%State{job_id_to_log_file: job_id_to_log_file} = state, job)
-       when is_map_key(job_id_to_log_file, job) do
-    {state, job_id_to_log_file[job]}
-  end
-
-  defp log_file(%State{} = state, {job_ns, job_id} = job) do
+  @spec set_log_file(State.job(), State.t()) :: State.t()
+  defp set_log_file({job_ns, job_id} = job, %State{} = state) do
     File.mkdir_p!(state.logs_dir)
     file = File.open!(Path.join(state.logs_dir, "#{inspect(job_ns)}-#{job_id}.txt"), [:utf8, :write])
-    state = put_in(state.job_id_to_log_file[job], file)
-    {state, file}
+    put_in(state.job_id_to_log_file[job], file)
   end
 end

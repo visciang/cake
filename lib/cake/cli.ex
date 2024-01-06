@@ -9,6 +9,7 @@ defmodule Cake.Cli do
 
   defmodule Run do
     @enforce_keys [
+      :on_import?,
       :ns,
       :tgid,
       :args,
@@ -17,7 +18,7 @@ defmodule Cake.Cli do
       :tag,
       :timeout,
       :parallelism,
-      :verbose,
+      :progress,
       :save_logs,
       :shell,
       :secrets
@@ -26,6 +27,7 @@ defmodule Cake.Cli do
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
+            on_import?: boolean(),
             ns: [Type.tgid()],
             tgid: Type.tgid(),
             args: [arg()],
@@ -35,7 +37,7 @@ defmodule Cake.Cli do
             tag: nil | String.t(),
             timeout: timeout(),
             parallelism: pos_integer(),
-            verbose: boolean(),
+            progress: Type.progress(),
             save_logs: boolean(),
             shell: boolean(),
             secrets: [String.t()]
@@ -96,10 +98,6 @@ defmodule Cake.Cli do
             ]
           ],
           flags: [
-            verbose: [
-              long: "--verbose",
-              help: "Show jobs log to the console"
-            ],
             save_logs: [
               long: "--save-logs",
               help: "Save logs under #{Dir.log()} directory"
@@ -118,28 +116,30 @@ defmodule Cake.Cli do
             ]
           ],
           options: [
+            progress: [
+              long: "--progress",
+              parser: &parser_progress_option/1,
+              default: :interactive,
+              help: "Set type of progress output - 'plain' or 'interactive'"
+            ],
             tag: [
               long: "--tag",
-              value_name: "TAG",
               help: "Tag the target's container image"
             ],
             secret: [
               long: "--secret",
-              value_name: "SECRET",
               multiple: true,
               parser: &parser_secret_option/1,
               help: "Secret to expose to the build (ref. to 'docker build --secret')"
             ],
             timeout: [
               long: "--timeout",
-              value_name: "TIMEOUT",
               default: :infinity,
               parser: :integer,
-              help: "Pipeline execution timeout (seconds)"
+              help: "Pipeline execution timeout (seconds or 'infinity')"
             ],
             parallelism: [
               long: "--parallelism",
-              value_name: "PARALLELISM",
               default: System.schedulers_online(),
               parser: :integer,
               help: "Pipeline max parallelism"
@@ -166,6 +166,7 @@ defmodule Cake.Cli do
           end
 
         run = %Run{
+          on_import?: false,
           ns: [],
           tgid: cli.args.target,
           args: target_args,
@@ -174,7 +175,7 @@ defmodule Cake.Cli do
           tag: cli.options.tag,
           timeout: timeout,
           parallelism: cli.options.parallelism,
-          verbose: cli.flags.verbose,
+          progress: cli.options.progress,
           save_logs: cli.flags.save_logs,
           shell: cli.flags.shell,
           secrets: cli.options.secret
@@ -209,6 +210,17 @@ defmodule Cake.Cli do
       {:ok, option}
     else
       {:error, "supported format is '#{re}'"}
+    end
+  end
+
+  @spec parser_progress_option(String.t()) :: Optimus.parser_result()
+  defp parser_progress_option(option) do
+    options = ["plain", "interactive"]
+
+    if option in options do
+      {:ok, String.to_atom(option)}
+    else
+      {:error, "supported progress value are #{inspect(options)}"}
     end
   end
 end

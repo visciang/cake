@@ -10,8 +10,6 @@ defmodule Cake.Reporter.Status do
   end
 
   defmacro error(reason, stacktrace) do
-    quote do
-      {:error, unquote(reason), unquote(stacktrace)}
-    end
+    quote do: {:error, unquote(reason), unquote(stacktrace)}
   end
 end

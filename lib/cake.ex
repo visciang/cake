@@ -1,20 +1,17 @@
 defmodule Cake do
-  alias Cake.{Cli, Cmd, Dag, Parser, Preprocessor, Reference, Reporter, Validator}
+  alias Cake.{Cli, Cmd, Dag, Parser, Preprocessor, Reference, Validator}
   alias Cake.Parser.Cakefile
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
-    Reporter.start_link()
     Reference.start_link()
 
-    cmd_res =
+    res =
       with {:ok, cmd} <- Cli.parse(cli_args) do
         cmd(cmd)
       end
 
-    Reporter.stop(cmd_res)
-
-    case cmd_res do
+    case res do
       :ok -> Cake.System.halt(:ok)
       :timeout -> Cake.System.halt(:error, "timeout")
       {:ignore, reason} -> Cake.System.halt(:ok, reason)

@@ -2,14 +2,16 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
   alias Cake.Cli.Run
   alias Cake.{Cmd, Dag, Dir, Pipeline, Reporter, Type}
   alias Cake.Parser.Cakefile
+  alias Cake.Reporter
   alias Dask.Limiter
 
   @spec exec(Run.t(), Cakefile.t(), Dag.graph()) :: Cmd.result()
   def exec(%Run{} = run, %Cakefile{} = cakefile, graph) do
     Dir.setup_cake_dirs()
 
-    Reporter.verbose(run.verbose)
-    Reporter.logs_to_file(run.save_logs)
+    unless run.on_import? do
+      Reporter.start_link(run.progress, run.save_logs)
+    end
 
     tgids = Dag.tgids(graph)
 
@@ -20,14 +22,21 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
 
     {:ok, limiter} = Limiter.start_link(run.parallelism)
 
-    Pipeline.build(run, cakefile, graph)
-    |> Dask.async(limiter)
-    |> Dask.await(run.timeout)
-    |> case do
-      {:ok, _} -> :ok
-      {:error, _} = error -> error
-      :timeout -> :timeout
+    res =
+      Pipeline.build(run, cakefile, graph)
+      |> Dask.async(limiter)
+      |> Dask.await(run.timeout)
+      |> case do
+        {:ok, _} -> :ok
+        {:error, _} = error -> error
+        :timeout -> :timeout
+      end
+
+    unless run.on_import? do
+      Reporter.stop(res)
     end
+
+    res
   end
 
   @spec did_you_mean(Type.tgid(), [Type.tgid()]) :: Type.tgid() | nil
