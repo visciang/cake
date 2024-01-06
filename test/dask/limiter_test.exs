@@ -8,8 +8,13 @@ defmodule DakeTest.Dask.Limiter do
     {:ok, wl} = Dask.Limiter.start_link(max_concurrency)
 
     t1 = start_task(wl, :t1)
+    assert_task_ready(t1)
+
     t2 = start_task(wl, :t2)
+    assert_task_ready(t2)
+
     t3 = start_task(wl, :t3)
+    assert_task_not_ready(t3)
 
     proceed_with_task(t3)
     assert_task_not_proceeding(t3)
@@ -33,6 +38,8 @@ defmodule DakeTest.Dask.Limiter do
 
         :ok = Dask.Limiter.wait_my_turn(workflow_limiter)
 
+        send(test_pid, {task_id, :ready})
+
         receive do
           :proceed -> send(test_pid, {task_id, :done})
         end
@@ -50,6 +57,14 @@ defmodule DakeTest.Dask.Limiter do
 
   defp assert_task_not_proceeding({task_id, _task_pid}) do
     refute_receive {^task_id, :done}
+  end
+
+  defp assert_task_ready({task_id, _task_pid}) do
+    assert_receive {^task_id, :ready}
+  end
+
+  defp assert_task_not_ready({task_id, _task_pid}) do
+    refute_receive {^task_id, :ready}
   end
 
   defp assert_task_done({task_id, _task_pid}) do
