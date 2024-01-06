@@ -6,6 +6,7 @@ end
 defmodule Cake.Reporter.Plain do
   @behaviour Cake.Reporter
 
+  alias Cake.Reporter
   alias Cake.Reporter.Plain.State
   alias Cake.Reporter.{Icon, Status}
 
@@ -13,10 +14,12 @@ defmodule Cake.Reporter.Plain do
 
   @typep ansidata :: IO.ANSI.ansidata()
 
+  @impl Reporter
   def init do
     %State{}
   end
 
+  @impl Reporter
   def job_start({job_ns, job_id}, %State{} = state) do
     ansidata = report_line("+", job_ns, [:faint, job_id, :reset], nil, nil)
     ansi_puts(ansidata)
@@ -24,6 +27,7 @@ defmodule Cake.Reporter.Plain do
     {ansidata, state}
   end
 
+  @impl Reporter
   def job_end({job_ns, job_id}, status, duration, %State{} = state) do
     {job_id, status_icon, status_info} =
       case status do
@@ -53,6 +57,7 @@ defmodule Cake.Reporter.Plain do
     {ansidata, state}
   end
 
+  @impl Reporter
   def job_log({job_ns, job_id}, msg, %State{} = state) do
     ansidata = report_line(Icon.log(), job_ns, job_id, nil, " | #{msg}")
     ansi_puts(ansidata)
@@ -60,6 +65,7 @@ defmodule Cake.Reporter.Plain do
     {ansidata, state}
   end
 
+  @impl Reporter
   def job_notice({job_ns, job_id}, msg, %State{} = state) do
     ansidata = report_line(Icon.notice(), job_ns, job_id, nil, " | #{msg}")
     ansi_puts(ansidata)
@@ -67,6 +73,7 @@ defmodule Cake.Reporter.Plain do
     {ansidata, state}
   end
 
+  @impl Reporter
   def job_output({job_ns, job_id}, output, %State{} = state) do
     job_id = [:yellow, job_id, :reset]
 
@@ -76,6 +83,17 @@ defmodule Cake.Reporter.Plain do
     {ansidata, state}
   end
 
+  @impl Reporter
+  def job_shell_start(job, %State{} = state) do
+    job_notice(job, "Starting interactive shell\n", state)
+  end
+
+  @impl Reporter
+  def job_shell_end(_job, %State{} = state) do
+    {nil, state}
+  end
+
+  @impl Reporter
   def info({__MODULE__, _}, %State{} = state) do
     {nil, state}
   end

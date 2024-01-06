@@ -118,8 +118,9 @@ defmodule Cake.Pipeline do
     Container.build(run, tgid, args, pipeline_uuid)
 
     if run.shell and tgid == run.tgid do
-      Reporter.job_notice(run.ns, run.tgid, "\nStarting interactive shell:\n")
+      Reporter.job_shell_start(run.ns, run.tgid)
       Container.shell(tgid, pipeline_uuid)
+      Reporter.job_shell_end(run.ns, run.tgid)
     end
 
     if run.output do

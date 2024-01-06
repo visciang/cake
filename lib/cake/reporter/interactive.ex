@@ -1,9 +1,10 @@
 defmodule Cake.Reporter.Interactive.State do
-  defstruct jobs: %{}, spinner_frame_idx: 0
+  defstruct jobs: %{}, spinner_frame_idx: 0, render_ref: nil
 
   @type t :: %__MODULE__{
           jobs: %{String.t() => %{start: integer(), outputs: [Path.t()]}},
-          spinner_frame_idx: non_neg_integer()
+          spinner_frame_idx: non_neg_integer(),
+          render_ref: nil | reference()
         }
 end
 
@@ -30,12 +31,12 @@ defmodule Cake.Reporter.Interactive do
     9 => "⠏"
   }
 
+  @impl Reporter
   def init do
-    schedule_render_spinner()
-
-    %State{}
+    schedule_render_spinner(%State{})
   end
 
+  @impl Reporter
   def job_start(job, %State{} = state) do
     state = put_in(state.jobs[job], %{start: Duration.time(), outputs: []})
     state = render_spinner(state)
@@ -43,6 +44,7 @@ defmodule Cake.Reporter.Interactive do
     {nil, state}
   end
 
+  @impl Reporter
   def job_end(job, status, duration, %State{} = state) do
     ansidata = render_job_end(job, status, state.jobs[job].outputs, duration)
 
@@ -52,25 +54,39 @@ defmodule Cake.Reporter.Interactive do
     {ansidata, state}
   end
 
+  @impl Reporter
   def job_log(_job, msg, %State{} = state) do
     {msg, state}
   end
 
+  @impl Reporter
   def job_notice(_job, msg, %State{} = state) do
     {msg, state}
   end
 
+  @impl Reporter
   def job_output(job, output_path, %State{} = state) do
     state = update_in(state.jobs[job].outputs, &[output_path | &1])
 
     {nil, state}
   end
 
+  @impl Reporter
+  def job_shell_start(_job, %State{} = state) do
+    state = cancel_render_spinner(state)
+    {nil, state}
+  end
+
+  @impl Reporter
+  def job_shell_end(_job, %State{} = state) do
+    state = schedule_render_spinner(state)
+    {nil, state}
+  end
+
+  @impl Reporter
   def info({__MODULE__, :render_spinner}, %State{} = state) do
     state = render_spinner(state)
-    schedule_render_spinner()
-
-    state
+    schedule_render_spinner(state)
   end
 
   @spec render_job_end(
@@ -130,10 +146,21 @@ defmodule Cake.Reporter.Interactive do
     put_in(state.spinner_frame_idx, next_spinner_frame_idx)
   end
 
-  @spec schedule_render_spinner :: :ok
-  defp schedule_render_spinner do
-    Process.send_after(self(), {__MODULE__, :render_spinner}, @render_period_ms)
-    :ok
+  @spec schedule_render_spinner(State.t()) :: State.t()
+  defp schedule_render_spinner(%State{} = state) do
+    ref = Process.send_after(self(), {__MODULE__, :render_spinner}, @render_period_ms)
+    put_in(state.render_ref, ref)
+  end
+
+  @spec cancel_render_spinner(State.t()) :: State.t()
+  defp cancel_render_spinner(%State{} = state) do
+    Process.cancel_timer(state.render_ref)
+
+    ["\r", :clear_line]
+    |> IO.ANSI.format_fragment()
+    |> IO.write()
+
+    put_in(state.render_ref, nil)
   end
 
   @spec job_ns_to_string([String.t()]) :: IO.ANSI.ansidata()

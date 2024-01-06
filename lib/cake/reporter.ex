@@ -47,6 +47,9 @@ defmodule Cake.Reporter do
               {nil | ansidata(), reporter_state()}
   @callback job_log(State.job(), msg :: String.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback job_output(State.job(), output :: Path.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
+  @callback job_notice(State.job(), String.t(), reporter_state()) :: {nil | ansidata(), reporter_state()}
+  @callback job_shell_start(State.job(), reporter_state()) :: {nil | ansidata(), reporter_state()}
+  @callback job_shell_end(State.job(), reporter_state()) :: {nil | ansidata(), reporter_state()}
   @callback info({reporter :: module(), msg :: term()}, reporter_state()) :: reporter_state()
 
   # ----
@@ -87,6 +90,18 @@ defmodule Cake.Reporter do
   @spec job_output([String.t()], String.t(), Path.t()) :: :ok
   def job_output(job_ns, job_id, output_path) do
     GenServer.cast(@name, {:job_output, {job_ns, job_id}, output_path})
+  end
+
+  @spec job_shell_start([String.t()], String.t()) :: :ok
+  def job_shell_start(job_ns, job_id) do
+    GenServer.call(@name, {:job_shell_start, {job_ns, job_id}})
+    :ok
+  end
+
+  @spec job_shell_end([String.t()], String.t()) :: :ok
+  def job_shell_end(job_ns, job_id) do
+    GenServer.call(@name, {:job_shell_end, {job_ns, job_id}})
+    :ok
   end
 
   @spec collector([String.t()], String.t(), Collector.report_type()) :: Collectable.t()
@@ -186,6 +201,28 @@ defmodule Cake.Reporter do
   end
 
   @impl GenServer
+  def handle_call({:job_shell_start, job}, _from, %State{} = state) do
+    log_file = get_log_file(job, state)
+
+    {ansidata, reporter_state} = state.reporter.job_shell_start(job, state.reporter_state)
+    log_to_file(state.logs_to_file, log_file, ansidata)
+
+    state = put_in(state.reporter_state, reporter_state)
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:job_shell_end, job}, _from, %State{} = state) do
+    log_file = get_log_file(job, state)
+
+    {ansidata, reporter_state} = state.reporter.job_shell_end(job, state.reporter_state)
+    log_to_file(state.logs_to_file, log_file, ansidata)
+
+    state = put_in(state.reporter_state, reporter_state)
+
+    {:reply, :ok, state}
+  end
+
   def handle_call({:stop, workflow_status}, _from, %State{} = state) do
     if state.logs_to_file do
       log_stdout_puts("\nLogs directory: #{state.logs_dir}")
