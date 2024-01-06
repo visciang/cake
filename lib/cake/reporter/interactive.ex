@@ -11,7 +11,7 @@ defmodule Cake.Reporter.Interactive do
   @behaviour Cake.Reporter
 
   alias Cake.Reporter
-  alias Cake.Reporter.Duration
+  alias Cake.Reporter.{Duration, Icon}
   alias Cake.Reporter.Interactive.State
 
   require Cake.Reporter.Status
@@ -85,19 +85,16 @@ defmodule Cake.Reporter.Interactive do
     {job_id, status_icon} =
       case status do
         Reporter.Status.ok() ->
-          {[:green, job_id, :reset], [:green, "✔", :reset]}
+          {[:green, job_id, :reset], Icon.ok()}
 
         Reporter.Status.error(_reason, _stacktrace) ->
-          {[:red, job_id, :reset], [:red, "✘", :reset]}
+          {[:red, job_id, :reset], Icon.error()}
 
         Reporter.Status.timeout() ->
-          {[:red, job_id, :reset], "⏰"}
+          {[:red, job_id, :reset], Icon.timeout()}
       end
 
-    outputs_ansidata =
-      for output <- outputs do
-        ["\n   ", :yellow, "←", :reset, " ", output]
-      end
+    outputs_ansidata = for output <- outputs, do: ["\n", Icon.output(), " ", output]
 
     ansidata = [
       ["\r", :clear_line],

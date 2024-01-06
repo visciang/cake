@@ -31,7 +31,7 @@ defmodule Cake.Reporter do
   use GenServer
 
   alias Cake.{Dir, Reporter, Type}
-  alias Cake.Reporter.{Collector, Duration, State, Status}
+  alias Cake.Reporter.{Collector, Duration, Icon, State, Status}
 
   require Cake.Reporter.Status
 
@@ -218,7 +218,7 @@ defmodule Cake.Reporter do
   defp end_message(workflow_status, jobs_status) do
     case workflow_status do
       :ok ->
-        [:green, "Run completed", :reset]
+        [:green, "Run completed: ", :reset, status_count_message(jobs_status)]
 
       {:error, _} ->
         failed =
@@ -233,11 +233,33 @@ defmodule Cake.Reporter do
 
         failed = Enum.join(failed, "\n")
 
-        [:red, "Failed jobs:", "\n", failed, :reset]
+        [:red, "Run failed: ", :reset, status_count_message(jobs_status), "\n", :red, failed, :reset]
 
       :timeout ->
-        [:red, "Timeout", :reset]
+        [:red, "Run timeout: ", :reset, status_count_message(jobs_status)]
     end
+  end
+
+  @spec status_count_message(State.job_status()) :: ansidata()
+  defp status_count_message(jobs_status) do
+    freq_by_status =
+      jobs_status
+      |> Map.values()
+      |> Enum.frequencies_by(fn
+        Status.ok() -> :ok
+        Status.error(_, _) -> :error
+        Status.timeout() -> :timeout
+      end)
+
+    freq_by_status = Map.merge(%{ok: 0, error: 0, timeout: 0}, freq_by_status)
+
+    res =
+      for status <- [:ok, :error, :timeout] do
+        count = Map.get(freq_by_status, status, 0)
+        [apply(Icon, status, []), " ", to_string(count)]
+      end
+
+    Enum.intersperse(res, ", ")
   end
 
   @spec job_duration(State.job(), State.t()) :: String.t()

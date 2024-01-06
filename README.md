@@ -69,7 +69,7 @@ We can now run the pipeline to build the `app` target
 
 if we re-run the pipeline it will be a lot faster since it's fully cached.
 
-To see all the logs of the pipeline you can use the `--progress` option
+To see all the logs of the pipeline you can use the `--progress plain` option
 
     $ cake run --progress plain app
 
