@@ -65,7 +65,9 @@ We can now run the pipeline to build the `app` target
     ✔  build   (10.5s)
     ✔  app   (1.2s)
 
-    Completed (2 jobs) (11.9s)
+    Run completed: ✔ 2, ✘ 0, ⏰ 0
+
+    Elapsed 11.9s
 
 if we re-run the pipeline it will be a lot faster since it's fully cached.
 
@@ -93,7 +95,9 @@ Let's produce and tag a docker image of the `app` target:
     …  app   |
     ✔  app   (0.2s)
 
-    Completed (2 jobs) (0.7s)
+    Run completed: ✔ 2, ✘ 0, ⏰ 0
+
+    Elapsed 0.7s
 
 The image is available in the local docker registry:
 
