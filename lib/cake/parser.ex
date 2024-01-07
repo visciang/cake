@@ -2,7 +2,7 @@ defmodule Cake.Parser do
   import NimbleParsec
 
   alias Cake.Parser.{Alias, Cakefile, Container, Target}
-  alias Cake.Parser.Directive.{Import, Include, Output, Push}
+  alias Cake.Parser.Directive.{DevShell, Import, Include, Output, Push}
 
   @type result ::
           {:ok, Cakefile.t()}
@@ -185,12 +185,18 @@ defmodule Cake.Parser do
     |> wrap()
     |> map({:cast, [Import]})
 
+  devshell_directive =
+    ignore(string("@devshell"))
+    |> wrap()
+    |> map({:cast, [DevShell]})
+
   target_directive =
     ignore(indent)
     |> choice([
       output_directive,
       push_directive,
-      import_directive
+      import_directive,
+      devshell_directive
     ])
 
   target_directives =

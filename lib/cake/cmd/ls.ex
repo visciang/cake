@@ -3,6 +3,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
   alias Cake.{Dag, Dir, Type}
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Container.Arg
+  alias Cake.Parser.Directive.DevShell
   alias Cake.Parser.Target
 
   @typep target_args :: %{Type.tgid() => [Arg.t()]}
@@ -13,6 +14,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
     global_args = cakefile.args
     target_args = target_args(cakefile)
+    devshell_targets = devshell_targets(cakefile)
 
     if global_args != [] do
       IO.puts("\nGlobal arguments:")
@@ -23,8 +25,10 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
     IO.puts("\nTargets:")
 
-    for tgid <- Dag.tgids(graph) |> Enum.sort(),
-        do: IO.puts(" - #{fmt_target(tgid, target_args)}")
+    for tgid <- Dag.tgids(graph) |> Enum.sort() do
+      devshell? = MapSet.member?(devshell_targets, tgid)
+      IO.puts(" - #{fmt_target(tgid, target_args, devshell?)}")
+    end
 
     :ok
   end
@@ -36,15 +40,25 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
     end
   end
 
+  @spec devshell_targets(Cakefile.t()) :: MapSet.t(Type.tgid())
+  defp devshell_targets(%Cakefile{} = cakefile) do
+    for %Target{} = target <- cakefile.targets,
+        Enum.any?(target.directives, &match?(%DevShell{}, &1)),
+        into: MapSet.new() do
+      target.tgid
+    end
+  end
+
   @spec fmt_arg(Arg.t()) :: String.t()
   defp fmt_arg(%Arg{default_value: nil} = arg), do: arg.name
   defp fmt_arg(%Arg{} = arg), do: "#{arg.name}=#{inspect(arg.default_value)}"
 
-  @spec fmt_target(Type.tgid(), target_args()) :: IO.chardata()
-  defp fmt_target(tgid, target_args) do
+  @spec fmt_target(Type.tgid(), target_args(), devshell? :: boolean()) :: IO.chardata()
+  defp fmt_target(tgid, target_args, devshell?) do
+    devshell_str = if devshell?, do: [:blue, " [devshell]", :reset], else: ""
     args = Map.get(target_args, tgid, [])
     args = Enum.map_join(args, ", ", &fmt_arg(&1))
 
-    IO.ANSI.format([:green, tgid, :default_color, "  ", args])
+    IO.ANSI.format_fragment([:green, tgid, :reset, devshell_str, "  ", args])
   end
 end

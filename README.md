@@ -3,7 +3,7 @@
 Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI/CD framework to
 define and execute "reproducible" pipelines that can run on any host with docker support.
 
-![dalle](./docs/cake.png)
+![cake](./docs/cake.png)
 
 ## Features and characteristics
 
@@ -238,8 +238,8 @@ When running the pipeline, parameters can be overridden via the command line, al
 
 Command line override:
 
-```bash
-cake run --build-arg ALPINE_VERSION=3.15.2 app
+```
+cake run app ALPINE_VERSION=3.15.2
 ```
 
 #### Enhancing Flexibility
@@ -308,6 +308,26 @@ app:
     FROM imported_target:${CAKE_PIPELINE_UUID}
     # ...
 ```
+
+#### Development Shell
+
+`@devshell`
+
+Tag the target as a "devshell".
+
+This instruct `cake` to bind mount the project code into the container when a shell is requested via `cake run --shell target`.
+
+```Dockerfile
+elixir.toolchain:
+    @devshell
+    FROM +elixir.base
+    RUN apk add --no-cache git build-base
+    # ...
+```
+
+Attach to a dev shell:
+
+    $ cake run --shell elixir.toolchain
 
 ### Aliases
 ### Integration tests

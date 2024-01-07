@@ -5,7 +5,8 @@ end
 defmodule Cake.Pipeline do
   alias Cake.Cli.Run
   alias Cake.Parser.Container.{Arg, Command, Fmt, From}
-  alias Cake.Parser.{Alias, Cakefile, Directive, Target}
+  alias Cake.Parser.{Alias, Cakefile, Target}
+  alias Cake.Parser.Directive.{DevShell, Import, Output, Push}
   alias Cake.Pipeline.Container
   alias Cake.{Dag, Dir, Reference, Reporter, Type}
 
@@ -118,13 +119,15 @@ defmodule Cake.Pipeline do
     Container.build(run, tgid, args, pipeline_uuid)
 
     if run.shell and tgid == run.tgid do
+      devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
+
       Reporter.job_shell_start(run.ns, run.tgid)
-      Container.shell(tgid, pipeline_uuid)
+      Container.shell(tgid, pipeline_uuid, devshell?)
       Reporter.job_shell_end(run.ns, run.tgid)
     end
 
     if run.output do
-      output_paths = for %Directive.Output{path: path} <- target.directives, do: path
+      output_paths = for %Output{path: path} <- target.directives, do: path
       Container.output(run, tgid, pipeline_uuid, output_paths)
     end
 
@@ -133,7 +136,7 @@ defmodule Cake.Pipeline do
 
   @spec dask_job_target_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: :ok
   defp dask_job_target_imports(%Run{} = run, %Target{} = target, pipeline_uuid) do
-    for %Directive.Import{} = import_ <- target.directives do
+    for %Import{} = import_ <- target.directives do
       import_cakefile_path =
         case Reference.get_import(import_) do
           {:ok, import_cakefile_path} -> import_cakefile_path
@@ -215,12 +218,8 @@ defmodule Cake.Pipeline do
   end
 
   @spec push_target?(Cakefile.target()) :: boolean()
-  defp push_target?(target) do
-    case target do
-      %Target{} -> Enum.any?(target.directives, &match?(%Directive.Push{}, &1))
-      _ -> false
-    end
-  end
+  defp push_target?(%Target{} = target), do: Enum.any?(target.directives, &match?(%Push{}, &1))
+  defp push_target?(_target), do: false
 
   @spec validate_cmd(Run.t(), Cakefile.target()) :: :ok | no_return()
   defp validate_cmd(%Run{} = run, target) do

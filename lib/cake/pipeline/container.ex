@@ -30,17 +30,22 @@ defmodule Cake.Pipeline.Container do
     end
   end
 
-  @spec shell(Type.tgid(), Type.pipeline_uuid()) :: :ok
-  def shell(tgid, pipeline_uuid) do
+  @spec shell(Type.tgid(), Type.pipeline_uuid(), devshell? :: boolean()) :: :ok
+  def shell(tgid, pipeline_uuid, devshell?) do
     run_ssh_args =
-      if System.get_env("SSH_AUTH_SOCK", "") != "" do
-        ssh_auth_sock = System.fetch_env!("SSH_AUTH_SOCK")
-        ["-e", "SSH_AUTH_SOCK=#{ssh_auth_sock}", "-v", "#{ssh_auth_sock}:#{ssh_auth_sock}"]
-      else
-        []
+      case System.get_env("SSH_AUTH_SOCK", "") do
+        "" -> []
+        sock -> ["-e", "SSH_AUTH_SOCK=#{sock}", "-v", "#{sock}:#{sock}"]
       end
 
-    run_cmd_args = ["run", "--rm", "-t", "-i", "--entrypoint", "sh"] ++ run_ssh_args ++ [fq_image(tgid, pipeline_uuid)]
+    run_devshell_args = if devshell?, do: ["--volume", ".:/devshell", "--workdir", "/devshell"], else: []
+
+    run_cmd_args =
+      ["run", "--rm", "-t", "-i", "--entrypoint", "sh"] ++
+        run_ssh_args ++
+        run_devshell_args ++
+        [fq_image(tgid, pipeline_uuid)]
+
     port_opts = [:nouse_stdio, :exit_status, args: run_cmd_args]
     port = Port.open({:spawn_executable, System.find_executable("docker")}, port_opts)
 

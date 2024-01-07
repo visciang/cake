@@ -45,4 +45,12 @@ defmodule Cake.Parser.Directive do
             args: [Cake.Parser.Container.Arg.t()]
           }
   end
+
+  defmodule DevShell do
+    # `@devshell`
+
+    defstruct []
+
+    @type t :: %__MODULE__{}
+  end
 end
