@@ -39,7 +39,7 @@ app:
 
 The target declaration feels like `make` and their definition feels like a `Dockerfile`.
 
-In fact `cake` Cake leverage docker (without being a buildkit frontend) and the Dockerfile syntax
+In fact `cake` leverage docker (without being a buildkit frontend) and the Dockerfile syntax
 to define the pipeline DAG where the implicit cache semantics ihnerits the docker one.
 
 The project source tree is:
