@@ -25,7 +25,7 @@ The following is a simple example of a `Cakefile`.
 ```Dockerfile
 ARG ALPINE_VERSION=3.18.5
 
-build:
+compile:
     FROM alpine:${ALPINE_VERSION}
     RUN apk add --no-cache gcc libc-dev
     COPY hello.c .
@@ -33,13 +33,11 @@ build:
 
 app:
     FROM alpine:${ALPINE_VERSION}
-    COPY --from=+build /hello /usr/bin/hello
+    COPY --from=+compile /hello /usr/bin/hello
     ENTRYPOINT ["/usr/bin/hello"]
 ```
 
-The target declaration feels like `make` and their definition feels like a `Dockerfile`.
-
-In fact `cake` leverage docker (without being a buildkit frontend) and the Dockerfile syntax
+Cake leverage docker (without being a buildkit frontend) and the Dockerfile syntax
 to define the pipeline DAG where the implicit cache semantics ihnerits the docker one.
 
 The project source tree is:
@@ -47,7 +45,7 @@ The project source tree is:
     Cakefile
     hello.c
 
-Let's start to list the available targets
+Let's start listing the available targets
 
     $ cake ls
 
@@ -55,21 +53,23 @@ Let's start to list the available targets
       - ALPINE_VERSION="3.18.5"
 
      Targets:
-      - build
+      - compile
       - app
 
 We can now run the pipeline to build the `app` target
 
     $ cake run app
 
-    ✔  build   (10.5s)
+    ✔  compile   (10.5s)
     ✔  app   (1.2s)
 
     Run completed: ✔ 2, ✘ 0, ⏰ 0
 
     Elapsed 11.9s
 
-if we re-run the pipeline it will be a lot faster since it's fully cached.
+Two targets have been built: `compile` and `app` (`build` is an `app` dependency target).
+
+If we re-run the pipeline it will be a lot faster since it's fully cached.
 
 To see all the logs of the pipeline you can use the `--progress plain` option
 
@@ -118,7 +118,7 @@ Targets in Cake represent the addressable and executable entities within a pipel
 A target is defined as a logical step or action within the pipeline. Each target can encapsulate one or more jobs and typically corresponds to a specific task or operation to be performed. For instance, in the example Cakefile:
 
 ```Dockerfile
-build:
+compile:
     FROM alpine:3.18.5
     RUN apk add --no-cache gcc libc-dev
     COPY hello.c .
@@ -126,18 +126,18 @@ build:
 
 app:
     FROM alpine:3.18.5
-    COPY --from=+build /hello /usr/bin/hello
+    COPY --from=+compile /hello /usr/bin/hello
     ENTRYPOINT ["/usr/bin/hello"]
 ```
 
-- `build` and `app` are targets defined in the Cakefile.
-- each target (`build` and `app`) encompasses a series of Docker-like commands, forming the jobs required to accomplish the specified task.
+- `compile` and `app` are targets defined in the Cakefile.
+- each target (`compile` and `app`) encompasses a series of Docker-like commands, forming the jobs required to accomplish the specified task.
 
 ### DAG
 
 Targets collectively form the Directed Acyclic Graph (DAG) of the pipeline. The DAG represents the workflow of tasks and their dependencies, ensuring a structured execution flow without circular references.
 
-- **Dependencies**: targets can have dependencies on other targets. For example, the app target depends on the successful execution of the build target in the example above.
+- **Dependencies**: targets can have dependencies on other targets. For example, the `app` target depends on the successful execution of the `compile` target in the example above.
 
 - **Execution Order**: Cake determines the execution order based on the DAG structure, ensuring that dependent targets are executed only after their dependencies successfully complete.
 
@@ -174,17 +174,18 @@ Within the Cakefile, target dependencies are implicitly established through spec
   ```Dockerfile
   app:
     FROM alpine:3.18.5
-    COPY --from=+build /hello /usr/bin/hello
+    COPY --from=+compile /hello /usr/bin/hello
     ENTRYPOINT ["/usr/bin/hello"]
   ```
 
-  In the example above, `COPY --from=+build /hello /usr/bin/hello` within the `app` target indicates that `app` depends on the completion of `build`. If the `build` target has not correctly generated the `/hello` file, the `app` target will fail during execution.
+  In the example above, `COPY --from=+compile /hello /usr/bin/hello` within the `app` target indicates that `app` depends on the completion of `compile`. If the `compile` target has not correctly generated the `/hello` file, the `app` target will fail during execution.
 
 #### Dependencies and DAG Structure
 
 Utilizing these instructions allows Cake to implicitly construct the Directed Acyclic Graph (DAG) structure of the pipeline. Each `FROM +dependency` and `COPY from=+dependency` instruction defines a dependency relationship between targets, ensuring that targets are executed in the correct order based on their dependencies.
 
 ### Caching
+
 Cake utilizes a Dockerfile-like syntax and implicitly inherits Docker's caching semantics to optimize the pipeline execution by caching intermediate artifacts.
 
 #### Implicit Caching
@@ -212,7 +213,6 @@ Cake supports parameterization to enhance the flexibility and reusability of pip
 Parameters in Cake are defined using the `ARG` keyword within the Cakefile. These parameters can be set with default values or overridden when executing the pipeline.
 
 Parameters in Cake can be either global or local to specific targets, providing granular control over their scope and applicability within the pipeline.
-
 
 ##### Global Parameters
 
@@ -242,6 +242,8 @@ Command line override:
 cake run app ALPINE_VERSION=3.15.2
 ```
 
+Parameters override can be defined also on `@import` and `@include` directives.
+
 #### Enhancing Flexibility
 
 Parameterization enables the creation of versatile pipelines that can adapt to different environments, requirements, or specific use cases by adjusting values without modifying the underlying pipeline structure. This capability fosters easier management and deployment of pipelines across various scenarios.
@@ -264,9 +266,9 @@ Example:
 
 ```Dockerfile
 test:
-    @output ./coverage
+    @output /outputs/coverage
     FROM +compile
-    # RUN test with coverage
+    # run test with coverage (output to /outputs/coverage)
 ```
 
 Note: output take effect only if the run command includes the `--output` flag.
@@ -315,7 +317,7 @@ app:
 
 Tag the target as a "devshell".
 
-This instruct `cake` to bind mount the project code into the container when a shell is requested via `cake run --shell target`.
+This instruct Cake to bind mount the project code into the container when a shell is requested via `cake run --shell target`.
 
 ```Dockerfile
 elixir.toolchain:
