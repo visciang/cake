@@ -335,5 +335,15 @@ Attach to a dev shell:
 ### Integration tests
 
 ## Install cake
+
 ### Native
+
+You can install Cake as an elixir [escript](https://hexdocs.pm/mix/main/Mix.Tasks.Escript.Install.html):
+
+`mix escript.install github visciang/cake`
+
 ### Dockerized
+
+Cake is available as a docker image (`visciang/cake`).
+For convenience, the [cake](./priv/cake) script can put in your `PATH`.
+It show how you can invoke the docker image, with SSH forwarding, docker agent socket mount, etc.

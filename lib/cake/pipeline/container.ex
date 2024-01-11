@@ -4,6 +4,9 @@ defmodule Cake.Pipeline.Container do
 
   require Logger
 
+  @external_resource "lib/cake/pipeline/cake_cmd.sh"
+  @cmd_wrapper_script File.read!("lib/cake/pipeline/cake_cmd.sh")
+
   @spec fq_image(Type.tgid(), Type.pipeline_uuid()) :: String.t()
   def fq_image(tgid, pipeline_uuid), do: "#{tgid}:#{pipeline_uuid}"
 
@@ -24,7 +27,9 @@ defmodule Cake.Pipeline.Container do
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
 
-    case System.cmd("/usr/bin/cake_cmd.sh", args, stderr_to_stdout: true, into: into) do
+    cmd_path = install_cmd_wrapper_script()
+
+    case System.cmd(cmd_path, args, stderr_to_stdout: true, into: into) do
       {_, 0} -> :ok
       {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} failed"
     end
@@ -85,6 +90,14 @@ defmodule Cake.Pipeline.Container do
   def cleanup(pipeline_uuid) do
     rm_containers(pipeline_uuid)
     rm_images(pipeline_uuid)
+  end
+
+  @spec install_cmd_wrapper_script :: Path.t()
+  defp install_cmd_wrapper_script do
+    path = Path.join(System.tmp_dir!(), "cake_cmd.sh")
+    File.write!(path, @cmd_wrapper_script)
+    File.chmod!(path, 0o700)
+    path
   end
 
   @spec rm_images(Type.pipeline_uuid()) :: :ok

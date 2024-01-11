@@ -20,6 +20,5 @@ FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-al
 RUN apk add --no-cache bash git openssh-client docker-cli docker-cli-buildx
 RUN mkdir -p -m 0700 ~/.ssh \
     && ssh-keyscan github.com gitlab.com bitbucket.com >> ~/.ssh/known_hosts
-COPY priv/cake_cmd.sh /usr/bin/
 COPY --from=build /code/cake /cake
 ENTRYPOINT [ "/cake" ]
