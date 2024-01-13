@@ -1,10 +1,11 @@
 defmodule Cake do
-  alias Cake.{Cli, Cmd, Dag, Parser, Preprocessor, Reference, Validator}
+  alias Cake.{Cli, Cmd, Dag, Dir, Parser, Preprocessor, Reference, Validator}
   alias Cake.Parser.Cakefile
 
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
     Reference.start_link()
+    Dir.install_cmd_wrapper_script()
 
     res =
       with {:ok, cmd} <- Cli.parse(cli_args) do

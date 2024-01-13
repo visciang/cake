@@ -33,4 +33,24 @@ defmodule Cake.Dir do
 
     :ok
   end
+
+  @external_resource "lib/cake/pipeline/cake_cmd.sh"
+  @cmd_wrapper_script File.read!("lib/cake/pipeline/cake_cmd.sh")
+
+  @spec install_cmd_wrapper_script :: :ok
+  def install_cmd_wrapper_script do
+    path = Path.join(System.tmp_dir!(), "cake_cmd.sh")
+
+    :persistent_term.put(:cake_cmd_wrapper_path, path)
+
+    File.write!(path, @cmd_wrapper_script)
+    File.chmod!(path, 0o700)
+
+    :ok
+  end
+
+  @spec cmd_wrapper_path :: Path.t()
+  def cmd_wrapper_path do
+    :persistent_term.get(:cake_cmd_wrapper_path)
+  end
 end

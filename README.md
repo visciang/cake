@@ -70,12 +70,15 @@ Let's start listing the available targets
 
     $ cake ls
 
-     Global arguments:
-      - ALPINE_VERSION="3.19.0"
+    Global arguments:
+      ALPINE_VERSION="3.19.0"
 
-     Targets:
-      - compile
-      - app
+    Targets:
+      app:
+      compile:
+      devshell:
+        @devshell
+      toolchain:
 
 We can now run the pipeline to build the `app` target
 
