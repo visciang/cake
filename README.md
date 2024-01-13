@@ -18,9 +18,30 @@ define and execute "reproducible" pipelines that can run on any host with docker
 - Jobs can import external pipeline targets (ref. `@import`)
 - Shell integration for debug and development
 
+## Install cake
+
+### Dockerized
+
+Cake is available as a docker image [visciang/cake](https://hub.docker.com/r/visciang/cake).
+
+For convenience a script is provided under [priv/cake](priv/cake).
+It show how to invoke the docker image with SSH forwarding, docker agent socket mount, etc.
+
+    curl -o /usr/local/bin/cake -L https://raw.githubusercontent.com/visciang/cake/main/priv/cake
+    chmod +x /usr/local/bin/cake
+
+### Native
+
+You can install Cake as an elixir [escript](https://hexdocs.pm/mix/main/Mix.Tasks.Escript.Install.html):
+
+    mix escript.install github visciang/cake
+
 ## A taste of cake
 
-The following is a simple example of a `Cakefile`.
+The following example is available in the [cake-hello](https://github.com/visciang/cake-helloworld) repository.
+You can clone it and follow the example.
+
+In the root of the project we have simple example of a `Cakefile`.
 
 ```Dockerfile
 ARG ALPINE_VERSION=3.18.5
@@ -50,7 +71,7 @@ Let's start listing the available targets
     $ cake ls
 
      Global arguments:
-      - ALPINE_VERSION="3.18.5"
+      - ALPINE_VERSION="3.19.0"
 
      Targets:
       - compile
@@ -60,12 +81,12 @@ We can now run the pipeline to build the `app` target
 
     $ cake run app
 
-    ✔  compile   (10.5s)
-    ✔  app   (1.2s)
+    ✔  compile   (3.6s)
+    ✔  app   (0.3s)
 
     Run completed: ✔ 2, ✘ 0, ⏰ 0
 
-    Elapsed 11.9s
+    Elapsed 4.0s
 
 Two targets have been built: `compile` and `app` (`build` is an `app` dependency target).
 
@@ -79,9 +100,9 @@ Let's produce and tag a docker image of the `app` target:
 
     $ cake run --progress plain --tag hello:latest app
 
-    +  build
+    +  compile
     ...
-    ✔  build   (0.3s)
+    ✔  compile   (0.3s)
     +  app
     ...
     …  app   | #7 CACHED
@@ -90,7 +111,7 @@ Let's produce and tag a docker image of the `app` target:
     …  app   | #8 exporting layers done
     …  app   | #8 writing image sha256:00c838cf5b6710f1c9f7eca8e228eea53a799bd11b33a7136eec9631739e01b2 done
     …  app   | #8 naming to docker.io/library/docker:heulj4ezcomi7tpo6n5437laoq done
-    …  app   | #8 naming to docker.io/library/hello done
+    …  app   | #8 naming to docker.io/library/hello:latest done
     …  app   | #8 DONE 0.0s
     …  app   |
     ✔  app   (0.2s)
@@ -103,7 +124,7 @@ The image is available in the local docker registry:
 
     $ docker run --rm hello:latest
 
-    Hello!
+    Hello Cake!
 
 ## Cakefile
 
@@ -287,7 +308,9 @@ Note: push targets can only be executed if the run commands include the `--push`
 
 Includes an external Cakefile "template". The directive should be defined before any target.
 
-The reference to the Cakefile can be a local path (`./local_dir`) or a remote Git URL (`git+https://github.com/username/cake-template.git#main` or `git+git@github.com:visciang/cake-elixir.git#1.0.0`).
+The reference to the Cakefile can be a:
+- local path: `./local_dir`
+- remote Git URL:`git+https://github.com/username/cake-template.git#ref_branch_or_tag`
 
 If the included Cakefile has parameter they can be specified via args
 
@@ -333,17 +356,3 @@ Attach to a dev shell:
 
 ### Aliases
 ### Integration tests
-
-## Install cake
-
-### Native
-
-You can install Cake as an elixir [escript](https://hexdocs.pm/mix/main/Mix.Tasks.Escript.Install.html):
-
-`mix escript.install github visciang/cake`
-
-### Dockerized
-
-Cake is available as a docker image (`visciang/cake`).
-For convenience, the [cake](./priv/cake) script can put in your `PATH`.
-It show how you can invoke the docker image, with SSH forwarding, docker agent socket mount, etc.
