@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CAKE_VERSION=${CAKE_VERSION:-"latest"}
+CAKE_VERSION=${CAKE_VERSION:-"__PLEASE_PIN_A_CAKE_VERSION_HERE__"}
 CAKE_IMAGE=${CAKE_IMAGE:-"visciang/cake:$CAKE_VERSION"}
 
 if [ "$(uname)" == "Darwin" ]; then

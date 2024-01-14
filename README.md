@@ -30,25 +30,36 @@ It show how to invoke the docker image with SSH forwarding, docker agent socket 
     curl -o /usr/local/bin/cake -L https://raw.githubusercontent.com/visciang/cake/main/priv/cake
     chmod +x /usr/local/bin/cake
 
+and pin a cake version (`vX.Y.Z`):
+
+    sed -i '' "s/__PLEASE_PIN_A_CAKE_VERSION_HERE__/vX.Y.Z/" /usr/local/bin/cake
+
 ### Native
 
 You can install Cake as an elixir [escript](https://hexdocs.pm/mix/main/Mix.Tasks.Escript.Install.html):
 
-    mix escript.install github visciang/cake
+    mix escript.install github visciang/cake tag vX.Y.Z
 
 ## A taste of cake
 
-The following example is available in the [cake-hello](https://github.com/visciang/cake-helloworld) repository.
+The following example is available in the [cake-helloworld](https://github.com/visciang/cake-helloworld) repository.
 You can clone it and follow the example.
 
 In the root of the project we have simple example of a `Cakefile`.
 
 ```Dockerfile
-ARG ALPINE_VERSION=3.18.5
+ARG ALPINE_VERSION=3.19.0
 
-compile:
+devshell:
+    @devshell
+    FROM +toolchain
+
+toolchain:
     FROM alpine:${ALPINE_VERSION}
     RUN apk add --no-cache gcc libc-dev
+
+compile:
+    FROM +toolchain
     COPY hello.c .
     RUN gcc hello.c -o /hello
 
