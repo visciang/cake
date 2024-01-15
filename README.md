@@ -1,5 +1,8 @@
 # Cake
 
+> [!WARNING]  
+> This is a POC, for personal use. It works on my machine!
+
 Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI/CD framework to
 define and execute "reproducible" pipelines that can run on any host with docker support.
 
@@ -95,14 +98,15 @@ We can now run the pipeline to build the `app` target
 
     $ cake run app
 
-    ✔  compile   (3.6s)
+    ✔  toolchain   (1.6s)
+    ✔  compile   (0.3s)
     ✔  app   (0.3s)
 
-    Run completed: ✔ 2, ✘ 0, ⏰ 0
+    Run completed: ✔ 3, ✘ 0, ⏰ 0
 
-    Elapsed 4.0s
+    Elapsed 2.3s
 
-Two targets have been built: `compile` and `app` (`build` is an `app` dependency target).
+Three targets have been built: `toolchain`, `compile` and `app` (`toolchain` is a `compile` dependency and `compile` an `app` one).
 
 If we re-run the pipeline it will be a lot faster since it's fully cached.
 
@@ -114,6 +118,9 @@ Let's produce and tag a docker image of the `app` target:
 
     $ cake run --progress plain --tag hello:latest app
 
+    +  toolchain
+    ...
+    ✔  toolchain   (0.2s)
     +  compile
     ...
     ✔  compile   (0.3s)
@@ -130,7 +137,7 @@ Let's produce and tag a docker image of the `app` target:
     …  app   |
     ✔  app   (0.2s)
 
-    Run completed: ✔ 2, ✘ 0, ⏰ 0
+    Run completed: ✔ 3, ✘ 0, ⏰ 0
 
     Elapsed 0.7s
 
@@ -369,4 +376,9 @@ Attach to a dev shell:
     $ cake run --shell elixir.toolchain
 
 ### Aliases
+
+TODO
+
 ### Integration tests
+
+TODO
