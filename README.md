@@ -3,7 +3,7 @@
 > [!WARNING]  
 > This is a POC, for personal use. It works on my machine!
 
-Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI/CD framework to
+Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI framework to
 define and execute "reproducible" pipelines that can run on any host with docker support.
 
 ![cake](./docs/cake.png)
@@ -174,6 +174,26 @@ app:
 
 - `compile` and `app` are targets defined in the Cakefile.
 - each target (`compile` and `app`) encompasses a series of Docker-like commands, forming the jobs required to accomplish the specified task.
+
+### Alias Targets
+
+An alias target defines a named set of targets that can be called via a single `run` command.
+
+```Dockerfile
+all: target_1 target_2
+
+target_1:
+    FROM alpine
+    RUN echo "target 1"
+
+target_2:
+    FROM alpine
+    RUN echo "target 2"
+```
+
+To run the `target_1` and `target_2` via the alias target `all`:
+
+    $ cake run all
 
 ### DAG
 
@@ -374,10 +394,6 @@ elixir.toolchain:
 Attach to a dev shell:
 
     $ cake run --shell elixir.toolchain
-
-### Aliases
-
-TODO
 
 ### Integration tests
 
