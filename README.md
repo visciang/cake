@@ -398,3 +398,71 @@ Attach to a dev shell:
 ### Integration tests
 
 TODO
+
+## Commands
+
+The cake CLI commands.
+
+### LS
+
+List targets.
+
+The output includes details about:
+
+- Arguments and their default value (ref [ARG](#pipeline-parametrization))
+- [@output](#output)
+- [@devshell](#development-shell)
+
+```
+$ cake ls
+
+Global arguments:
+  ELIXIR_VERSION="1.16.0"
+  ELIXIR_ERLANG_VERSION="26.2.1"
+  ELIXIR_ALPINE_VERSION="3.18.4"
+  WORKDIR="/code"
+  ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
+
+Targets:
+    all:
+    cake.app:
+    elixir.base:
+      WORKDIR
+    elixir.compile:
+    elixir.credo:
+      ELIXIR_CREDO_OPTS="--strict --all"
+    elixir.deps:
+    elixir.dialyzer:
+      WORKDIR
+    elixir.dialyzer-plt:
+    elixir.docs:
+      @output /code/doc
+    elixir.escript:
+      WORKDIR
+      ELIXIR_ESCRIPT_EXTRA_APK
+    elixir.escript-build:
+    elixir.format:
+    elixir.lint:
+    elixir.release:
+    elixir.test:
+      @output /code/cover
+      ELIXIR_TEST_CMD="coveralls.html"
+    elixir.toolchain:
+      @devshell
+```
+
+### RUN
+
+Run the pipeline.
+
+#### output artifacts
+TODO
+
+#### entering a debug/dev shell
+TODO
+
+#### taggin a docker image
+TODO
+
+#### push targets
+TODO
