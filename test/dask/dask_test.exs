@@ -1,7 +1,5 @@
-defmodule DakeTest.Dask do
+defmodule Test.Dask do
   use ExUnit.Case, async: true
-
-  alias Dask
 
   test "basic dask exec" do
     workflow_status = Dask.new() |> add_jobs() |> Dask.async() |> Dask.await(1_000)

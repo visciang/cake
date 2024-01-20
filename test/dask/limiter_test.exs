@@ -1,7 +1,5 @@
-defmodule DakeTest.Dask.Limiter do
+defmodule Test.Dask.Limiter do
   use ExUnit.Case, async: true
-
-  alias Dask
 
   test "workflow limiter" do
     max_concurrency = 2
