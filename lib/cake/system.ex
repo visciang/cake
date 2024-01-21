@@ -8,9 +8,13 @@ defmodule Cake.System do
       IO.puts(:stderr, "\n#{message}")
     end
 
-    case exit_status do
-      :ok -> System.halt(0)
-      :error -> System.halt(1)
+    if Application.get_env(:cake, :env) == :test do
+      exit_status
+    else
+      case exit_status do
+        :ok -> System.halt(0)
+        :error -> System.halt(1)
+      end
     end
   end
 end

@@ -17,6 +17,7 @@ defmodule Cake.MixProject do
       test_coverage: [
         tool: ExCoveralls
       ],
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       escript: [
         main_module: Cake,
@@ -30,6 +31,9 @@ defmodule Cake.MixProject do
       extra_applications: [:logger]
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp deps do
     [
