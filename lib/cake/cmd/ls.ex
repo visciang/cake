@@ -1,19 +1,17 @@
 defimpl Cake.Cmd, for: Cake.Cli.Ls do
-  alias Cake.Cli.Ls
   alias Cake.{Dag, Dir, Type}
+  alias Cake.Cli.Ls
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Container.Arg
   alias Cake.Parser.Directive.{DevShell, Output}
-  alias Cake.Parser.Target
-
-  @typep target_args :: %{Type.tgid() => [Arg.t()]}
-  @typep target_outputs :: %{Type.tgid() => [Output.t()]}
+  alias Cake.Parser.{Alias, Target}
 
   @spec exec(Ls.t(), Cakefile.t(), Dag.graph()) :: :ok
-  def exec(%Ls{}, %Cakefile{} = cakefile, graph) do
+  def exec(%Ls{}, %Cakefile{} = cakefile, _graph) do
     Dir.setup_cake_dirs()
 
     global_args = cakefile.args
+    targets = cakefile.targets |> Enum.sort_by(& &1.tgid)
     target_args = target_args(cakefile)
     target_outputs = target_outputs(cakefile)
     devshell_targets = devshell_targets(cakefile)
@@ -25,9 +23,17 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
           do: IO.ANSI.format_fragment(["  ", fmt_arg(arg), "\n"]) |> IO.write()
     end
 
+    IO.puts("\nAliases:")
+
+    for %Alias{tgid: tgid, tgids: tgids} <- targets do
+      alias_ = ["  ", :green, tgid, ": ", :faint, Enum.join(tgids, " "), "\n", :reset]
+
+      IO.ANSI.format(alias_) |> IO.write()
+    end
+
     IO.puts("\nTargets:")
 
-    for tgid <- Dag.tgids(graph) |> Enum.sort() do
+    for %Target{tgid: tgid} <- targets do
       target = ["  ", :green, tgid, ":", :reset, "\n"]
       devshell? = MapSet.member?(devshell_targets, tgid)
       devshell = if devshell?, do: [:blue, "    @devshell\n", :reset], else: ""
@@ -46,14 +52,14 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
     :ok
   end
 
-  @spec target_args(Cakefile.t()) :: target_args()
+  @spec target_args(Cakefile.t()) :: %{Type.tgid() => [Arg.t()]}
   defp target_args(%Cakefile{} = cakefile) do
     for %Target{} = target <- cakefile.targets, into: %{} do
       {target.tgid, for(%Arg{} = arg <- target.commands, do: arg)}
     end
   end
 
-  @spec target_outputs(Cakefile.t()) :: target_outputs()
+  @spec target_outputs(Cakefile.t()) :: %{Type.tgid() => [Output.t()]}
   defp target_outputs(%Cakefile{} = cakefile) do
     for %Target{} = target <- cakefile.targets, into: %{} do
       {target.tgid, for(%Output{} = output <- target.directives, do: output.path)}

@@ -49,6 +49,8 @@ defmodule Test.Cake.Cmd.Ls do
     Global arguments:
       global_arg_1="default"
 
+    Aliases:
+
     Targets:
       target_1:
         @output output

@@ -1,6 +1,15 @@
 defmodule Cake.Cli do
   alias Cake.{Cmd, Dir, Type}
 
+  defmodule DevShell do
+    @enforce_keys [:tgid]
+    defstruct @enforce_keys
+
+    @type t :: %__MODULE__{
+            tgid: nil | Type.tgid()
+          }
+  end
+
   defmodule Ls do
     defstruct []
 
@@ -49,12 +58,16 @@ defmodule Cake.Cli do
   @version Mix.Project.config()[:version]
 
   @spec parse([String.t()]) :: result()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def parse(args) do
     optimus = optimus()
 
     case Optimus.parse(optimus, args) do
       {:ok, _cli} ->
         {:ignore, Optimus.help(optimus)}
+
+      {:ok, [:devshell], cli} ->
+        {:ok, %DevShell{tgid: cli.args.target}}
 
       {:ok, [:ls], _cli} ->
         {:ok, %Ls{}}
@@ -87,6 +100,21 @@ defmodule Cake.Cli do
       description: "cake (Container-mAKE pipeline)",
       version: @version,
       subcommands: [
+        devshell: [
+          name: "devshell",
+          about: "Development shell",
+          args: [
+            target: [
+              value_name: "TARGET",
+              help: "The devshell target - can be used if multiple devshell targets are available.",
+              required: false
+            ]
+          ]
+        ],
+        ls: [
+          name: "ls",
+          about: "List targets"
+        ],
         run: [
           name: "run",
           about: "Run the pipeline",
@@ -145,10 +173,6 @@ defmodule Cake.Cli do
               help: "Pipeline max parallelism"
             ]
           ]
-        ],
-        ls: [
-          name: "ls",
-          about: "List targets"
         ]
       ]
     )

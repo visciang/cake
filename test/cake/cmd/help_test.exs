@@ -21,8 +21,9 @@ defmodule Test.Cake.Cmd.Help do
 
     SUBCOMMANDS:
 
-        run        Run the pipeline
-        ls         List targets
+        devshell        Development shell
+        ls              List targets
+        run             Run the pipeline
 
     """
 
