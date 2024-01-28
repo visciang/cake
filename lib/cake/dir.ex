@@ -34,10 +34,9 @@ defmodule Cake.Dir do
     :ok
   end
 
+  # Ref: https://hexdocs.pm/elixir/Port.html#module-zombie-operating-system-processes
   @cmd_wrapper """
   #!/usr/bin/env bash
-
-  # Ref: https://hexdocs.pm/elixir/Port.html#module-zombie-operating-system-processes
 
   # Start the program in the background
   exec "$@" &
