@@ -417,7 +417,7 @@ The output includes details about:
 $ cake ls
 
 Global arguments:
-  ELIXIR_VERSION="1.16.0"
+  ELIXIR_VERSION="1.16.1"
   ELIXIR_ERLANG_VERSION="26.2.1"
   ELIXIR_ALPINE_VERSION="3.18.4"
   WORKDIR="/code"

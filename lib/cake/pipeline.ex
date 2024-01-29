@@ -113,10 +113,23 @@ defmodule Cake.Pipeline do
     containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
     write_containerfile(cakefile.args, target, containerfile_path)
 
-    push? = push_target?(target)
-    args = container_build_cmd_args(run, containerfile_path, tgid, push?, pipeline_uuid, container_build_ctx_dir)
+    tags = if tgid == run.tgid and run.tag, do: [run.tag], else: []
+    tags = [Container.fq_image(tgid, pipeline_uuid) | tags]
+    build_args = run.args
+    no_cache = run.push and push_target?(target)
+    secrets = run.secrets
 
-    Container.build(run, tgid, args, pipeline_uuid)
+    Container.build(
+      run.ns,
+      tgid,
+      tags,
+      build_args,
+      containerfile_path,
+      no_cache,
+      secrets,
+      container_build_ctx_dir,
+      pipeline_uuid
+    )
 
     if run.shell and tgid == run.tgid do
       devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
@@ -128,7 +141,7 @@ defmodule Cake.Pipeline do
 
     if run.output do
       output_paths = for %Output{path: path} <- target.directives, do: path
-      Container.output(run, tgid, pipeline_uuid, output_paths)
+      Container.output(run.ns, tgid, pipeline_uuid, output_paths, run.output_dir)
     end
 
     :ok
@@ -200,21 +213,6 @@ defmodule Cake.Pipeline do
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
-  end
-
-  @spec container_build_cmd_args(Run.t(), Path.t(), Type.tgid(), boolean(), Type.pipeline_uuid(), Path.t()) ::
-          [String.t()]
-  defp container_build_cmd_args(%Run{} = run, containerfile_path, tgid, push_target?, pipeline_uuid, build_ctx) do
-    Enum.concat([
-      ["--progress", "plain"],
-      ["--file", containerfile_path],
-      if(run.push and push_target?, do: ["--no-cache"], else: []),
-      ["--tag", Container.fq_image(tgid, pipeline_uuid)],
-      if(tgid == run.tgid and run.tag, do: ["--tag", run.tag], else: []),
-      Enum.flat_map(run.args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
-      Enum.flat_map(run.secrets, fn secret -> ["--secret", secret] end),
-      [build_ctx]
-    ])
   end
 
   @spec push_target?(Cakefile.target()) :: boolean()
