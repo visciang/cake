@@ -92,7 +92,7 @@ defmodule Cake.Dag do
   defp add_edge(graph, upstream_tgid, downstream_tgid) do
     case :digraph.add_edge(graph, upstream_tgid, downstream_tgid) do
       {:error, {:bad_edge, path}} ->
-        cycle_path = Enum.map_join(path, " -> ", & &1.id)
+        cycle_path = Enum.map_join(path, " -> ", & &1)
 
         raise Error, "Targets cycle detected: #{cycle_path}"
 

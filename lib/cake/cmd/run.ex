@@ -15,10 +15,14 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
 
     tgids = Dag.tgids(graph)
 
+    # coveralls-ignore-start
+
     unless run.tgid in tgids do
       maybe_tgid = did_you_mean(run.tgid, tgids)
       Cake.System.halt(:error, "Did you mean '#{maybe_tgid}'?'")
     end
+
+    # coveralls-ignore-stop
 
     {:ok, limiter} = Limiter.start_link(run.parallelism)
 
@@ -39,10 +43,14 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
     res
   end
 
+  # coveralls-ignore-start
+
   @spec did_you_mean(Type.tgid(), [Type.tgid()]) :: Type.tgid() | nil
   defp did_you_mean(requested_tgid, available_tgids) do
     available_tgids
     |> Enum.sort_by(&String.jaro_distance(requested_tgid, &1), :desc)
     |> List.first()
   end
+
+  # coveralls-ignore-stop
 end

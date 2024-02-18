@@ -5,6 +5,7 @@ defmodule Test.Cake.Cmd.Run do
 
   import ExUnit.CaptureIO
   import Mox
+  require Test.Support
 
   @moduletag :tmp_dir
   setup {Test.Support, :setup_cake_run}
@@ -27,25 +28,39 @@ defmodule Test.Cake.Cmd.Run do
 
   setup :verify_on_exit!
 
+  defmacrop expect_container_build(target, n \\ 1, fun \\ nil) do
+    quote do
+      fun =
+        if unquote(fun) do
+          unquote(fun)
+        else
+          fn _target -> :ok end
+        end
+
+      expect(Test.ContainerManagerMock, :build, unquote(n), fn
+        [],
+        unquote(target) = target,
+        _tags,
+        _build_args,
+        _containerfile_path,
+        _no_cache,
+        _secrets,
+        _build_ctx,
+        _pipeline_uuid ->
+          fun.(target)
+      end)
+    end
+  end
+
   test "empty Cakefile" do
     Test.Support.write_cakefile("""
     target:
         FROM scratch
     """)
 
-    expect(Test.ContainerManagerMock, :build, fn [],
-                                                 "target",
-                                                 _tags,
-                                                 _build_args,
-                                                 _containerfile_path,
-                                                 _no_cache,
-                                                 _secrets,
-                                                 _build_ctx,
-                                                 _pipeline_uuid ->
-      :ok
-    end)
+    expect_container_build("target")
 
-    {result, _stdio} =
+    {result, _output} =
       with_io(fn ->
         Cake.main(["run", "target"])
       end)
@@ -59,19 +74,11 @@ defmodule Test.Cake.Cmd.Run do
         FROM scratch
     """)
 
-    expect(Test.ContainerManagerMock, :build, fn [],
-                                                 "target",
-                                                 _tags,
-                                                 _build_args,
-                                                 _containerfile_path,
-                                                 _no_cache,
-                                                 _secrets,
-                                                 _build_ctx,
-                                                 _pipeline_uuid ->
+    expect_container_build("target", 1, fn _target ->
       Process.sleep(:infinity)
     end)
 
-    {{result, _stdio}, stderr} =
+    {{result, _output}, stderr} =
       with_io(:stderr, fn ->
         {_result, _stdio} =
           with_io(fn ->
@@ -81,5 +88,181 @@ defmodule Test.Cake.Cmd.Run do
 
     assert result == :error
     assert stderr =~ "timeout"
+  end
+
+  test "crash" do
+    Test.Support.write_cakefile("""
+    target:
+        FROM scratch
+    """)
+
+    expect_container_build("target", 1, fn _target ->
+      raise "CRASH"
+    end)
+
+    {{result, _stdio}, stderr} =
+      with_io(:stderr, fn ->
+        {_result, _stdio} =
+          with_io(fn ->
+            Cake.main(["run", "target"])
+          end)
+      end)
+
+    assert result == :error
+    assert stderr =~ "job_skipped"
+  end
+
+  describe "run --progress" do
+    test "plain" do
+      Test.Support.write_cakefile("""
+      target:
+          FROM scratch
+      """)
+
+      expect_container_build("target")
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "--progress", "plain", "target"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "interactive" do
+      Test.Support.write_cakefile("""
+      target:
+          FROM scratch
+      """)
+
+      expect_container_build("target")
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "--progress", "interactive", "target"])
+        end)
+
+      assert result == :ok
+    end
+  end
+
+  describe "targets dependencies" do
+    test "cycle" do
+      Test.Support.write_cakefile("""
+      target_1:
+          FROM +target_2
+
+      target_2:
+          FROM +target_3
+
+      target_3:
+          FROM +target_1
+      """)
+
+      {result, output} =
+        with_io(:stderr, fn ->
+          Cake.main(["run", "target_1"])
+        end)
+
+      assert result == :error
+
+      expected_output = """
+      Targets graph dependency error:
+      "Targets cycle detected: target_3 -> target_2 -> target_1"
+      """
+
+      Test.Support.assert_output(output, expected_output)
+    end
+
+    test "unknown target" do
+      Test.Support.write_cakefile("""
+      target_1:
+          FROM +target_unknown
+      """)
+
+      {result, output} =
+        with_io(:stderr, fn ->
+          Cake.main(["run", "target_1"])
+        end)
+
+      assert result == :error
+
+      expected_output = """
+      Targets graph dependency error:
+      "Unknown target: target_unknown"
+      """
+
+      Test.Support.assert_output(output, expected_output)
+    end
+
+    test "FROM +target" do
+      Test.Support.write_cakefile("""
+      target_1:
+          FROM scratch
+
+      target_2:
+          FROM +target_1
+      """)
+
+      expect_container_build("target_1")
+      expect_container_build("target_2")
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target_2"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "COPY --from=+target" do
+      Test.Support.write_cakefile("""
+      target_1:
+          FROM scratch
+          RUN touch /file.txt
+
+      target_2:
+          FROM scratch
+          COPY --from=+target_1 /file.txt /file.txt
+      """)
+
+      expect_container_build("target_1")
+      expect_container_build("target_2")
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target_2"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "alias target" do
+      test_pid = self()
+
+      Test.Support.write_cakefile("""
+      target_1:
+          FROM scratch
+
+      target_2:
+          FROM scratch
+
+      all: target_1 target_2
+      """)
+
+      expect_container_build(_, 2, fn target ->
+        send(test_pid, {:container_build, target})
+        :ok
+      end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "all"])
+        end)
+
+      assert result == :ok
+      assert_received {:container_build, "target_1"}
+      assert_received {:container_build, "target_2"}
+    end
   end
 end
