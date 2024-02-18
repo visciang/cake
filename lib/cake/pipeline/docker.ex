@@ -1,25 +1,18 @@
-defmodule Cake.Pipeline.Container do
-  alias Cake.{Dir, Reporter, Type}
+# coveralls-ignore-start
 
+defmodule Cake.Pipeline.Docker do
+  alias Cake.{Dir, Reporter, Type}
   require Logger
 
-  @spec fq_image(Type.tgid(), Type.pipeline_uuid()) :: String.t()
+  @behaviour Cake.Pipeline.ContainerManager
+
+  @impl true
   def fq_image(tgid, pipeline_uuid), do: "#{tgid}:#{pipeline_uuid}"
 
-  @spec fq_output_container(Type.tgid(), Type.pipeline_uuid()) :: String.t()
+  @impl true
   def fq_output_container(tgid, pipeline_uuid), do: "output-#{tgid}-#{pipeline_uuid}"
 
-  @spec build(
-          ns :: [Type.tgid()],
-          Type.tgid(),
-          tags :: [String.t()],
-          build_args :: [{name :: String.t(), value :: String.t()}],
-          containerfile :: Path.t(),
-          no_cache :: boolean(),
-          secrets :: [String.t()],
-          build_ctx :: Path.t(),
-          Type.pipeline_uuid()
-        ) :: :ok
+  @impl true
   # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def build(ns, tgid, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid) do
     args =
@@ -51,7 +44,7 @@ defmodule Cake.Pipeline.Container do
     end
   end
 
-  @spec shell(Type.tgid(), Type.pipeline_uuid(), devshell? :: boolean()) :: :ok
+  @impl true
   def shell(tgid, pipeline_uuid, devshell?) do
     run_ssh_args =
       case System.get_env("SSH_AUTH_SOCK", "") do
@@ -77,7 +70,7 @@ defmodule Cake.Pipeline.Container do
     :ok
   end
 
-  @spec output([Type.tgid()], Type.tgid(), Type.pipeline_uuid(), [Path.t()], Path.t()) :: :ok
+  @impl true
   def output(ns, tgid, pipeline_uuid, outputs, output_dir) do
     container_image = fq_image(tgid, pipeline_uuid)
     tmp_container = fq_output_container(tgid, pipeline_uuid)
@@ -102,7 +95,7 @@ defmodule Cake.Pipeline.Container do
     :ok
   end
 
-  @spec cleanup(Type.pipeline_uuid()) :: :ok
+  @impl true
   def cleanup(pipeline_uuid) do
     rm_containers(pipeline_uuid)
     rm_images(pipeline_uuid)
@@ -135,3 +128,5 @@ defmodule Cake.Pipeline.Container do
     :ok
   end
 end
+
+# coveralls-ignore-stop

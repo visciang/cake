@@ -72,8 +72,12 @@ defmodule Cake.Dir do
     :ok
   end
 
+  # coveralls-ignore-start
+
   @spec cmd_wrapper_path :: Path.t()
   def cmd_wrapper_path do
     :persistent_term.get(:cake_cmd_wrapper_path)
   end
+
+  # coveralls-ignore-stop
 end

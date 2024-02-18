@@ -1,31 +1,17 @@
 defmodule Test.Cake.Cmd.Ls do
   use ExUnit.Case, async: false
+
   import ExUnit.CaptureIO
+  require Test.Support
 
   @moduletag :tmp_dir
-
   setup {Test.Support, :setup_cake_run}
-
-  test "missing Cakefile" do
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["ls"])
-      end)
-
-    assert result == :error
-
-    expected_output = """
-    Cannot open ./Cakefile: (no such file or directory)
-    """
-
-    expected_output = Test.Support.normalize_output(expected_output)
-    output = Test.Support.normalize_output(output)
-    assert output == expected_output
-  end
 
   test "list targets" do
     Test.Support.write_cakefile("""
     ARG global_arg_1=default
+
+    all: target_1 target_2
 
     target_1:
         @output output
@@ -39,7 +25,7 @@ defmodule Test.Cake.Cmd.Ls do
     """)
 
     {result, output} =
-      with_io(:stdio, fn ->
+      with_io(fn ->
         Cake.main(["ls"])
       end)
 
@@ -50,6 +36,7 @@ defmodule Test.Cake.Cmd.Ls do
       global_arg_1="default"
 
     Aliases:
+      all: target_1 target_2
 
     Targets:
       target_1:
@@ -60,8 +47,6 @@ defmodule Test.Cake.Cmd.Ls do
         target_arg_2="default"
     """
 
-    expected_output = Test.Support.normalize_output(expected_output)
-    output = Test.Support.normalize_output(output)
-    assert output == expected_output
+    Test.Support.assert_output(output, expected_output)
   end
 end

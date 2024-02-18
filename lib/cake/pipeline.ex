@@ -7,11 +7,13 @@ defmodule Cake.Pipeline do
   alias Cake.Parser.Container.{Arg, Command, Fmt, From}
   alias Cake.Parser.{Alias, Cakefile, Target}
   alias Cake.Parser.Directive.{DevShell, Import, Output, Push}
-  alias Cake.Pipeline.Container
   alias Cake.{Dag, Dir, Reference, Reporter, Type}
 
   require Cake.Reporter.Status
   require Logger
+
+  @spec container :: module()
+  defp container, do: Application.get_env(:cake, :container_manager, Cake.Pipeline.Docker)
 
   @spec build(Run.t(), Cakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Cakefile{} = cakefile, graph) do
@@ -114,12 +116,12 @@ defmodule Cake.Pipeline do
     write_containerfile(cakefile.args, target, containerfile_path)
 
     tags = if tgid == run.tgid and run.tag, do: [run.tag], else: []
-    tags = [Container.fq_image(tgid, pipeline_uuid) | tags]
+    tags = [container().fq_image(tgid, pipeline_uuid) | tags]
     build_args = run.args
     no_cache = run.push and push_target?(target)
     secrets = run.secrets
 
-    Container.build(
+    container().build(
       run.ns,
       tgid,
       tags,
@@ -135,13 +137,13 @@ defmodule Cake.Pipeline do
       devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
 
       Reporter.job_shell_start(run.ns, run.tgid)
-      Container.shell(tgid, pipeline_uuid, devshell?)
+      container().shell(tgid, pipeline_uuid, devshell?)
       Reporter.job_shell_end(run.ns, run.tgid)
     end
 
     if run.output do
       output_paths = for %Output{path: path} <- target.directives, do: path
-      Container.output(run.ns, tgid, pipeline_uuid, output_paths, run.output_dir)
+      container().output(run.ns, tgid, pipeline_uuid, output_paths, run.output_dir)
     end
 
     :ok
@@ -192,7 +194,7 @@ defmodule Cake.Pipeline do
       push: import_.push and run.push,
       output: import_.output and run.output,
       output_dir: import_.as,
-      tag: Container.fq_image(import_.as, pipeline_uuid),
+      tag: container().fq_image(import_.as, pipeline_uuid),
       timeout: :infinity,
       parallelism: run.parallelism,
       progress: run.progress,
@@ -209,7 +211,7 @@ defmodule Cake.Pipeline do
     end
 
     job_on_exit_fn = fn _, _, _ ->
-      Container.cleanup(pipeline_uuid)
+      container().cleanup(pipeline_uuid)
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
@@ -262,7 +264,7 @@ defmodule Cake.Pipeline do
 
   @spec fq_targets_image_ref(Type.pipeline_uuid(), Cakefile.t()) :: Cakefile.t()
   defp fq_targets_image_ref(pipeline_uuid, %Cakefile{} = cakefile) do
-    update_fn = fn "+" <> tgid -> Container.fq_image(tgid, pipeline_uuid) end
+    update_fn = fn "+" <> tgid -> container().fq_image(tgid, pipeline_uuid) end
 
     cakefile =
       update_in(

@@ -42,7 +42,8 @@ defmodule Cake.MixProject do
       {:excoveralls, "~> 0.12", only: [:test]},
       {:ex_doc, "~> 0.16", only: [:dev], runtime: false},
       {:credo, "~> 1.0", only: [:dev], runtime: false},
-      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 end

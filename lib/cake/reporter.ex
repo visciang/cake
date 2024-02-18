@@ -286,6 +286,7 @@ defmodule Cake.Reporter do
         Status.ok() -> :ok
         Status.error(_, _) -> :error
         Status.timeout() -> :timeout
+        {:running, _} -> :running
       end)
 
     freq_by_status = Map.merge(%{ok: 0, error: 0, timeout: 0}, freq_by_status)

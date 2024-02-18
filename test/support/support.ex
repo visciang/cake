@@ -14,6 +14,14 @@ defmodule Test.Support do
     end)
   end
 
+  defmacro assert_output(output, expected_output) do
+    quote do
+      expected_output = Test.Support.normalize_output(unquote(expected_output))
+      output = Test.Support.normalize_output(unquote(output))
+      assert output == expected_output
+    end
+  end
+
   def normalize_output(output) do
     output
     |> String.split("\n")

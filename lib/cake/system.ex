@@ -11,10 +11,14 @@ defmodule Cake.System do
     if Application.get_env(:cake, :env) == :test do
       exit_status
     else
+      # coveralls-ignore-start
+
       case exit_status do
         :ok -> System.halt(0)
         :error -> System.halt(1)
       end
+
+      # coveralls-ignore-stop
     end
   end
 end

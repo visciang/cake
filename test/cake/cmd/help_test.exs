@@ -1,6 +1,8 @@
 defmodule Test.Cake.Cmd.Help do
   use ExUnit.Case, async: false
+
   import ExUnit.CaptureIO
+  require Test.Support
 
   test "no args" do
     {result, output} =
@@ -27,8 +29,6 @@ defmodule Test.Cake.Cmd.Help do
 
     """
 
-    expected_output = Test.Support.normalize_output(expected_output)
-    output = Test.Support.normalize_output(output)
-    assert output == expected_output
+    Test.Support.assert_output(output, expected_output)
   end
 end
