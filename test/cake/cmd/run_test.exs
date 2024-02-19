@@ -265,4 +265,29 @@ defmodule Test.Cake.Cmd.Run do
       assert_received {:container_build, "target_2"}
     end
   end
+
+  test "--output" do
+    Test.Support.write_cakefile("""
+    target:
+        @output /output_1
+        @output /output_2
+        FROM scratch
+        RUN touch /output_1/file_1.txt
+        RUN touch /output_2/file_2.txt
+    """)
+
+    expect_container_build("target")
+
+    expect(Test.ContainerManagerMock, :output, fn
+      [], "target", _pipeline_uuid, ["/output_1", "/output_2"], _output_dir ->
+        :ok
+    end)
+
+    {result, _output} =
+      with_io(fn ->
+        Cake.main(["run", "--output", "target"])
+      end)
+
+    assert result == :ok
+  end
 end

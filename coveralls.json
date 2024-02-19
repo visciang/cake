@@ -1,6 +1,6 @@
 {
     "coverage_options": {
-        "minimum_coverage": 71,
+        "minimum_coverage": 72,
         "treat_no_relevant_lines_as_covered": true,
         "html_filter_full_covered": true
     }
