@@ -1,3 +1,5 @@
+# coveralls-ignore-start
+
 defimpl Cake.Cmd, for: Cake.Cli.DevShell do
   alias Cake.{Cmd, Dag, Type}
   alias Cake.Cli.{DevShell, Run}
@@ -69,3 +71,5 @@ defimpl Cake.Cmd, for: Cake.Cli.DevShell do
     end
   end
 end
+
+# coveralls-ignore-stop

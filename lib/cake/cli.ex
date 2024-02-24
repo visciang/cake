@@ -66,8 +66,12 @@ defmodule Cake.Cli do
       {:ok, _cli} ->
         {:ignore, Optimus.help(optimus)}
 
+      # coveralls-ignore-start
+
       {:ok, [:devshell], cli} ->
         {:ok, %DevShell{tgid: cli.args.target}}
+
+      # coveralls-ignore-stop
 
       {:ok, [:ls], _cli} ->
         {:ok, %Ls{}}

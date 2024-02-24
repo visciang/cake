@@ -112,6 +112,46 @@ defmodule Test.Cake.Cmd.Run do
     assert stderr =~ "job_skipped"
   end
 
+  describe "run target with ARGS" do
+    test "ok" do
+      Test.Support.write_cakefile("""
+      ARG global_arg1
+      ARG global_arg2=default
+
+      target:
+          FROM scratch
+          ARG target_arg1
+          ARG target_arg2=default
+      """)
+
+      expect_container_build("target")
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target", "global_arg1=g1", "target_arg1=t1"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "bad_format" do
+      Test.Support.write_cakefile("""
+
+      target:
+          FROM scratch
+          ARG target_arg
+      """)
+
+      {result, stderr} =
+        with_io(:stderr, fn ->
+          Cake.main(["run", "target", "arg_bad_format"])
+        end)
+
+      assert result == :error
+      assert stderr =~ "bad target argument: arg_bad_format"
+    end
+  end
+
   describe "run --progress" do
     test "plain" do
       Test.Support.write_cakefile("""
