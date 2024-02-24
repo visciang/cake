@@ -1,6 +1,6 @@
 ARG ELIXIR_VERSION=1.16.1
-ARG ELIXIR_ERLANG_VERSION=26.2.1
-ARG ELIXIR_ALPINE_VERSION=3.18.4
+ARG ELIXIR_ERLANG_VERSION=26.2.2
+ARG ELIXIR_ALPINE_VERSION=3.19.1
 
 FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} as build
 # ERL_FLAGS="+JPperf true" is a workaround to "fix" the problem of docker cross-platform builds via QEMU.
