@@ -1,5 +1,7 @@
 # Cake
 
+[![.github/workflows/ci.yml](https://github.com/visciang/cake/actions/workflows/ci.yml/badge.svg)](https://github.com/visciang/cake/actions/workflows/ci.yml)
+
 > [!WARNING]  
 > This is a POC, for personal use. It works on my machine!
 
