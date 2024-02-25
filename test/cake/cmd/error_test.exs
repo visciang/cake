@@ -1,25 +1,47 @@
 defmodule Test.Cake.Cmd.Error do
   use ExUnit.Case, async: false
 
-  import ExUnit.CaptureIO
+  import Mox
   require Test.Support
 
   @moduletag :tmp_dir
   setup {Test.Support, :setup_cake_run}
 
-  test "Cakefile no such file" do
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["ls"])
-      end)
+  test "bad command" do
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg == ["unrecognized arguments: \"bad_command\""]
+      :error
+    end)
 
+    result = Cake.main(["bad_command"])
     assert result == :error
+  end
 
-    expected_output = """
-    Cannot open ./Cakefile: (no such file or directory)
-    """
+  test "bad sub command" do
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
 
-    Test.Support.assert_output(output, expected_output)
+      assert msg == [
+               "invalid value \"bad\" for --progress option: supported progress value are [\"plain\", \"interactive\"]"
+             ]
+
+      :error
+    end)
+
+    result = Cake.main(["run", "--progress=bad"])
+    assert result == :error
+  end
+
+  test "Cakefile no such file" do
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg == "Cannot open ./Cakefile: (no such file or directory)"
+      :error
+    end)
+
+    result = Cake.main(["ls"])
+    assert result == :error
   end
 
   test "Cakefile syntax error" do
@@ -27,20 +49,13 @@ defmodule Test.Cake.Cmd.Error do
     bad_syntax
     """)
 
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["ls"])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg == "Cakefile syntax error at ./Cakefile:1:0\n\nbad_syntax\n^"
+      :error
+    end)
 
+    result = Cake.main(["ls"])
     assert result == :error
-
-    expected_output = """
-    Cakefile syntax error at ./Cakefile:1:0
-
-    bad_syntax
-    ^
-    """
-
-    Test.Support.assert_output(output, expected_output)
   end
 end

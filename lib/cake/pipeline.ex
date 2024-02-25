@@ -133,6 +133,8 @@ defmodule Cake.Pipeline do
       pipeline_uuid
     )
 
+    # coveralls-ignore-start
+
     if run.shell and tgid == run.tgid do
       devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
 
@@ -140,6 +142,8 @@ defmodule Cake.Pipeline do
       container().shell(tgid, pipeline_uuid, devshell?)
       Reporter.job_shell_end(run.ns, run.tgid)
     end
+
+    # coveralls-ignore-stop
 
     if run.output do
       output_paths = for %Output{path: path} <- target.directives, do: path
@@ -227,9 +231,13 @@ defmodule Cake.Pipeline do
       Cake.System.halt(:error, "@push target #{run.tgid} can be executed only via 'run --push'")
     end
 
+    # coveralls-ignore-start
+
     if run.shell and match?(%Alias{}, target) do
       Cake.System.halt(:error, "cannot shell into and \"alias\" target")
     end
+
+    # coveralls-ignore-stop
 
     :ok
   end

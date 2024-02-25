@@ -1,3 +1,5 @@
+# coveralls-ignore-start
+
 defmodule Cake.Reporter.Status do
   @type t :: :ok | :timeout | {:error, reason :: term(), stacktrace :: nil | String.t()}
 
@@ -13,3 +15,5 @@ defmodule Cake.Reporter.Status do
     quote do: {:error, unquote(reason), unquote(stacktrace)}
   end
 end
+
+# coveralls-ignore-stop

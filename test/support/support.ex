@@ -14,25 +14,9 @@ defmodule Test.Support do
     end)
   end
 
-  defmacro assert_output(output, expected_output) do
-    quote do
-      expected_output = Test.Support.normalize_output(unquote(expected_output))
-      output = Test.Support.normalize_output(unquote(output))
-      assert output == expected_output
-    end
-  end
-
-  def normalize_output(output) do
-    output
-    |> String.split("\n")
-    |> Enum.map(&String.trim/1)
-    |> case do
-      ["" | rest] -> rest
-      res -> res
-    end
-  end
-
-  def write_cakefile(content) do
-    File.write!("Cakefile", content)
+  def write_cakefile(dir \\ ".", content) do
+    File.mkdir_p!(dir)
+    cakekfile_path = Path.join(dir, "Cakefile")
+    File.write!(cakekfile_path, content)
   end
 end

@@ -1,6 +1,7 @@
 defmodule Test.Cake.Validator do
   use ExUnit.Case, async: false
-  import ExUnit.CaptureIO
+
+  import Mox
 
   @moduletag :tmp_dir
 
@@ -20,21 +21,15 @@ defmodule Test.Cake.Validator do
         COPY --from=alias_target xxx
     """)
 
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["ls"])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg =~ "Validation error:"
+      assert msg =~ "alias targets [\\\"alias_target\\\"] cannot be referenced in FROM/COPY instructions"
+      :error
+    end)
 
-    expected_output = """
-    Validation error:
-    "alias targets [\\"alias_target\\"] cannot be referenced in FROM/COPY instructions"
-    """
-
-    expected_output = Test.Support.normalize_output(expected_output)
-    output = Test.Support.normalize_output(output)
-
+    result = Cake.main(["ls"])
     assert result == :error
-    assert output == expected_output
   end
 
   test "FROM AS not allowed" do
@@ -43,21 +38,15 @@ defmodule Test.Cake.Validator do
         FROM scratch AS xxx
     """)
 
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["ls"])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg =~ "Validation error:"
+      assert msg =~ "'FROM .. AS ..' form is not allowed, please remove the AS argument under target_1"
+      :error
+    end)
 
-    expected_output = """
-    Validation error:
-    "'FROM .. AS ..' form is not allowed, please remove the AS argument under target_1"
-    """
-
-    expected_output = Test.Support.normalize_output(expected_output)
-    output = Test.Support.normalize_output(output)
-
+    result = Cake.main(["ls"])
     assert result == :error
-    assert output == expected_output
   end
 
   test "target should start with a FROM" do
@@ -66,21 +55,15 @@ defmodule Test.Cake.Validator do
         RUN cmd
     """)
 
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["ls"])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg =~ "Validation error:"
+      assert msg =~ "target doesn't start with a FROM command"
+      :error
+    end)
 
-    expected_output = """
-    Validation error:
-    "target doesn't start with a FROM command"
-    """
-
-    expected_output = Test.Support.normalize_output(expected_output)
-    output = Test.Support.normalize_output(output)
-
+    result = Cake.main(["ls"])
     assert result == :error
-    assert output == expected_output
   end
 
   test "@push target can only be terminal target" do
@@ -93,20 +76,14 @@ defmodule Test.Cake.Validator do
         FROM +target_1
     """)
 
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["ls"])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg =~ "Validation error:"
+      assert msg =~ "push targets [\\\"target_1\\\"] can be only terminal target"
+      :error
+    end)
 
-    expected_output = """
-    Validation error:
-    "push targets [\\"target_1\\"] can be only terminal target"
-    """
-
-    expected_output = Test.Support.normalize_output(expected_output)
-    output = Test.Support.normalize_output(output)
-
+    result = Cake.main(["ls"])
     assert result == :error
-    assert output == expected_output
   end
 end

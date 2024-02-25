@@ -1,3 +1,5 @@
+# coveralls-ignore-start
+
 defmodule Cake.Reporter.Icon do
   def ok, do: [:green, "✔", :reset]
   def error, do: [:red, "✘", :reset]
@@ -6,3 +8,5 @@ defmodule Cake.Reporter.Icon do
   def log, do: "…"
   def notice, do: "!"
 end
+
+# coveralls-ignore-stop

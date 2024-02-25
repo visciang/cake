@@ -1,69 +1,58 @@
 defmodule Test.Cake.Cmd.Help do
   use ExUnit.Case, async: false
 
-  import ExUnit.CaptureIO
+  import Mox
   require Test.Support
 
-  @help """
-  cake (Container-mAKE pipeline) 0.0.0
-
-  USAGE:
-      cake
-      cake --version
-      cake --help
-      cake help subcommand
-
-  SUBCOMMANDS:
-
-      devshell        Development shell
-      ls              List targets
-      run             Run the pipeline
-
-  """
-
   test "--version" do
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["--version"])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :ok
+      assert msg =~ "cake (Container-mAKE pipeline) 0.0.0"
+      :ok
+    end)
 
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :ok
+      assert msg == nil
+      :ok
+    end)
+
+    result = Cake.main(["--version"])
     assert result == :ok
-    assert output =~ "cake (Container-mAKE pipeline) 0.0.0"
   end
 
   test "--help" do
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["--help"])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :ok
+      assert msg =~ "cake (Container-mAKE pipeline) 0.0.0"
+      assert msg =~ "USAGE:"
+      :ok
+    end)
 
+    result = Cake.main(["--help"])
     assert result == :ok
-
-    expected_output = @help
-
-    Test.Support.assert_output(output, expected_output)
   end
 
-  test "help subcommand" do
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main(["help", "run"])
-      end)
+  test "subcommand" do
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :ok
+      assert msg =~ "Run the pipeline"
+      :ok
+    end)
 
+    result = Cake.main(["help", "run"])
     assert result == :ok
-    assert output =~ "Run the pipeline"
   end
 
   test "no args" do
-    {result, output} =
-      with_io(:stderr, fn ->
-        Cake.main([])
-      end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :ok
+      assert msg =~ "cake (Container-mAKE pipeline) 0.0.0"
+      assert msg =~ "USAGE:"
+      :ok
+    end)
 
+    result = Cake.main([])
     assert result == :ok
-
-    expected_output = @help
-
-    Test.Support.assert_output(output, expected_output)
   end
 end

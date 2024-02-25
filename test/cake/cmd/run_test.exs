@@ -23,6 +23,10 @@ defmodule Test.Cake.Cmd.Run do
       :ok
     end)
 
+    stub(Test.SystemBehaviourMock, :halt, fn :ok, _ ->
+      :ok
+    end)
+
     :ok
   end
 
@@ -78,16 +82,18 @@ defmodule Test.Cake.Cmd.Run do
       Process.sleep(:infinity)
     end)
 
-    {{result, _output}, stderr} =
-      with_io(:stderr, fn ->
-        {_result, _stdio} =
-          with_io(fn ->
-            Cake.main(["run", "--timeout", "1", "target"])
-          end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg == "timeout"
+      :error
+    end)
+
+    {result, _stdio} =
+      with_io(fn ->
+        Cake.main(["run", "--timeout", "1", "target"])
       end)
 
     assert result == :error
-    assert stderr =~ "timeout"
   end
 
   test "crash" do
@@ -100,19 +106,58 @@ defmodule Test.Cake.Cmd.Run do
       raise "CRASH"
     end)
 
-    {{result, _stdio}, stderr} =
-      with_io(:stderr, fn ->
-        {_result, _stdio} =
-          with_io(fn ->
-            Cake.main(["run", "target"])
-          end)
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg == :job_skipped
+      :error
+    end)
+
+    {result, _stdio} =
+      with_io(fn ->
+        Cake.main(["run", "target"])
       end)
 
     assert result == :error
-    assert stderr =~ "job_skipped"
   end
 
-  describe "run target with ARGS" do
+  describe "push target" do
+    test "without --push" do
+      Test.Support.write_cakefile("""
+      target:
+          @push
+          FROM scratch
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == "@push target target can be executed only via 'run --push'"
+        raise "HALT"
+      end)
+
+      assert_raise RuntimeError, "HALT", fn ->
+        Cake.main(["run", "target"])
+      end
+    end
+
+    test "basic" do
+      Test.Support.write_cakefile("""
+      target:
+          @push
+          FROM scratch
+      """)
+
+      expect_container_build("target")
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "--push", "target"])
+        end)
+
+      assert result == :ok
+    end
+  end
+
+  describe "target with ARGS" do
     test "ok" do
       Test.Support.write_cakefile("""
       ARG global_arg1
@@ -142,17 +187,18 @@ defmodule Test.Cake.Cmd.Run do
           ARG target_arg
       """)
 
-      {result, stderr} =
-        with_io(:stderr, fn ->
-          Cake.main(["run", "target", "arg_bad_format"])
-        end)
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == "bad target argument: arg_bad_format"
+        :error
+      end)
 
+      result = Cake.main(["run", "target", "arg_bad_format"])
       assert result == :error
-      assert stderr =~ "bad target argument: arg_bad_format"
     end
   end
 
-  describe "run --progress" do
+  describe "--progress" do
     test "plain" do
       Test.Support.write_cakefile("""
       target:
@@ -187,7 +233,7 @@ defmodule Test.Cake.Cmd.Run do
   end
 
   describe "targets dependencies" do
-    test "cycle" do
+    test "with cycle" do
       Test.Support.write_cakefile("""
       target_1:
           FROM +target_2
@@ -199,43 +245,33 @@ defmodule Test.Cake.Cmd.Run do
           FROM +target_1
       """)
 
-      {result, output} =
-        with_io(:stderr, fn ->
-          Cake.main(["run", "target_1"])
-        end)
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg =~ "Targets cycle detected: target_3 -> target_2 -> target_1"
+        :error
+      end)
 
+      result = Cake.main(["run", "target_1"])
       assert result == :error
-
-      expected_output = """
-      Targets graph dependency error:
-      "Targets cycle detected: target_3 -> target_2 -> target_1"
-      """
-
-      Test.Support.assert_output(output, expected_output)
     end
 
-    test "unknown target" do
+    test "with unknown target" do
       Test.Support.write_cakefile("""
       target_1:
           FROM +target_unknown
       """)
 
-      {result, output} =
-        with_io(:stderr, fn ->
-          Cake.main(["run", "target_1"])
-        end)
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg =~ "Unknown target: target_unknown"
+        :error
+      end)
 
+      result = Cake.main(["run", "target_1"])
       assert result == :error
-
-      expected_output = """
-      Targets graph dependency error:
-      "Unknown target: target_unknown"
-      """
-
-      Test.Support.assert_output(output, expected_output)
     end
 
-    test "FROM +target" do
+    test "via FROM +target" do
       Test.Support.write_cakefile("""
       target_1:
           FROM scratch
@@ -255,7 +291,7 @@ defmodule Test.Cake.Cmd.Run do
       assert result == :ok
     end
 
-    test "COPY --from=+target" do
+    test "via COPY --from=+target" do
       Test.Support.write_cakefile("""
       target_1:
           FROM scratch
@@ -277,7 +313,7 @@ defmodule Test.Cake.Cmd.Run do
       assert result == :ok
     end
 
-    test "alias target" do
+    test "with alias target" do
       test_pid = self()
 
       Test.Support.write_cakefile("""
