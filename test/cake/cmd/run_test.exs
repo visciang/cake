@@ -159,7 +159,6 @@ defmodule Test.Cake.Cmd.Run do
 
     test "arguments bad_format" do
       Test.Support.write_cakefile("""
-
       target:
           FROM scratch
           ARG target_arg
@@ -320,29 +319,53 @@ defmodule Test.Cake.Cmd.Run do
     end
   end
 
-  test "--output" do
-    Test.Support.write_cakefile("""
-    target:
-        @output /output_1
-        @output /output_2
-        FROM scratch
-        RUN touch /output_1/file_1.txt
-        RUN touch /output_2/file_2.txt
-    """)
+  describe "--output" do
+    test "multiples" do
+      Test.Support.write_cakefile("""
+      target:
+          @output /output_1
+          @output /output_2
+          FROM scratch
+          RUN touch /output_1/file_1.txt
+          RUN touch /output_2/file_2.txt
+      """)
 
-    expect_container_build(fn %{target: "target"} -> :ok end)
+      expect_container_build(fn %{target: "target"} -> :ok end)
 
-    expect(Test.ContainerManagerMock, :output, fn
-      [], "target", _pipeline_uuid, ["/output_1", "/output_2"], _output_dir ->
-        :ok
-    end)
-
-    {result, _output} =
-      with_io(fn ->
-        Cake.main(["run", "--output", "target"])
+      expect(Test.ContainerManagerMock, :output, fn
+        [], "target", _pipeline_uuid, ["/output_1", "/output_2"], _output_dir ->
+          :ok
       end)
 
-    assert result == :ok
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "--output", "target"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "with variable interpolation" do
+      Test.Support.write_cakefile("""
+      target:
+          @output /$ARG_1/${ARG_2}/output
+          FROM scratch
+      """)
+
+      expect_container_build(fn %{target: "target"} -> :ok end)
+
+      expect(Test.ContainerManagerMock, :output, fn
+        [], "target", _pipeline_uuid, ["/arg_1/arg_2/output"], _output_dir ->
+          :ok
+      end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "--output", "target", "ARG_1=arg_1", "ARG_2=arg_2"])
+        end)
+
+      assert result == :ok
+    end
   end
 
   describe "--secret" do
