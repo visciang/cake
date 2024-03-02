@@ -162,7 +162,8 @@ defmodule Cake.Cli do
               long: "--secret",
               multiple: true,
               parser: &parser_secret_option/1,
-              help: "Secret to expose to the build (ref. to 'docker build --secret')"
+              help:
+                "Secret to expose to the build - ex: '--secret \"id=MY_SECRET,src=./secret\"' (ref. to 'docker build --secret')"
             ],
             timeout: [
               long: "--timeout",

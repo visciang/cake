@@ -169,7 +169,18 @@ defmodule Test.Cake.Cmd.Run do
           ARG target_arg2=default
       """)
 
-      expect_container_build("target")
+      expect(Test.ContainerManagerMock, :build, fn
+        [],
+        "target",
+        _tags,
+        [{"global_arg1", "g1"}, {"target_arg1", "t1"}],
+        _containerfile_path,
+        _no_cache,
+        _secrets,
+        _build_ctx,
+        _pipeline_uuid ->
+          :ok
+      end)
 
       {result, _output} =
         with_io(fn ->
@@ -179,7 +190,7 @@ defmodule Test.Cake.Cmd.Run do
       assert result == :ok
     end
 
-    test "bad_format" do
+    test "arguments bad_format" do
       Test.Support.write_cakefile("""
 
       target:
@@ -362,6 +373,52 @@ defmodule Test.Cake.Cmd.Run do
     {result, _output} =
       with_io(fn ->
         Cake.main(["run", "--output", "target"])
+      end)
+
+    assert result == :ok
+  end
+
+  describe "--secret" do
+    test "bad format" do
+      Test.Support.write_cakefile("""
+      target:
+          FROM scratch
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, [msg] ->
+        assert exit_status == :error
+        assert msg =~ "invalid value \"bad_format\" for --secret option"
+        :error
+      end)
+
+      result = Cake.main(["run", "--secret", "bad_format"])
+      assert result == :error
+    end
+  end
+
+  test "ok" do
+    Test.Support.write_cakefile("""
+    target:
+        FROM scratch
+        RUN --mount=type=secret,id=SECRET cat /run/secrets/SECRET
+    """)
+
+    expect(Test.ContainerManagerMock, :build, fn
+      [],
+      "target",
+      _tags,
+      _build_args,
+      _containerfile_path,
+      _no_cache,
+      ["id=SECRET,src=./secret"],
+      _build_ctx,
+      _pipeline_uuid ->
+        :ok
+    end)
+
+    {result, _output} =
+      with_io(fn ->
+        Cake.main(["run", "--secret", "id=SECRET,src=./secret", "target"])
       end)
 
     assert result == :ok

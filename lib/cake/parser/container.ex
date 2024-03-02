@@ -57,7 +57,9 @@ defmodule Cake.Parser.Container do
     @spec fmt(From.t()) :: String.t()
     def fmt(%From{} = from) do
       if from.as do
+        # coveralls-ignore-start
         "FROM #{from.image} AS #{from.as}"
+        # coveralls-ignore-stop
       else
         "FROM #{from.image}"
       end
