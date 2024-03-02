@@ -75,17 +75,24 @@ defmodule Cake.Pipeline do
         {:job_ok, :ok} ->
           Reporter.job_end(run.ns, tgid, Reporter.Status.ok())
 
-        :job_timeout ->
-          Reporter.job_end(run.ns, tgid, Reporter.Status.timeout())
+        # We do not apply a timeout on single jobs, only a global pipeline timeout:
+        # See Dask.job(_, _, _, :infinity, _) below
+        #
+        # :job_timeout ->
+        #   Reporter.job_end(run.ns, tgid, Reporter.Status.timeout())
+
+        # coveralls-ignore-start
+
+        :job_skipped ->
+          :ok
 
         {:job_error, %Cake.Pipeline.Error{} = err, _stacktrace} ->
           Reporter.job_end(run.ns, tgid, Reporter.Status.error(err.message, nil))
 
+        # coveralls-ignore-stop
+
         {:job_error, reason, stacktrace} ->
           Reporter.job_end(run.ns, tgid, Reporter.Status.error(reason, stacktrace))
-
-        :job_skipped ->
-          :ok
       end
     end
 

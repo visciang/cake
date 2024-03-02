@@ -32,37 +32,13 @@ defmodule Test.Cake.Cmd.Run do
 
   setup :verify_on_exit!
 
-  defmacrop expect_container_build(target, n \\ 1, fun \\ nil) do
-    quote do
-      fun =
-        if unquote(fun) do
-          unquote(fun)
-        else
-          fn _target -> :ok end
-        end
-
-      expect(Test.ContainerManagerMock, :build, unquote(n), fn
-        [],
-        unquote(target) = target,
-        _tags,
-        _build_args,
-        _containerfile_path,
-        _no_cache,
-        _secrets,
-        _build_ctx,
-        _pipeline_uuid ->
-          fun.(target)
-      end)
-    end
-  end
-
   test "empty Cakefile" do
     Test.Support.write_cakefile("""
     target:
         FROM scratch
     """)
 
-    expect_container_build("target")
+    expect_container_build(fn %{target: "target"} -> :ok end)
 
     {result, _output} =
       with_io(fn ->
@@ -78,7 +54,7 @@ defmodule Test.Cake.Cmd.Run do
         FROM scratch
     """)
 
-    expect_container_build("target", 1, fn _target ->
+    expect_container_build(fn %{target: "target"} ->
       Process.sleep(:infinity)
     end)
 
@@ -102,7 +78,7 @@ defmodule Test.Cake.Cmd.Run do
         FROM scratch
     """)
 
-    expect_container_build("target", 1, fn _target ->
+    expect_container_build(fn %{target: "target"} ->
       raise "CRASH"
     end)
 
@@ -146,7 +122,7 @@ defmodule Test.Cake.Cmd.Run do
           FROM scratch
       """)
 
-      expect_container_build("target")
+      expect_container_build(fn %{target: "target"} -> :ok end)
 
       {result, _output} =
         with_io(fn ->
@@ -169,17 +145,8 @@ defmodule Test.Cake.Cmd.Run do
           ARG target_arg2=default
       """)
 
-      expect(Test.ContainerManagerMock, :build, fn
-        [],
-        "target",
-        _tags,
-        [{"global_arg1", "g1"}, {"target_arg1", "t1"}],
-        _containerfile_path,
-        _no_cache,
-        _secrets,
-        _build_ctx,
-        _pipeline_uuid ->
-          :ok
+      expect_container_build(fn %{target: "target", build_args: [{"global_arg1", "g1"}, {"target_arg1", "t1"}]} ->
+        :ok
       end)
 
       {result, _output} =
@@ -216,7 +183,7 @@ defmodule Test.Cake.Cmd.Run do
           FROM scratch
       """)
 
-      expect_container_build("target")
+      expect_container_build(fn %{target: "target"} -> :ok end)
 
       {result, _output} =
         with_io(fn ->
@@ -232,7 +199,7 @@ defmodule Test.Cake.Cmd.Run do
           FROM scratch
       """)
 
-      expect_container_build("target")
+      expect_container_build(fn %{target: "target"} -> :ok end)
 
       {result, _output} =
         with_io(fn ->
@@ -291,8 +258,8 @@ defmodule Test.Cake.Cmd.Run do
           FROM +target_1
       """)
 
-      expect_container_build("target_1")
-      expect_container_build("target_2")
+      expect_container_build(fn %{target: "target_1"} -> :ok end)
+      expect_container_build(fn %{target: "target_2"} -> :ok end)
 
       {result, _output} =
         with_io(fn ->
@@ -313,8 +280,8 @@ defmodule Test.Cake.Cmd.Run do
           COPY --from=+target_1 /file.txt /file.txt
       """)
 
-      expect_container_build("target_1")
-      expect_container_build("target_2")
+      expect_container_build(fn %{target: "target_1"} -> :ok end)
+      expect_container_build(fn %{target: "target_2"} -> :ok end)
 
       {result, _output} =
         with_io(fn ->
@@ -337,7 +304,7 @@ defmodule Test.Cake.Cmd.Run do
       all: target_1 target_2
       """)
 
-      expect_container_build(_, 2, fn target ->
+      expect_container_build(2, fn %{target: target} ->
         send(test_pid, {:container_build, target})
         :ok
       end)
@@ -363,7 +330,7 @@ defmodule Test.Cake.Cmd.Run do
         RUN touch /output_2/file_2.txt
     """)
 
-    expect_container_build("target")
+    expect_container_build(fn %{target: "target"} -> :ok end)
 
     expect(Test.ContainerManagerMock, :output, fn
       [], "target", _pipeline_uuid, ["/output_1", "/output_2"], _output_dir ->
@@ -403,17 +370,8 @@ defmodule Test.Cake.Cmd.Run do
         RUN --mount=type=secret,id=SECRET cat /run/secrets/SECRET
     """)
 
-    expect(Test.ContainerManagerMock, :build, fn
-      [],
-      "target",
-      _tags,
-      _build_args,
-      _containerfile_path,
-      _no_cache,
-      ["id=SECRET,src=./secret"],
-      _build_ctx,
-      _pipeline_uuid ->
-        :ok
+    expect_container_build(fn %{target: "target", secrets: ["id=SECRET,src=./secret"]} ->
+      :ok
     end)
 
     {result, _output} =
@@ -422,5 +380,24 @@ defmodule Test.Cake.Cmd.Run do
       end)
 
     assert result == :ok
+  end
+
+  defp expect_container_build(n \\ 1, fun) do
+    expect(Test.ContainerManagerMock, :build, n, fn
+      ns, target, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid ->
+        args = %{
+          ns: ns,
+          target: target,
+          tags: tags,
+          build_args: build_args,
+          containerfile_path: containerfile_path,
+          no_cache: no_cache,
+          secrets: secrets,
+          build_ctx: build_ctx,
+          pipeline_uuid: pipeline_uuid
+        }
+
+        fun.(args)
+    end)
   end
 end
