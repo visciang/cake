@@ -4,6 +4,9 @@ defmodule Test.Cake.Cmd.Help do
   import Mox
   require Test.Support
 
+  @moduletag :tmp_dir
+  setup {Test.Support, :setup_cake_run}
+
   test "--version" do
     expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
       assert exit_status == :ok

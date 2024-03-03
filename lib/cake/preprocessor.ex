@@ -94,6 +94,7 @@ defmodule Cake.Preprocessor do
       ],
       fn
         %Output{} = output -> %Output{output | path: expand_vars(output.path, args)}
+        %Import{} = import -> %Import{import | ref: expand_vars(import.ref, args)}
         other_directive -> other_directive
       end
     )

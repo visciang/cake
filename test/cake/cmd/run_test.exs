@@ -61,15 +61,14 @@ defmodule Test.Cake.Cmd.Run do
     expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
       assert exit_status == :error
       assert msg == "timeout"
-      :error
+      raise "HALT"
     end)
 
-    {result, _stdio} =
+    assert_raise RuntimeError, "HALT", fn ->
       with_io(fn ->
         Cake.main(["run", "--timeout", "1", "target"])
       end)
-
-    assert result == :error
+    end
   end
 
   test "crash" do
@@ -97,25 +96,7 @@ defmodule Test.Cake.Cmd.Run do
   end
 
   describe "push target" do
-    test "without --push" do
-      Test.Support.write_cakefile("""
-      target:
-          @push
-          FROM scratch
-      """)
-
-      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
-        assert exit_status == :error
-        assert msg == "@push target target can be executed only via 'run --push'"
-        raise "HALT"
-      end)
-
-      assert_raise RuntimeError, "HALT", fn ->
-        Cake.main(["run", "target"])
-      end
-    end
-
-    test "basic" do
+    test "ok" do
       Test.Support.write_cakefile("""
       target:
           @push
@@ -130,6 +111,26 @@ defmodule Test.Cake.Cmd.Run do
         end)
 
       assert result == :ok
+    end
+
+    test "without --push" do
+      Test.Support.write_cakefile("""
+      target:
+          @push
+          FROM scratch
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == "@push target target can be executed only via 'run --push'"
+        raise "HALT"
+      end)
+
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "target"])
+        end)
+      end
     end
   end
 
@@ -167,11 +168,14 @@ defmodule Test.Cake.Cmd.Run do
       expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
         assert exit_status == :error
         assert msg == "bad target argument: arg_bad_format"
-        :error
+        raise "HALT"
       end)
 
-      result = Cake.main(["run", "target", "arg_bad_format"])
-      assert result == :error
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "target", "arg_bad_format"])
+        end)
+      end
     end
   end
 
@@ -225,11 +229,14 @@ defmodule Test.Cake.Cmd.Run do
       expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
         assert exit_status == :error
         assert msg =~ "Targets cycle detected: target_3 -> target_2 -> target_1"
-        :error
+        raise "HALT"
       end)
 
-      result = Cake.main(["run", "target_1"])
-      assert result == :error
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "target_1"])
+        end)
+      end
     end
 
     test "with unknown target" do
@@ -241,11 +248,14 @@ defmodule Test.Cake.Cmd.Run do
       expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
         assert exit_status == :error
         assert msg =~ "Unknown target: target_unknown"
-        :error
+        raise "HALT"
       end)
 
-      result = Cake.main(["run", "target_1"])
-      assert result == :error
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "target_1"])
+        end)
+      end
     end
 
     test "via FROM +target" do
@@ -369,6 +379,25 @@ defmodule Test.Cake.Cmd.Run do
   end
 
   describe "--secret" do
+    test "ok" do
+      Test.Support.write_cakefile("""
+      target:
+          FROM scratch
+          RUN --mount=type=secret,id=SECRET cat /run/secrets/SECRET
+      """)
+
+      expect_container_build(fn %{target: "target", secrets: ["id=SECRET,src=./secret"]} ->
+        :ok
+      end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "--secret", "id=SECRET,src=./secret", "target"])
+        end)
+
+      assert result == :ok
+    end
+
     test "bad format" do
       Test.Support.write_cakefile("""
       target:
@@ -378,31 +407,151 @@ defmodule Test.Cake.Cmd.Run do
       expect(Test.SystemBehaviourMock, :halt, fn exit_status, [msg] ->
         assert exit_status == :error
         assert msg =~ "invalid value \"bad_format\" for --secret option"
-        :error
+        raise "HALT"
       end)
 
-      result = Cake.main(["run", "--secret", "bad_format"])
-      assert result == :error
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "--secret", "bad_format"])
+        end)
+      end
     end
   end
 
-  test "ok" do
-    Test.Support.write_cakefile("""
-    target:
-        FROM scratch
-        RUN --mount=type=secret,id=SECRET cat /run/secrets/SECRET
-    """)
+  describe "include" do
+    test "with included Cakefile error" do
+      Test.Support.write_cakefile("dir", """
+      inc_target:
+          invalid!
+      """)
 
-    expect_container_build(fn %{target: "target", secrets: ["id=SECRET,src=./secret"]} ->
-      :ok
-    end)
+      Test.Support.write_cakefile("""
+      @include ./dir
 
-    {result, _output} =
-      with_io(fn ->
-        Cake.main(["run", "--secret", "id=SECRET,src=./secret", "target"])
+      target:
+          FROM scratch
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg =~ "Cakefile syntax error at dir/Cakefile"
+        raise "HALT"
       end)
 
-    assert result == :ok
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "target"])
+        end)
+      end
+    end
+  end
+
+  describe "import" do
+    test "ok" do
+      Test.Support.write_cakefile("dir", """
+      imp_target:
+          FROM scratch
+      """)
+
+      Test.Support.write_cakefile("""
+      target:
+          @import --as=imported_target dir imp_target
+          FROM imported_target:${CAKE_PIPELINE_UUID}
+      """)
+
+      expect_container_build(fn %{target: "imp_target"} ->
+        :ok
+      end)
+
+      expect_container_build(fn %{target: "target"} ->
+        :ok
+      end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "import target job failure" do
+      Test.Support.write_cakefile("dir", """
+      imp_target:
+          FROM scratch
+      """)
+
+      Test.Support.write_cakefile("""
+      target:
+          @import --as=imported_target dir imp_target
+          FROM imported_target:${CAKE_PIPELINE_UUID}
+      """)
+
+      expect_container_build(fn %{target: "imp_target"} ->
+        raise "CRASH IMPORT"
+      end)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == :job_skipped
+        raise "HALT"
+      end)
+
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "target"])
+        end)
+      end
+    end
+
+    test "timeout" do
+      Test.Support.write_cakefile("dir", """
+      imp_target:
+          FROM scratch
+      """)
+
+      Test.Support.write_cakefile("""
+      target:
+          @import --as=imported_target dir imp_target
+          FROM imported_target:${CAKE_PIPELINE_UUID}
+      """)
+
+      expect_container_build(fn %{target: "imp_target"} ->
+        Process.sleep(:infinity)
+      end)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == "timeout"
+        raise "HALT"
+      end)
+
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "--timeout", "1", "target"])
+        end)
+      end
+    end
+
+    test "import not existing" do
+      Test.Support.write_cakefile("""
+      target:
+          @import --as=imported_target dir imp_target
+          FROM imported_target:${CAKE_PIPELINE_UUID}
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == :job_skipped
+        raise "HALT"
+      end)
+
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "target"])
+        end)
+      end
+    end
   end
 
   defp expect_container_build(n \\ 1, fun) do

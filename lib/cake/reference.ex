@@ -48,8 +48,10 @@ defmodule Cake.Reference do
               copy_include_ctx(cakefile, path)
               {:ok, path}
 
+            # coveralls-ignore-start
             :error ->
               {:error, "#{local_path} path out of the project root directory"}
+              # coveralls-ignore-stop
           end
       end
       |> case do

@@ -1,3 +1,5 @@
+# coveralls-ignore-start
+
 defmodule Cake.Reporter.Interactive.State do
   defstruct jobs: %{}, spinner_frame_idx: 0, render_ref: nil
 
@@ -167,3 +169,5 @@ defmodule Cake.Reporter.Interactive do
   defp job_ns_to_string([]), do: []
   defp job_ns_to_string(job_ns), do: ["(", Enum.join(job_ns, ", "), ") "]
 end
+
+# coveralls-ignore-stop

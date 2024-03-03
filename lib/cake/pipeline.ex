@@ -187,8 +187,14 @@ defmodule Cake.Pipeline do
         {:error, reason} ->
           raise Cake.Pipeline.Error, "failed @import #{inspect(import_.ref)} build: #{inspect(reason)}"
 
+        # coveralls-ignore-start
+        #
+        # We have a test where the imported target timeouts but
+        # since the 'cake run --timeout' is global, it can be that
+        # the timeout fires # first in the main pipeline.
         :timeout ->
           raise Cake.Pipeline.Error, "timeout"
+          # coveralls-ignore-stop
       end
     end
 

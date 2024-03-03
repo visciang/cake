@@ -1,3 +1,5 @@
+# coveralls-ignore-start
+
 defmodule Cake.Reporter.Collector do
   @enforce_keys [:job_ns, :job_id, :type]
   defstruct @enforce_keys
@@ -41,3 +43,5 @@ defimpl Collectable, for: Cake.Reporter.Collector do
     {collector, collector_fun}
   end
 end
+
+# coveralls-ignore-stop

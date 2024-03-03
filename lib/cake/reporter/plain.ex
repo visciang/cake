@@ -1,3 +1,5 @@
+# coveralls-ignore-start
+
 defmodule Cake.Reporter.Plain.State do
   defstruct []
   @type t :: %__MODULE__{}
@@ -118,3 +120,5 @@ defmodule Cake.Reporter.Plain do
     line
   end
 end
+
+# coveralls-ignore-stop

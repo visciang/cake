@@ -1,3 +1,5 @@
+# coveralls-ignore-start
+
 defmodule Cake.Reporter.State do
   alias Cake.Reporter
   alias Cake.Reporter.Status
@@ -339,3 +341,5 @@ defmodule Cake.Reporter do
     put_in(state.job_id_to_log_file[job], file)
   end
 end
+
+# coveralls-ignore-stop
