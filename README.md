@@ -50,7 +50,7 @@ You can install Cake as an elixir [escript](https://hexdocs.pm/mix/main/Mix.Task
 The following example is available in the [cake-helloworld](https://github.com/visciang/cake-helloworld) repository.
 You can clone it and follow the example.
 
-In the root of the project we have simple example of a `Cakefile`.
+In the root of the project we have a simple example of a `Cakefile`.
 
 ```Dockerfile
 ARG ALPINE_VERSION=3.19.0
