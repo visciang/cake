@@ -420,7 +420,7 @@ $ cake ls
 
 Global arguments:
   ELIXIR_VERSION="1.16.2"
-  ELIXIR_ERLANG_VERSION="26.2.3"
+  ELIXIR_ERLANG_VERSION="26.2.2"
   ELIXIR_ALPINE_VERSION="3.19.1"
   WORKDIR="/code"
   ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
