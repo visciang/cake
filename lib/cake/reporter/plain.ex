@@ -110,13 +110,21 @@ defmodule Cake.Reporter.Plain do
           job_ns :: [String.t()],
           job_id :: ansidata(),
           duration :: nil | ansidata(),
-          description :: nil | ansidata()
+          description :: nil | String.t()
         ) :: ansidata()
   defp report_line(status_icon, job_ns, job_id, duration, description) do
     job_ns = if job_ns == [], do: "", else: ["(", Enum.join(job_ns, ", "), ") "]
     line = [status_icon, :reset, "  ", :faint, job_ns, :reset, :bright, job_id, :reset]
     line = if duration, do: [line, ["   (#{duration})  "]], else: line
-    line = if description, do: [line, :faint, "  ", description, :reset], else: line
+
+    line =
+      if description do
+        description = String.replace_invalid(description)
+        [line, :faint, "  ", description, :reset]
+      else
+        line
+      end
+
     line
   end
 end
