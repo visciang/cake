@@ -6,6 +6,5 @@ all: elixir.lint elixir.test cake.app
 
 cake.app:
     FROM +elixir.escript
-    RUN mkdir -p -m 0700 ~/.ssh; \
-        ssh-keyscan github.com gitlab.com bitbucket.com >> ~/.ssh/known_hosts; \
-        ssh-keyscan gitlab.lan.athonet.com >> ~/.ssh/known_hosts
+    RUN mkdir -p -m 0700 ~/.ssh \
+        && ssh-keyscan github.com gitlab.com bitbucket.com >> ~/.ssh/known_hosts
