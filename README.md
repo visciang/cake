@@ -353,7 +353,12 @@ Includes an external Cakefile "template". The directive should be defined before
 
 The reference to the Cakefile can be a:
 - local path: `./local_dir`
-- remote Git URL:`git+https://github.com/username/cake-template.git#ref_branch_or_tag`
+- remote Git URL (via HTTPS): `git+https://github.com/username/repository.git#ref_branch_or_tag`
+- remote Git URL (via SSH): `git+git@github.com/username/repository.git#ref_branch_or_tag`
+
+A subdirectory where the Cakefile include is located can be defined with:
+
+`git+https://github.com/username/repository.git/subdirs#ref_branch_or_tag`
 
 If the included Cakefile has parameter they can be specified via args
 

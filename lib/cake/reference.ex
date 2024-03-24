@@ -32,7 +32,11 @@ defmodule Cake.Reference do
   end
 
   @impl GenServer
-  def handle_call({:get_include, %Cakefile{} = cakefile, %Directive.Include{} = include}, _from, state) do
+  def handle_call(
+        {:get_include, %Cakefile{} = cakefile, %Directive.Include{} = include},
+        _from,
+        state
+      ) do
     res =
       case include.ref do
         "git+" <> git_url ->
@@ -83,41 +87,46 @@ defmodule Cake.Reference do
 
   @spec git_ref(String.t(), String.t()) :: result()
   defp git_ref(job_id, git_url) do
-    checkout_dir = Path.join(Cake.Dir.git_ref(), git_url)
-    into = Reporter.collector([], "git", :log)
-    cmd_opts = [stderr_to_stdout: true, cd: checkout_dir, into: into]
+    with {:ok, git_repo, git_dir, git_ref} <- parse_git_url(git_url) do
+      checkout_dir = Path.join([Cake.Dir.git_ref(), git_repo, git_ref])
 
-    if File.dir?(checkout_dir) do
-      Reporter.job_notice([], job_id, "using cached repository")
+      into = Reporter.collector([], "git", :log)
+      cmd_opts = [stderr_to_stdout: true, cd: checkout_dir, into: into]
 
-      # pull from remote (if on a branch)
-      _ = System.cmd("git", ["pull"], cmd_opts)
+      if File.dir?(checkout_dir) do
+        Reporter.job_notice([], job_id, "using cached repository")
 
-      {:ok, Path.join(checkout_dir, "Cakefile")}
-    else
-      File.mkdir_p!(checkout_dir)
+        # pull from remote (if on a branch)
+        _ = System.cmd("git", ["pull"], cmd_opts)
 
-      with {:git_ref, {:ok, git_repo, git_ref}} <- {:git_ref, parse_git_url(git_url)},
-           {:clone, {_, 0}} <- {:clone, System.cmd("git", ["clone", git_repo, "."], cmd_opts)},
-           {:checkout, {_, 0}} <- {:checkout, System.cmd("git", ["checkout", git_ref], cmd_opts)} do
         {:ok, Path.join(checkout_dir, "Cakefile")}
       else
-        {action, _exit_status} ->
-          File.rm_rf!(checkout_dir)
-          {:error, "#{action} error"}
+        File.mkdir_p!(checkout_dir)
+
+        with {_tag, {_, 0}} <- {:clone, System.cmd("git", ["clone", git_repo, "."], cmd_opts)},
+             {_tag, {_, 0}} <- {:checkout, System.cmd("git", ["checkout", git_ref], cmd_opts)} do
+          {:ok, Path.join([checkout_dir, git_dir, "Cakefile"])}
+        else
+          {action, _exit_status} ->
+            File.rm_rf!(checkout_dir)
+            {:error, "#{action} error"}
+        end
       end
     end
   end
 
   @spec parse_git_url(String.t()) ::
-          {:ok, repo :: String.t(), ref :: String.t()} | {:error, String.t()}
+          {:ok, repo :: String.t(), dir :: String.t(), ref :: String.t()} | {:error, String.t()}
   defp parse_git_url(git_url) do
-    case :string.split(git_url, "#", :trailing) do
-      [repo_url, ref] ->
-        {:ok, repo_url, ref}
-
-      _ ->
+    with {:ref, [repo_url, ref]} <- {:ref, :string.split(git_url, "#", :trailing)},
+         {:dir, [repo_url, dir]} <- {:dir, :string.split(repo_url, ".git", :trailing)} do
+      {:ok, repo_url, dir, ref}
+    else
+      {:ref, _} ->
         {:error, "bad git repo format - expected <git_repo>#<REF> where `ref` can be a commit hash / tag / branch"}
+
+      {:dir, _} ->
+        {:error, "bad git repo format - expected git_repo.git[subdir]#<REF>"}
     end
   end
 
