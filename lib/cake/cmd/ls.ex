@@ -6,6 +6,17 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
   alias Cake.Parser.Directive.{DevShell, Output}
   alias Cake.Parser.{Alias, Target}
 
+  @builtin_docker_args [
+    "TARGETPLATFORM",
+    "TARGETOS",
+    "TARGETARCH",
+    "TARGETVARIANT",
+    "BUILDPLATFORM",
+    "BUILDOS",
+    "BUILDARCH",
+    "BUILDVARIANT"
+  ]
+
   @spec exec(Ls.t(), Cakefile.t(), Dag.graph()) :: :ok
   def exec(%Ls{}, %Cakefile{} = cakefile, _graph) do
     Dir.setup_cake_dirs()
@@ -20,6 +31,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
       IO.puts("\nGlobal arguments:")
 
       for arg <- global_args,
+          not hidden_arg(arg.name),
           do: IO.ANSI.format_fragment(["  ", fmt_arg(arg), "\n"]) |> IO.write()
     end
 
@@ -52,10 +64,15 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
     :ok
   end
 
+  @spec hidden_arg(String.t()) :: boolean()
+  defp hidden_arg(name) do
+    String.starts_with?(name, "_") or name in @builtin_docker_args
+  end
+
   @spec target_args(Cakefile.t()) :: %{Type.tgid() => [Arg.t()]}
   defp target_args(%Cakefile{} = cakefile) do
     for %Target{} = target <- cakefile.targets, into: %{} do
-      {target.tgid, for(%Arg{} = arg <- target.commands, do: arg)}
+      {target.tgid, for(%Arg{} = arg <- target.commands, not hidden_arg(arg.name), do: arg)}
     end
   end
 

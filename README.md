@@ -278,6 +278,8 @@ Parameters in Cake are defined using the `ARG` keyword within the Cakefile. Thes
 
 Parameters in Cake can be either global or local to specific targets, providing granular control over their scope and applicability within the pipeline.
 
+By convention `ARG` starting with an `_` character can be used to identify non public arguments.
+
 ##### Global Parameters
 
 Global parameters, declared at the top of the Cakefile using the ARG keyword, are accessible throughout the entire pipeline, allowing for consistent values across multiple targets.

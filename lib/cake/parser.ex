@@ -93,7 +93,7 @@ defmodule Cake.Parser do
     |> map({:cast, [Container.Command]})
 
   arg_name =
-    utf8_char([?a..?z, ?A..?Z])
+    utf8_char([?_, ?a..?z, ?A..?Z])
     |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
     |> reduce({List, :to_string, []})
 
