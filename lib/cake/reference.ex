@@ -88,10 +88,9 @@ defmodule Cake.Reference do
   @spec git_ref(String.t(), String.t()) :: result()
   defp git_ref(job_id, git_url) do
     with {:ok, git_repo, git_dir, git_ref} <- parse_git_url(git_url) do
-      checkout_dir = Path.join([Cake.Dir.git_ref(), git_repo, git_ref])
-
-      into = Reporter.collector([], "git", :log)
-      cmd_opts = [stderr_to_stdout: true, cd: checkout_dir, into: into]
+      checkout_dir = Path.join([Cake.Dir.git_ref(), git_repo <> "#" <> git_ref])
+      checkout_cakefile_path = Path.join([checkout_dir, git_dir, "Cakefile"])
+      cmd_opts = [stderr_to_stdout: true, cd: checkout_dir]
 
       if File.dir?(checkout_dir) do
         Reporter.job_notice([], job_id, "using cached repository")
@@ -99,17 +98,17 @@ defmodule Cake.Reference do
         # pull from remote (if on a branch)
         _ = System.cmd("git", ["pull"], cmd_opts)
 
-        {:ok, Path.join(checkout_dir, "Cakefile")}
+        {:ok, checkout_cakefile_path}
       else
         File.mkdir_p!(checkout_dir)
 
         with {_tag, {_, 0}} <- {:clone, System.cmd("git", ["clone", git_repo, "."], cmd_opts)},
              {_tag, {_, 0}} <- {:checkout, System.cmd("git", ["checkout", git_ref], cmd_opts)} do
-          {:ok, Path.join([checkout_dir, git_dir, "Cakefile"])}
+          {:ok, checkout_cakefile_path}
         else
-          {action, _exit_status} ->
+          {action, {stderr, _exit_status}} ->
             File.rm_rf!(checkout_dir)
-            {:error, "#{action} error"}
+            {:error, "#{action} error: \n#{stderr} "}
         end
       end
     end
