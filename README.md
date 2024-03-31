@@ -426,38 +426,33 @@ The output includes details about:
 $ cake ls
 
 Global arguments:
-  ELIXIR_VERSION="1.16.2"
-  ELIXIR_ERLANG_VERSION="26.2.2"
-  ELIXIR_ALPINE_VERSION="3.19.1"
-  WORKDIR="/code"
   ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
 
+Aliases:
+  all: elixir.lint elixir.test cake.app
+  elixir.lint: elixir.dialyzer elixir.format elixir.credo
+
 Targets:
-    all:
-    cake.app:
-    elixir.base:
-      WORKDIR
-    elixir.compile:
-    elixir.credo:
-      ELIXIR_CREDO_OPTS="--strict --all"
-    elixir.deps:
-    elixir.dialyzer:
-      WORKDIR
-    elixir.dialyzer-plt:
-    elixir.docs:
-      @output /code/doc
-    elixir.escript:
-      WORKDIR
-      ELIXIR_ESCRIPT_EXTRA_APK
-    elixir.escript-build:
-    elixir.format:
-    elixir.lint:
-    elixir.release:
-    elixir.test:
-      @output /code/cover
-      ELIXIR_TEST_CMD="coveralls.html"
-    elixir.toolchain:
-      @devshell
+  cake.app:
+  elixir.base:
+  elixir.compile:
+  elixir.credo:
+    ELIXIR_CREDO_OPTS="--strict --all"
+  elixir.deps:
+  elixir.dialyzer:
+  elixir.dialyzer-plt:
+  elixir.docs:
+    @output /code/doc
+  elixir.escript:
+    ELIXIR_ESCRIPT_EXTRA_APK
+  elixir.escript-build:
+  elixir.format:
+  elixir.release:
+  elixir.test:
+    @output /code/cover
+    ELIXIR_TEST_CMD="coveralls.html"
+  elixir.toolchain:
+    @devshell
 ```
 
 ### RUN
