@@ -6,8 +6,8 @@ defmodule Cake.Pipeline do
   alias Cake.Cli.Run
   alias Cake.Parser.Container.{Arg, Command, Fmt, From}
   alias Cake.Parser.{Alias, Cakefile, Target}
-  alias Cake.Parser.Directive.{DevShell, Import, Output, Push}
-  alias Cake.{Dag, Dir, Reference, Reporter, Type}
+  alias Cake.Parser.Directive.{DevShell, Output, Push}
+  alias Cake.{Dag, Dir, Reporter, Type}
 
   require Cake.Reporter.Status
   require Logger
@@ -57,7 +57,7 @@ defmodule Cake.Pipeline do
           Dask.t()
   defp build_dask_job(%Run{} = run, %Cakefile{} = cakefile, dask, tgid, target, pipeline_uuid) do
     job_fn = fn ^tgid, _upstream_jobs_status ->
-      Reporter.job_start(run.ns, tgid)
+      Reporter.job_start(tgid)
 
       case target do
         %Alias{} ->
@@ -73,13 +73,13 @@ defmodule Cake.Pipeline do
     job_on_exit_fn = fn ^tgid, _upstream_results, job_exec_result ->
       case job_exec_result do
         {:job_ok, :ok} ->
-          Reporter.job_end(run.ns, tgid, Reporter.Status.ok())
+          Reporter.job_end(tgid, Reporter.Status.ok())
 
         # We do not apply a timeout on single jobs, only a global pipeline timeout:
         # See Dask.job(_, _, _, :infinity, _) below
         #
         # :job_timeout ->
-        #   Reporter.job_end(run.ns, tgid, Reporter.Status.timeout())
+        #   Reporter.job_end(tgid, Reporter.Status.timeout())
 
         # coveralls-ignore-start
 
@@ -87,12 +87,12 @@ defmodule Cake.Pipeline do
           :ok
 
         {:job_error, %Cake.Pipeline.Error{} = err, _stacktrace} ->
-          Reporter.job_end(run.ns, tgid, Reporter.Status.error(err.message, nil))
+          Reporter.job_end(tgid, Reporter.Status.error(err.message, nil))
 
         # coveralls-ignore-stop
 
         {:job_error, reason, stacktrace} ->
-          Reporter.job_end(run.ns, tgid, Reporter.Status.error(reason, stacktrace))
+          Reporter.job_end(tgid, Reporter.Status.error(reason, stacktrace))
       end
     end
 
@@ -103,18 +103,10 @@ defmodule Cake.Pipeline do
   defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Target{} = target, tgid, pipeline_uuid) do
     Logger.info("start for #{inspect(tgid)}", pipeline: pipeline_uuid)
 
-    dask_job_target_imports(run, target, pipeline_uuid)
-
     job_uuid = to_string(System.unique_integer([:positive]))
     container_build_ctx_dir = Path.dirname(cakefile.path)
 
-    build_relative_include_ctx_dir =
-      if target.included_from_ref do
-        include_ctx_dir = Dir.local_include_ctx_dir(cakefile.path, target.included_from_ref)
-        Path.relative_to(include_ctx_dir, container_build_ctx_dir)
-      else
-        ""
-      end
+    build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
 
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     target = insert_builtin_container_args(target, build_relative_include_ctx_dir)
@@ -129,7 +121,6 @@ defmodule Cake.Pipeline do
     secrets = run.secrets
 
     container().build(
-      run.ns,
       tgid,
       tags,
       build_args,
@@ -145,80 +136,19 @@ defmodule Cake.Pipeline do
     if run.shell and tgid == run.tgid do
       devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
 
-      Reporter.job_shell_start(run.ns, run.tgid)
+      Reporter.job_shell_start(run.tgid)
       container().shell(tgid, pipeline_uuid, devshell?)
-      Reporter.job_shell_end(run.ns, run.tgid)
+      Reporter.job_shell_end(run.tgid)
     end
 
     # coveralls-ignore-stop
 
     if run.output do
       output_paths = for %Output{path: path} <- target.directives, do: path
-      container().output(run.ns, tgid, pipeline_uuid, output_paths, run.output_dir)
+      container().output(tgid, pipeline_uuid, output_paths, run.output_dir)
     end
 
     :ok
-  end
-
-  @spec dask_job_target_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: :ok
-  defp dask_job_target_imports(%Run{} = run, %Target{} = target, pipeline_uuid) do
-    for %Import{} = import_ <- target.directives do
-      import_cakefile_path =
-        case Reference.get_import(import_) do
-          {:ok, import_cakefile_path} -> import_cakefile_path
-          {:error, reason} -> raise Cake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}: #{reason}"
-        end
-
-      unless File.exists?(import_cakefile_path) do
-        raise Cake.Pipeline.Error, "cannot @import #{inspect(import_.ref)}"
-      end
-
-      Logger.info(
-        "running pipeline for imported target #{inspect(import_.target)} cakefile=#{inspect(import_cakefile_path)}",
-        pipeline: pipeline_uuid
-      )
-
-      run = run_for_import(run, target, pipeline_uuid, import_)
-
-      case Cake.cmd(run, import_.ref) do
-        :ok ->
-          :ok
-
-        {:error, reason} ->
-          raise Cake.Pipeline.Error, "failed @import #{inspect(import_.ref)} build: #{inspect(reason)}"
-
-        # coveralls-ignore-start
-        #
-        # We have a test where the imported target timeouts but
-        # since the 'cake run --timeout' is global, it can be that
-        # the timeout fires # first in the main pipeline.
-        :timeout ->
-          raise Cake.Pipeline.Error, "timeout"
-          # coveralls-ignore-stop
-      end
-    end
-
-    :ok
-  end
-
-  @spec dask_job_target_imports(Run.t(), Target.t(), Type.pipeline_uuid()) :: Run.t()
-  defp run_for_import(run, target, pipeline_uuid, import_) do
-    %Run{
-      on_import?: true,
-      ns: run.ns ++ [target.tgid],
-      tgid: import_.target,
-      args: for(arg <- import_.args, do: {arg.name, arg.default_value}),
-      push: import_.push and run.push,
-      output: import_.output and run.output,
-      output_dir: import_.as,
-      tag: container().fq_image(import_.as, pipeline_uuid),
-      timeout: :infinity,
-      parallelism: run.parallelism,
-      progress: run.progress,
-      save_logs: run.save_logs,
-      shell: false,
-      secrets: run.secrets
-    }
   end
 
   @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), Type.pipeline_uuid()) :: Dask.t()

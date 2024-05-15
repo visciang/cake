@@ -14,7 +14,7 @@ defmodule Cake.Pipeline.Docker do
 
   @impl true
   # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
-  def build(ns, tgid, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid) do
+  def build(tgid, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid) do
     args =
       Enum.concat([
         ["--progress", "plain"],
@@ -34,7 +34,7 @@ defmodule Cake.Pipeline.Docker do
       end
 
     args = [System.find_executable("docker"), "build" | args]
-    into = Reporter.collector(ns, tgid, :log)
+    into = Reporter.collector(tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
 
@@ -71,7 +71,7 @@ defmodule Cake.Pipeline.Docker do
   end
 
   @impl true
-  def output(ns, tgid, pipeline_uuid, outputs, output_dir) do
+  def output(tgid, pipeline_uuid, outputs, output_dir) do
     container_image = fq_image(tgid, pipeline_uuid)
     tmp_container = fq_output_container(tgid, pipeline_uuid)
 
@@ -82,14 +82,14 @@ defmodule Cake.Pipeline.Docker do
 
     for output <- outputs do
       container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", output_dir]
-      into = Reporter.collector(ns, tgid, :log)
+      into = Reporter.collector(tgid, :log)
 
       case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: into) do
         {_, 0} -> :ok
         {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} output copy failed"
       end
 
-      Reporter.job_output(ns, tgid, "#{output} -> #{output_dir}")
+      Reporter.job_output(tgid, "#{output} -> #{output_dir}")
     end
 
     :ok

@@ -8,21 +8,21 @@ defmodule Cake.Reporter.State do
     :reporter,
     :logs_to_file,
     :logs_dir,
-    :job_id_to_log_file,
+    :job_to_log_file,
     :start_time,
     :track,
     :reporter_state
   ]
   defstruct @enforce_keys
 
-  @type job :: {job_ns :: [String.t()], job_id :: String.t()}
+  @type job :: String.t()
   @type job_status :: %{job() => Status.t() | {:running, start_time :: integer()}}
 
   @type t :: %__MODULE__{
           reporter: Reporter.behaviour(),
           logs_to_file: boolean(),
           logs_dir: Path.t(),
-          job_id_to_log_file: %{job() => File.io_device()},
+          job_to_log_file: %{job() => File.io_device()},
           start_time: integer(),
           track: job_status(),
           reporter_state: term()
@@ -69,46 +69,46 @@ defmodule Cake.Reporter do
     GenServer.call(@name, {:stop, workflow_status}, :infinity)
   end
 
-  @spec job_start([String.t()], String.t()) :: :ok
-  def job_start(job_ns, job_id) do
-    GenServer.cast(@name, {:job_start, {job_ns, job_id}})
+  @spec job_start(String.t()) :: :ok
+  def job_start(job_id) do
+    GenServer.cast(@name, {:job_start, job_id})
   end
 
-  @spec job_end([String.t()], String.t(), Status.t()) :: :ok
-  def job_end(job_ns, job_id, status) do
-    GenServer.cast(@name, {:job_end, {job_ns, job_id}, status})
+  @spec job_end(String.t(), Status.t()) :: :ok
+  def job_end(job_id, status) do
+    GenServer.cast(@name, {:job_end, job_id, status})
   end
 
-  @spec job_notice([String.t()], String.t(), String.t()) :: :ok
-  def job_notice(job_ns, job_id, message) do
-    GenServer.cast(@name, {:job_notice, {job_ns, job_id}, message})
+  @spec job_notice(String.t(), String.t()) :: :ok
+  def job_notice(job_id, message) do
+    GenServer.cast(@name, {:job_notice, job_id, message})
   end
 
-  @spec job_log([String.t()], String.t(), String.t()) :: :ok
-  def job_log(job_ns, job_id, message) do
-    GenServer.cast(@name, {:job_log, {job_ns, job_id}, message})
+  @spec job_log(String.t(), String.t()) :: :ok
+  def job_log(job_id, message) do
+    GenServer.cast(@name, {:job_log, job_id, message})
   end
 
-  @spec job_output([String.t()], String.t(), Path.t()) :: :ok
-  def job_output(job_ns, job_id, output_path) do
-    GenServer.cast(@name, {:job_output, {job_ns, job_id}, output_path})
+  @spec job_output(String.t(), Path.t()) :: :ok
+  def job_output(job_id, output_path) do
+    GenServer.cast(@name, {:job_output, job_id, output_path})
   end
 
-  @spec job_shell_start([String.t()], String.t()) :: :ok
-  def job_shell_start(job_ns, job_id) do
-    GenServer.call(@name, {:job_shell_start, {job_ns, job_id}})
+  @spec job_shell_start(String.t()) :: :ok
+  def job_shell_start(job_id) do
+    GenServer.call(@name, {:job_shell_start, job_id})
     :ok
   end
 
-  @spec job_shell_end([String.t()], String.t()) :: :ok
-  def job_shell_end(job_ns, job_id) do
-    GenServer.call(@name, {:job_shell_end, {job_ns, job_id}})
+  @spec job_shell_end(String.t()) :: :ok
+  def job_shell_end(job_id) do
+    GenServer.call(@name, {:job_shell_end, job_id})
     :ok
   end
 
-  @spec collector([String.t()], String.t(), Collector.report_type()) :: Collectable.t()
-  def collector(job_ns, job_id, type) do
-    %Collector{job_ns: job_ns, job_id: job_id, type: type}
+  @spec collector(String.t(), Collector.report_type()) :: Collectable.t()
+  def collector(job_id, type) do
+    %Collector{job_id: job_id, type: type}
   end
 
   @impl GenServer
@@ -124,7 +124,7 @@ defmodule Cake.Reporter do
         reporter: reporter,
         logs_to_file: logs_to_file,
         logs_dir: Path.join(Dir.log(), DateTime.utc_now() |> DateTime.to_iso8601()),
-        job_id_to_log_file: %{},
+        job_to_log_file: %{},
         start_time: Duration.time(),
         track: %{},
         reporter_state: reporter.init()
@@ -134,39 +134,39 @@ defmodule Cake.Reporter do
   end
 
   @impl GenServer
-  def handle_cast({:job_start, job}, %State{} = state) do
-    state = set_log_file(job, state)
-    log_file = get_log_file(job, state)
+  def handle_cast({:job_start, job_id}, %State{} = state) do
+    state = set_log_file(job_id, state)
+    log_file = get_log_file(job_id, state)
 
-    {ansidata, reporter_state} = state.reporter.job_start(job, state.reporter_state)
+    {ansidata, reporter_state} = state.reporter.job_start(job_id, state.reporter_state)
     log_to_file(state.logs_to_file, log_file, ansidata)
 
-    state = put_in(state.track[job], {:running, Duration.time()})
+    state = put_in(state.track[job_id], {:running, Duration.time()})
     state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
-  def handle_cast({:job_end, job, status}, %State{} = state) do
-    log_file = get_log_file(job, state)
+  def handle_cast({:job_end, job_id, status}, %State{} = state) do
+    log_file = get_log_file(job_id, state)
 
-    duration = job_duration(job, state)
-    {ansidata, reporter_state} = state.reporter.job_end(job, status, duration, state.reporter_state)
+    duration = job_duration(job_id, state)
+    {ansidata, reporter_state} = state.reporter.job_end(job_id, status, duration, state.reporter_state)
     log_to_file(state.logs_to_file, log_file, ansidata)
 
-    state = put_in(state.track[job], status)
+    state = put_in(state.track[job_id], status)
     state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
-  def handle_cast({:job_log, job, message}, %State{} = state) do
-    log_file = get_log_file(job, state)
+  def handle_cast({:job_log, job_id, message}, %State{} = state) do
+    log_file = get_log_file(job_id, state)
 
     reporter_state =
       for line <- String.split(message, ~r/\R/), reduce: state.reporter_state do
         reporter_state ->
-          {ansidata, reporter_state} = state.reporter.job_log(job, line, reporter_state)
+          {ansidata, reporter_state} = state.reporter.job_log(job_id, line, reporter_state)
           log_to_file(state.logs_to_file, log_file, ansidata)
 
           reporter_state
@@ -177,11 +177,11 @@ defmodule Cake.Reporter do
     {:noreply, state}
   end
 
-  def handle_cast({:job_notice, job, message}, %State{} = state) do
+  def handle_cast({:job_notice, job_id, message}, %State{} = state) do
     reporter_state =
       for line <- String.split(message, ~r/\R/), reduce: state.reporter_state do
         reporter_state ->
-          {_ansidata, reporter_state} = state.reporter.job_notice(job, line, reporter_state)
+          {_ansidata, reporter_state} = state.reporter.job_notice(job_id, line, reporter_state)
 
           reporter_state
       end
@@ -191,10 +191,10 @@ defmodule Cake.Reporter do
     {:noreply, state}
   end
 
-  def handle_cast({:job_output, job, output_path}, %State{} = state) do
-    log_file = get_log_file(job, state)
+  def handle_cast({:job_output, job_id, output_path}, %State{} = state) do
+    log_file = get_log_file(job_id, state)
 
-    {ansidata, reporter_state} = state.reporter.job_output(job, output_path, state.reporter_state)
+    {ansidata, reporter_state} = state.reporter.job_output(job_id, output_path, state.reporter_state)
     log_to_file(state.logs_to_file, log_file, ansidata)
 
     state = put_in(state.reporter_state, reporter_state)
@@ -203,10 +203,10 @@ defmodule Cake.Reporter do
   end
 
   @impl GenServer
-  def handle_call({:job_shell_start, job}, _from, %State{} = state) do
-    log_file = get_log_file(job, state)
+  def handle_call({:job_shell_start, job_id}, _from, %State{} = state) do
+    log_file = get_log_file(job_id, state)
 
-    {ansidata, reporter_state} = state.reporter.job_shell_start(job, state.reporter_state)
+    {ansidata, reporter_state} = state.reporter.job_shell_start(job_id, state.reporter_state)
     log_to_file(state.logs_to_file, log_file, ansidata)
 
     state = put_in(state.reporter_state, reporter_state)
@@ -214,10 +214,10 @@ defmodule Cake.Reporter do
     {:reply, :ok, state}
   end
 
-  def handle_call({:job_shell_end, job}, _from, %State{} = state) do
-    log_file = get_log_file(job, state)
+  def handle_call({:job_shell_end, job_id}, _from, %State{} = state) do
+    log_file = get_log_file(job_id, state)
 
-    {ansidata, reporter_state} = state.reporter.job_shell_end(job, state.reporter_state)
+    {ansidata, reporter_state} = state.reporter.job_shell_end(job_id, state.reporter_state)
     log_to_file(state.logs_to_file, log_file, ansidata)
 
     state = put_in(state.reporter_state, reporter_state)
@@ -229,7 +229,7 @@ defmodule Cake.Reporter do
     if state.logs_to_file do
       log_stdout_puts("\nLogs directory: #{state.logs_dir}")
 
-      for {_job_id, file} <- state.job_id_to_log_file do
+      for {_job_id, file} <- state.job_to_log_file do
         File.close(file)
       end
     end
@@ -261,13 +261,8 @@ defmodule Cake.Reporter do
 
       {:error, _} ->
         failed =
-          for {{job_ns, job_id}, status} <- jobs_status,
-              match?(Status.error(_, _), status) or match?(Status.timeout(), status) do
-            if job_ns == [] do
-              "- #{job_id}"
-            else
-              "- (#{inspect(job_ns)}) #{job_id}"
-            end
+          for {job_id, status} <- jobs_status, match?(Status.error(_, _), status) or match?(Status.timeout(), status) do
+            "- #{job_id}"
           end
 
         failed = Enum.join(failed, "\n")
@@ -303,11 +298,11 @@ defmodule Cake.Reporter do
   end
 
   @spec job_duration(State.job(), State.t()) :: String.t()
-  defp job_duration(job, %State{} = state) do
+  defp job_duration(job_id, %State{} = state) do
     end_time = Duration.time()
 
     start_time =
-      case state.track[job] do
+      case state.track[job_id] do
         {:running, start_time} -> start_time
         _ -> end_time
       end
@@ -332,13 +327,13 @@ defmodule Cake.Reporter do
 
   @spec get_log_file(State.job(), State.t()) :: nil | File.io_device()
   defp get_log_file(_job, %State{logs_to_file: false}), do: nil
-  defp get_log_file(job, %State{} = state), do: state.job_id_to_log_file[job]
+  defp get_log_file(job_id, %State{} = state), do: state.job_to_log_file[job_id]
 
   @spec set_log_file(State.job(), State.t()) :: State.t()
-  defp set_log_file({job_ns, job_id} = job, %State{} = state) do
+  defp set_log_file(job_id, %State{} = state) do
     File.mkdir_p!(state.logs_dir)
-    file = File.open!(Path.join(state.logs_dir, "#{inspect(job_ns)}-#{job_id}.txt"), [:utf8, :write])
-    put_in(state.job_id_to_log_file[job], file)
+    file = File.open!(Path.join(state.logs_dir, "#{job_id}.txt"), [:utf8, :write])
+    put_in(state.job_to_log_file[job_id], file)
   end
 end
 

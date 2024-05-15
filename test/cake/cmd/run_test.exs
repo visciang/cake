@@ -343,7 +343,7 @@ defmodule Test.Cake.Cmd.Run do
       expect_container_build(fn %{target: "target"} -> :ok end)
 
       expect(Test.ContainerManagerMock, :output, fn
-        [], "target", _pipeline_uuid, ["/output_1", "/output_2"], _output_dir ->
+        "target", _pipeline_uuid, ["/output_1", "/output_2"], _output_dir ->
           :ok
       end)
 
@@ -365,7 +365,7 @@ defmodule Test.Cake.Cmd.Run do
       expect_container_build(fn %{target: "target"} -> :ok end)
 
       expect(Test.ContainerManagerMock, :output, fn
-        [], "target", _pipeline_uuid, ["/arg_1/arg_2/output"], _output_dir ->
+        "target", _pipeline_uuid, ["/arg_1/arg_2/output"], _output_dir ->
           :ok
       end)
 
@@ -426,7 +426,7 @@ defmodule Test.Cake.Cmd.Run do
       """)
 
       Test.Support.write_cakefile("""
-      @include ./dir
+      @include dir
 
       target:
           FROM scratch
@@ -446,119 +446,10 @@ defmodule Test.Cake.Cmd.Run do
     end
   end
 
-  describe "import" do
-    test "ok" do
-      Test.Support.write_cakefile("dir", """
-      imp_target:
-          FROM scratch
-      """)
-
-      Test.Support.write_cakefile("""
-      target:
-          @import --as=imported_target dir imp_target
-          FROM imported_target:${CAKE_PIPELINE_UUID}
-      """)
-
-      expect_container_build(fn %{target: "imp_target"} ->
-        :ok
-      end)
-
-      expect_container_build(fn %{target: "target"} ->
-        :ok
-      end)
-
-      {result, _output} =
-        with_io(fn ->
-          Cake.main(["run", "target"])
-        end)
-
-      assert result == :ok
-    end
-
-    test "import target job failure" do
-      Test.Support.write_cakefile("dir", """
-      imp_target:
-          FROM scratch
-      """)
-
-      Test.Support.write_cakefile("""
-      target:
-          @import --as=imported_target dir imp_target
-          FROM imported_target:${CAKE_PIPELINE_UUID}
-      """)
-
-      expect_container_build(fn %{target: "imp_target"} ->
-        raise "CRASH IMPORT"
-      end)
-
-      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
-        assert exit_status == :error
-        assert msg == :job_skipped
-        raise "HALT"
-      end)
-
-      assert_raise RuntimeError, "HALT", fn ->
-        with_io(fn ->
-          Cake.main(["run", "target"])
-        end)
-      end
-    end
-
-    test "timeout" do
-      Test.Support.write_cakefile("dir", """
-      imp_target:
-          FROM scratch
-      """)
-
-      Test.Support.write_cakefile("""
-      target:
-          @import --as=imported_target dir imp_target
-          FROM imported_target:${CAKE_PIPELINE_UUID}
-      """)
-
-      expect_container_build(fn %{target: "imp_target"} ->
-        Process.sleep(:infinity)
-      end)
-
-      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
-        assert exit_status == :error
-        assert msg == "timeout"
-        raise "HALT"
-      end)
-
-      assert_raise RuntimeError, "HALT", fn ->
-        with_io(fn ->
-          Cake.main(["run", "--timeout", "1", "target"])
-        end)
-      end
-    end
-
-    test "import not existing" do
-      Test.Support.write_cakefile("""
-      target:
-          @import --as=imported_target dir imp_target
-          FROM imported_target:${CAKE_PIPELINE_UUID}
-      """)
-
-      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
-        assert exit_status == :error
-        assert msg == :job_skipped
-        raise "HALT"
-      end)
-
-      assert_raise RuntimeError, "HALT", fn ->
-        with_io(fn ->
-          Cake.main(["run", "target"])
-        end)
-      end
-    end
-  end
-
   defp expect_container_build(n \\ 1, fun) do
     expect(Test.ContainerManagerMock, :build, n, fn
-      ns, target, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid ->
+      target, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid ->
         args = %{
-          ns: ns,
           target: target,
           tags: tags,
           build_args: build_args,

@@ -18,8 +18,6 @@ defmodule Cake.Cli do
 
   defmodule Run do
     @enforce_keys [
-      :on_import?,
-      :ns,
       :tgid,
       :args,
       :push,
@@ -36,8 +34,6 @@ defmodule Cake.Cli do
 
     @type arg :: {name :: String.t(), value :: String.t()}
     @type t :: %__MODULE__{
-            on_import?: boolean(),
-            ns: [Type.tgid()],
             tgid: Type.tgid(),
             args: [arg()],
             push: boolean(),
@@ -195,8 +191,6 @@ defmodule Cake.Cli do
           end
 
         run = %Run{
-          on_import?: false,
-          ns: [],
           tgid: cli.args.target,
           args: target_args,
           push: cli.flags.push,

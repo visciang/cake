@@ -30,22 +30,6 @@ defmodule Cake.Parser.Directive do
           }
   end
 
-  defmodule Import do
-    # `@import [--ouput] [--push] --as=<as> <ref> <target> [<arg>, ...]`.
-
-    @enforce_keys [:ref, :target, :as]
-    defstruct @enforce_keys ++ [output: false, push: false, args: []]
-
-    @type t :: %__MODULE__{
-            ref: String.t(),
-            target: String.t(),
-            as: String.t(),
-            output: boolean(),
-            push: boolean(),
-            args: [Cake.Parser.Container.Arg.t()]
-          }
-  end
-
   defmodule DevShell do
     # `@devshell`
 

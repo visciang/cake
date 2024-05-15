@@ -1,8 +1,6 @@
 defmodule Cake.Reference do
-  alias Cake.Parser.{Cakefile, Directive}
-  alias Cake.{Dir, Reporter}
-
-  require Logger
+  alias Cake.Parser.Directive
+  alias Cake.Reporter
 
   use GenServer
 
@@ -16,14 +14,9 @@ defmodule Cake.Reference do
     :ok
   end
 
-  @spec get_include(Cakefile.t(), Directive.Include.t()) :: result()
-  def get_include(%Cakefile{} = cakefile, %Directive.Include{} = include) do
-    GenServer.call(@name, {:get_include, cakefile, include}, :infinity)
-  end
-
-  @spec get_import(Directive.Import.t()) :: result()
-  def get_import(%Directive.Import{} = import_) do
-    GenServer.call(@name, {:get_import, import_}, :infinity)
+  @spec get_include(Directive.Include.t()) :: result()
+  def get_include(%Directive.Include{} = include) do
+    GenServer.call(@name, {:get_include, include}, :infinity)
   end
 
   @impl GenServer
@@ -32,31 +25,17 @@ defmodule Cake.Reference do
   end
 
   @impl GenServer
-  def handle_call(
-        {:get_include, %Cakefile{} = cakefile, %Directive.Include{} = include},
-        _from,
-        state
-      ) do
+  def handle_call({:get_include, %Directive.Include{} = include}, _from, state) do
     res =
       case include.ref do
         "git+" <> git_url ->
-          Reporter.job_notice([], "@include", "#{git_url}")
+          Reporter.job_notice("@include", "#{git_url}")
           git_ref("@include", git_url)
 
-        local_path ->
-          # include path normalizated to be relative to the project root directory
-          path = Path.join([Path.dirname(cakefile.path), local_path, "Cakefile"])
+        include_dir ->
+          path = Path.join(include_dir, "Cakefile")
 
-          case Path.safe_relative(path) do
-            {:ok, path} ->
-              copy_include_ctx(cakefile, path)
-              {:ok, path}
-
-            # coveralls-ignore-start
-            :error ->
-              {:error, "#{local_path} path out of the project root directory"}
-              # coveralls-ignore-stop
-          end
+          {:ok, path}
       end
       |> case do
         {:ok, _} = ok -> ok
@@ -66,26 +45,7 @@ defmodule Cake.Reference do
     {:reply, res, state}
   end
 
-  @impl GenServer
-  def handle_call({:get_import, %Directive.Import{} = import_}, _from, state) do
-    res =
-      case import_.ref do
-        "git+" <> git_url ->
-          Reporter.job_notice([], "@import", "#{git_url}")
-          git_ref("@import", git_url)
-
-        local_path ->
-          {:ok, Path.join(local_path, "Cakefile")}
-      end
-      |> case do
-        {:ok, _} = ok -> ok
-        {:error, reason} -> {:error, "@import #{import_.ref} failed: #{reason}"}
-      end
-
-    {:reply, res, state}
-  end
-
-  @spec git_ref(String.t(), String.t()) :: result()
+  @spec git_ref(String.t(), Path.t()) :: result()
   defp git_ref(job_id, git_url) do
     with {:ok, git_repo, git_dir, git_ref} <- parse_git_url(git_url) do
       checkout_dir = Path.join([Cake.Dir.git_ref(), git_repo <> "#" <> git_ref])
@@ -93,7 +53,7 @@ defmodule Cake.Reference do
       cmd_opts = [stderr_to_stdout: true, cd: checkout_dir]
 
       if File.dir?(checkout_dir) do
-        Reporter.job_notice([], job_id, "using cached repository")
+        Reporter.job_notice(job_id, "using cached repository")
 
         # pull from remote (if on a branch)
         _ = System.cmd("git", ["pull"], cmd_opts)
@@ -127,22 +87,5 @@ defmodule Cake.Reference do
       {:dir, _} ->
         {:error, "bad git repo format - expected git_repo.git[subdir]#<REF>"}
     end
-  end
-
-  @spec copy_include_ctx(Cakefile.t(), Path.t()) :: :ok
-  defp copy_include_ctx(%Cakefile{} = cakefile, included_cakefile_path) do
-    include_ctx_dir = Path.join(Path.dirname(included_cakefile_path), "ctx")
-
-    dest = Dir.local_include_ctx_dir(cakefile.path, included_cakefile_path)
-
-    if File.exists?(include_ctx_dir) and not File.exists?(dest) do
-      Logger.info("from #{inspect(included_cakefile_path)}")
-
-      File.rm_rf!(dest)
-      File.mkdir_p!(dest)
-      File.cp_r!(include_ctx_dir, dest)
-    end
-
-    :ok
   end
 end

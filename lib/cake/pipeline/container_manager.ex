@@ -2,7 +2,6 @@ defmodule Cake.Pipeline.ContainerManager do
   alias Cake.Type
 
   @callback build(
-              ns :: [Type.tgid()],
               Type.tgid(),
               tags :: [String.t()],
               build_args :: [{name :: String.t(), value :: String.t()}],
@@ -15,7 +14,7 @@ defmodule Cake.Pipeline.ContainerManager do
 
   @callback shell(Type.tgid(), Type.pipeline_uuid(), devshell? :: boolean()) :: :ok
 
-  @callback output([Type.tgid()], Type.tgid(), Type.pipeline_uuid(), [Path.t()], Path.t()) :: :ok
+  @callback output(Type.tgid(), Type.pipeline_uuid(), [Path.t()], Path.t()) :: :ok
 
   @callback cleanup(Type.pipeline_uuid()) :: :ok
 

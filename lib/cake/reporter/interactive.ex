@@ -97,9 +97,7 @@ defmodule Cake.Reporter.Interactive do
           outputs :: [Path.t()],
           duration :: String.t()
         ) :: IO.ANSI.ansidata()
-  defp render_job_end({job_ns, job_id}, status, outputs, duration) do
-    job_ns = job_ns_to_string(job_ns)
-
+  defp render_job_end(job_id, status, outputs, duration) do
     {job_id, status_icon} =
       case status do
         Reporter.Status.ok() ->
@@ -116,7 +114,7 @@ defmodule Cake.Reporter.Interactive do
 
     ansidata = [
       ["\r", :clear_line],
-      [status_icon, "  ", :faint, job_ns, :reset, :bright, job_id, :reset, "   (#{duration})", outputs_ansidata]
+      [status_icon, "  ", :bright, job_id, :reset, "   (#{duration})", outputs_ansidata]
     ]
 
     IO.puts(IO.ANSI.format_fragment(ansidata))
@@ -133,10 +131,9 @@ defmodule Cake.Reporter.Interactive do
     running_jobs =
       state.jobs
       |> Enum.sort_by(fn {_job, %{start: start}} -> start end)
-      |> Enum.map(fn {{job_ns, job_id}, %{start: start}} ->
-        job_ns = job_ns_to_string(job_ns)
+      |> Enum.map(fn {job_id, %{start: start}} ->
         duration = Duration.delta_time_string(now - start)
-        [job_ns, job_id, " (#{duration})"]
+        [job_id, " (#{duration})"]
       end)
       |> Enum.intersperse([:blue, " | ", :reset])
 
@@ -164,10 +161,6 @@ defmodule Cake.Reporter.Interactive do
 
     put_in(state.render_ref, nil)
   end
-
-  @spec job_ns_to_string([String.t()]) :: IO.ANSI.ansidata()
-  defp job_ns_to_string([]), do: []
-  defp job_ns_to_string(job_ns), do: ["(", Enum.join(job_ns, ", "), ") "]
 end
 
 # coveralls-ignore-stop

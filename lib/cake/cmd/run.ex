@@ -9,9 +9,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
   def exec(%Run{} = run, %Cakefile{} = cakefile, graph) do
     Dir.setup_cake_dirs()
 
-    unless run.on_import? do
-      Reporter.start_link(run.progress, run.save_logs)
-    end
+    Reporter.start_link(run.progress, run.save_logs)
 
     tgids = Dag.tgids(graph)
 
@@ -36,9 +34,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
         :timeout -> :timeout
       end
 
-    unless run.on_import? do
-      Reporter.stop(res)
-    end
+    Reporter.stop(res)
 
     res
   end

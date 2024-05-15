@@ -2,7 +2,7 @@ defmodule Cake.Parser do
   import NimbleParsec
 
   alias Cake.Parser.{Alias, Cakefile, Container, Target}
-  alias Cake.Parser.Directive.{DevShell, Import, Include, Output, Push}
+  alias Cake.Parser.Directive.{DevShell, Include, Output, Push}
 
   @type result ::
           {:ok, Cakefile.t()}
@@ -151,7 +151,7 @@ defmodule Cake.Parser do
     |> wrap()
     |> map({:cast, [Push]})
 
-  import_args =
+  include_args =
     repeat(
       ignore(spaces)
       |> unwrap_and_tag(arg_name, :name)
@@ -159,31 +159,6 @@ defmodule Cake.Parser do
       |> wrap()
       |> map({:cast, [Container.Arg]})
     )
-
-  import_directive =
-    ignore(string("@import"))
-    |> ignore(spaces)
-    |> optional(
-      string("--output")
-      |> replace(true)
-      |> unwrap_and_tag(:output)
-      |> ignore(spaces)
-    )
-    |> optional(
-      string("--push")
-      |> replace(true)
-      |> unwrap_and_tag(:push)
-      |> ignore(spaces)
-    )
-    |> ignore(string("--as="))
-    |> unwrap_and_tag(literal_value, :as)
-    |> ignore(spaces)
-    |> unwrap_and_tag(literal_value, :ref)
-    |> ignore(spaces)
-    |> unwrap_and_tag(literal_value, :target)
-    |> optional(tag(import_args, :args))
-    |> wrap()
-    |> map({:cast, [Import]})
 
   devshell_directive =
     ignore(string("@devshell"))
@@ -195,7 +170,6 @@ defmodule Cake.Parser do
     |> choice([
       output_directive,
       push_directive,
-      import_directive,
       devshell_directive
     ])
 
@@ -259,7 +233,7 @@ defmodule Cake.Parser do
     ignore(string("@include"))
     |> ignore(spaces)
     |> unwrap_and_tag(literal_value, :ref)
-    |> optional(tag(import_args, :args))
+    |> optional(tag(include_args, :args))
     |> wrap()
     |> map({:cast, [Include]})
 

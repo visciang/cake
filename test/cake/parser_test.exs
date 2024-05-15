@@ -49,7 +49,6 @@ defmodule Test.Cake do
           @devshell
           @push
           @output output
-          @import --output --push --as=import_as import_ref import_target ARG1=1 ARG2=2
           FROM image
       """
 
@@ -118,18 +117,7 @@ defmodule Test.Cake do
             directives: [
               %Parser.Directive.DevShell{},
               %Parser.Directive.Push{},
-              %Parser.Directive.Output{path: "output"},
-              %Parser.Directive.Import{
-                ref: "import_ref",
-                target: "import_target",
-                as: "import_as",
-                output: true,
-                push: true,
-                args: [
-                  %Parser.Container.Arg{name: "ARG1", default_value: "1"},
-                  %Parser.Container.Arg{name: "ARG2", default_value: "2"}
-                ]
-              }
+              %Parser.Directive.Output{path: "output"}
             ],
             commands: [%Parser.Container.From{image: "image", as: nil}]
           }

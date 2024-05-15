@@ -30,3 +30,4 @@ cake-*.tar
 
 # cake private build dir
 .cake/
+.task/

@@ -12,8 +12,6 @@ defimpl Cake.Cmd, for: Cake.Cli.DevShell do
     case default_target(devshell.tgid, cakefile) do
       {:ok, tgid} ->
         run_cmd = %Run{
-          on_import?: false,
-          ns: [],
           tgid: tgid,
           args: [],
           push: false,

@@ -20,7 +20,6 @@ define and execute "reproducible" pipelines that can run on any host with docker
 - Jobs can output artifacts to the host filesystem (ref. `@output`)
 - Jobs can be declared as non-cacheable (ref. `@push`)
 - Pipelines can include pipeline templates (ref. `@include`)
-- Jobs can import external pipeline targets (ref. `@import`)
 - Shell integration for debug and development
 
 ## Install cake
@@ -308,7 +307,7 @@ Command line override:
 cake run app ALPINE_VERSION=3.15.2
 ```
 
-Parameters override can be defined also on `@import` and `@include` directives.
+Parameters override can be defined also on `@include` directives.
 
 #### Enhancing Flexibility
 
@@ -369,19 +368,6 @@ Example:
 ```Dockerfile
 @include git+https://github.com/visciang/cake-elixir.git#main \
          ELIXIR_ESCRIPT_EXTRA_APK="bash git"
-```
-
-#### Import
-
-`@import [--ouput] [--push] --as=<as> <ref> <target> [<arg>, ...]`
-
-Imports a remote `<target>` from `<ref>`, building the referenced target and making it available in the current target scope with the `<as>` identifier.
-
-```Dockerfile
-app:
-    @import --as=imported_target components/app_ta app
-    FROM imported_target:${CAKE_PIPELINE_UUID}
-    # ...
 ```
 
 #### Development Shell

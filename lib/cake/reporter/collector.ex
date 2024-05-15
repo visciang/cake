@@ -1,13 +1,12 @@
 # coveralls-ignore-start
 
 defmodule Cake.Reporter.Collector do
-  @enforce_keys [:job_ns, :job_id, :type]
+  @enforce_keys [:job_id, :type]
   defstruct @enforce_keys
 
   @type report_type :: :log | :info
 
   @type t :: %__MODULE__{
-          job_ns: [String.t()],
           job_id: String.t(),
           type: report_type()
         }
@@ -25,10 +24,10 @@ defimpl Collectable, for: Cake.Reporter.Collector do
       _, {:cont, message} ->
         case collector.type do
           :log ->
-            Reporter.job_log(collector.job_ns, collector.job_id, message)
+            Reporter.job_log(collector.job_id, message)
 
           :info ->
-            Reporter.job_notice(collector.job_ns, collector.job_id, message)
+            Reporter.job_notice(collector.job_id, message)
         end
 
         collector

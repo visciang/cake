@@ -22,15 +22,15 @@ defmodule Cake.Reporter.Plain do
   end
 
   @impl Reporter
-  def job_start({job_ns, job_id}, %State{} = state) do
-    ansidata = report_line("+", job_ns, [:faint, job_id, :reset], nil, nil)
+  def job_start(job_id, %State{} = state) do
+    ansidata = report_line("+", [:faint, job_id, :reset], nil, nil)
     ansi_puts(ansidata)
 
     {ansidata, state}
   end
 
   @impl Reporter
-  def job_end({job_ns, job_id}, status, duration, %State{} = state) do
+  def job_end(job_id, status, duration, %State{} = state) do
     {job_id, status_icon, status_info} =
       case status do
         Status.ok() ->
@@ -45,7 +45,7 @@ defmodule Cake.Reporter.Plain do
           {[:red, job_id, :reset], Icon.timeout(), nil}
       end
 
-    ansidata = report_line(status_icon, job_ns, job_id, duration, nil)
+    ansidata = report_line(status_icon, job_id, duration, nil)
 
     ansidata =
       if status_info == nil do
@@ -60,26 +60,26 @@ defmodule Cake.Reporter.Plain do
   end
 
   @impl Reporter
-  def job_log({job_ns, job_id}, msg, %State{} = state) do
-    ansidata = report_line(Icon.log(), job_ns, job_id, nil, " | #{msg}")
+  def job_log(job_id, msg, %State{} = state) do
+    ansidata = report_line(Icon.log(), job_id, nil, " | #{msg}")
     ansi_puts(ansidata)
 
     {ansidata, state}
   end
 
   @impl Reporter
-  def job_notice({job_ns, job_id}, msg, %State{} = state) do
-    ansidata = report_line(Icon.notice(), job_ns, job_id, nil, " | #{msg}")
+  def job_notice(job_id, msg, %State{} = state) do
+    ansidata = report_line(Icon.notice(), job_id, nil, " | #{msg}")
     ansi_puts(ansidata)
 
     {ansidata, state}
   end
 
   @impl Reporter
-  def job_output({job_ns, job_id}, output, %State{} = state) do
+  def job_output(job_id, output, %State{} = state) do
     job_id = [:yellow, job_id, :reset]
 
-    ansidata = report_line(Icon.output(), job_ns, job_id, nil, " | output: #{output}")
+    ansidata = report_line(Icon.output(), job_id, nil, " | output: #{output}")
     ansi_puts(ansidata)
 
     {ansidata, state}
@@ -107,14 +107,12 @@ defmodule Cake.Reporter.Plain do
 
   @spec report_line(
           status_icon :: ansidata(),
-          job_ns :: [String.t()],
           job_id :: ansidata(),
           duration :: nil | ansidata(),
           description :: nil | String.t()
         ) :: ansidata()
-  defp report_line(status_icon, job_ns, job_id, duration, description) do
-    job_ns = if job_ns == [], do: "", else: ["(", Enum.join(job_ns, ", "), ") "]
-    line = [status_icon, :reset, "  ", :faint, job_ns, :reset, :bright, job_id, :reset]
+  defp report_line(status_icon, job_id, duration, description) do
+    line = [status_icon, :reset, "  ", :bright, job_id, :reset]
     line = if duration, do: [line, ["   (#{duration})  "]], else: line
 
     line =
