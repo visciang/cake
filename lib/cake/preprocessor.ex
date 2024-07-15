@@ -48,13 +48,18 @@ defmodule Cake.Preprocessor do
   defp rec_expand_included_cakefiles(%Cakefile{} = cakefile) do
     Enum.reduce_while(cakefile.includes, {:ok, []}, fn
       %Include{} = include, {:ok, included_cakefiles} ->
-        with {:ok, included_cakefile_path} <- Reference.get_include(include),
+        with {:ok, included_path} <- Reference.get_include(include),
+             included_cakefile_path = Path.join(included_path, "Cakefile"),
+             true <- File.exists?(included_cakefile_path),
              Logger.info("cakefile=#{inspect(included_cakefile_path)}"),
              {:ok, included_cakefile} <- Cake.load_and_parse_cakefile(included_cakefile_path),
              included_cakefile = track_included_from(included_cakefile, included_cakefile_path),
              {:ok, cakefile} <- expand(included_cakefile, %{}) do
           {:cont, {:ok, included_cakefiles ++ [cakefile]}}
         else
+          false ->
+            {:halt, {:error, "Cannot find Cakefile in include from #{include.ref}"}}
+
           {:error, _} = error ->
             {:halt, error}
         end

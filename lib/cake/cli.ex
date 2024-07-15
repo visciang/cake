@@ -49,7 +49,7 @@ defmodule Cake.Cli do
           }
   end
 
-  @type result :: {:ok, Cmd.t()} | {:error, reason :: String.t()}
+  @type result :: {:ok, workdir :: Path.t(), Cmd.t()} | {:error, reason :: String.t()} | {:ignore, reason :: String.t()}
 
   @version Mix.Project.config()[:version]
 
@@ -65,12 +65,12 @@ defmodule Cake.Cli do
       # coveralls-ignore-start
 
       {:ok, [:devshell], cli} ->
-        {:ok, %DevShell{tgid: cli.args.target}}
+        {:ok, cli.options.workdir, %DevShell{tgid: cli.args.target}}
 
       # coveralls-ignore-stop
 
-      {:ok, [:ls], _cli} ->
-        {:ok, %Ls{}}
+      {:ok, [:ls], cli} ->
+        {:ok, cli.options.workdir, %Ls{}}
 
       {:ok, [:run], cli} ->
         parse_run(cli)
@@ -99,13 +99,20 @@ defmodule Cake.Cli do
       name: "cake",
       description: "cake (Container-mAKE pipeline)",
       version: @version,
+      options: [
+        workdir: [
+          long: "--workdir",
+          help: "Working directory",
+          default: ".",
+          global: true
+        ]
+      ],
       subcommands: [
         devshell: [
           name: "devshell",
           about: "Development shell",
           args: [
             target: [
-              value_name: "TARGET",
               help: "The devshell target - can be used if multiple devshell targets are available.",
               required: false
             ]
@@ -121,7 +128,6 @@ defmodule Cake.Cli do
           allow_unknown_args: true,
           args: [
             target: [
-              value_name: "TARGET",
               help: "The target of the pipeline"
             ]
           ],
@@ -204,7 +210,7 @@ defmodule Cake.Cli do
           secrets: cli.options.secret
         }
 
-        {:ok, run}
+        {:ok, cli.options.workdir, run}
 
       {:error, _} = error ->
         error

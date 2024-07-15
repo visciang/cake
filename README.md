@@ -376,7 +376,9 @@ Example:
 
 Tag the target as a "devshell" - a target that can be used a development container.
 
-This instruct Cake to bind mount the project code into the container when a shell is requested via `cake run --shell target`.
+Equivalent to `cake run --shell <devshell target>`.
+
+The `--shell` option instruct Cake to bind mount the project code into the container when a shell is requested.
 
 ```Dockerfile
 elixir.toolchain:
@@ -387,6 +389,10 @@ elixir.toolchain:
 ```
 
 Attach to a dev shell:
+
+    $ cake devshell
+
+    # equivalent to
 
     $ cake run --shell elixir.toolchain
 

@@ -36,7 +36,7 @@ defmodule Test.Cake.Cmd.Error do
   test "Cakefile no such file" do
     expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
       assert exit_status == :error
-      assert msg == "Cannot open ./Cakefile: (no such file or directory)"
+      assert msg == "Cannot open Cakefile: (no such file or directory)"
       :error
     end)
 
@@ -51,7 +51,7 @@ defmodule Test.Cake.Cmd.Error do
 
     expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
       assert exit_status == :error
-      assert msg == "Cakefile syntax error at ./Cakefile:1:0\n\nbad_syntax\n^"
+      assert msg == "Cakefile syntax error at Cakefile:1:0\n\nbad_syntax\n^"
       :error
     end)
 

@@ -1,6 +1,6 @@
 defmodule Cake.Reference do
   alias Cake.Parser.Directive
-  alias Cake.Reporter
+  alias Cake.{Dir, Reporter}
 
   use GenServer
 
@@ -33,9 +33,8 @@ defmodule Cake.Reference do
           git_ref("@include", git_url)
 
         include_dir ->
-          path = Path.join(include_dir, "Cakefile")
-
-          {:ok, path}
+          Reporter.job_notice("@include", "#{include_dir}")
+          include_local("@include", include_dir)
       end
       |> case do
         {:ok, _} = ok -> ok
@@ -45,11 +44,37 @@ defmodule Cake.Reference do
     {:reply, res, state}
   end
 
+  @spec include_local(String.t(), Path.t()) :: result()
+  defp include_local(_job_id, include_dir) do
+    with {:dir?, true} <- {:dir?, File.dir?(include_dir)},
+         {:execdir_subpath?, true} <- {:execdir_subpath?, subpath?(include_dir, Dir.execdir())} do
+      if subpath?(include_dir, ".") do
+        # include from a subdir of the current project workdir
+        {:ok, include_dir}
+      else
+        # include from a parent dir of the current project workdir
+        res_include_path = Path.join(Cake.Dir.include(), dir_slug(include_dir))
+
+        File.rm_rf!(res_include_path)
+        File.mkdir_p!(res_include_path)
+        File.cp_r!(include_dir, res_include_path)
+
+        {:ok, res_include_path}
+      end
+    else
+      {:dir?, false} ->
+        {:error, "directory not found"}
+
+      {:execdir_subpath?, false} ->
+        {:error, "'#{include_dir}' is not a sub-directory of the cake execution directory"}
+    end
+  end
+
   @spec git_ref(String.t(), Path.t()) :: result()
   defp git_ref(job_id, git_url) do
     with {:ok, git_repo, git_dir, git_ref} <- parse_git_url(git_url) do
-      checkout_dir = Path.join([Cake.Dir.git_ref(), git_repo <> "#" <> git_ref])
-      checkout_cakefile_path = Path.join([checkout_dir, git_dir, "Cakefile"])
+      checkout_dir = Path.join(Cake.Dir.include(), dir_slug(git_repo <> "#" <> git_ref))
+      checkout_cakefile_path = Path.join(checkout_dir, git_dir)
       cmd_opts = [stderr_to_stdout: true, cd: checkout_dir]
 
       if File.dir?(checkout_dir) do
@@ -87,5 +112,19 @@ defmodule Cake.Reference do
       {:dir, _} ->
         {:error, "bad git repo format - expected git_repo.git[subdir]#<REF>"}
     end
+  end
+
+  defp subpath?(sub_path, base_path) do
+    sub_path = sub_path |> Path.expand() |> Path.split()
+    base_path = base_path |> Path.expand() |> Path.split()
+
+    Enum.take(sub_path, length(base_path)) == base_path
+  end
+
+  @spec dir_slug(Path.t()) :: Path.t()
+  defp dir_slug(dir) do
+    dir
+    |> String.replace("/", "_")
+    |> String.replace(".", "-")
   end
 end

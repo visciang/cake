@@ -5,11 +5,15 @@ defmodule Cake do
   @spec main([String.t()]) :: no_return()
   def main(cli_args) do
     Reference.start_link()
+
+    Dir.set_execdir(File.cwd!())
     Dir.install_cmd_wrapper_script()
 
     res =
-      with {:ok, cmd} <- Cli.parse(cli_args) do
-        cmd(cmd)
+      with {:ok, workdir, cmd} <- Cli.parse(cli_args) do
+        File.cd!(workdir, fn ->
+          cmd(cmd)
+        end)
       end
 
     case res do
@@ -20,9 +24,9 @@ defmodule Cake do
     end
   end
 
-  @spec cmd(Cmd.t(), Path.t()) :: Cmd.result()
-  def cmd(cmd, dir \\ ".") do
-    cakefile_path = Path.join(dir, "Cakefile")
+  @spec cmd(Cmd.t()) :: Cmd.result()
+  def cmd(cmd) do
+    cakefile_path = "Cakefile"
 
     with {:parse, {:ok, cakefile}} <- {:parse, load_and_parse_cakefile(cakefile_path)},
          {:preprocess, {:ok, cakefile}} <- {:preprocess, Preprocessor.expand(cakefile, args(cmd))},

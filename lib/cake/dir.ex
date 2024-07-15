@@ -1,6 +1,6 @@
 defmodule Cake.Dir do
-  @spec git_ref :: Path.t()
-  def git_ref, do: ".cake/git"
+  @spec include :: Path.t()
+  def include, do: ".cake/include"
 
   @spec tmp :: Path.t()
   def tmp, do: ".cake/tmp"
@@ -10,6 +10,12 @@ defmodule Cake.Dir do
 
   @spec log :: Path.t()
   def log, do: ".cake/log"
+
+  @spec execdir :: Path.t()
+  def execdir, do: :persistent_term.get({:cake, :execdir})
+
+  @spec set_execdir(dir :: Path.t()) :: :ok
+  def set_execdir(dir), do: :persistent_term.put({:cake, :execdir}, dir)
 
   @spec setup_cake_dirs :: :ok
   def setup_cake_dirs do
@@ -53,7 +59,7 @@ defmodule Cake.Dir do
   def install_cmd_wrapper_script do
     path = Path.join(System.tmp_dir!(), "cmd_wrapper.sh")
 
-    :persistent_term.put(:cake_cmd_wrapper_path, path)
+    :persistent_term.put({:cake, :cmd_wrapper_path}, path)
 
     File.write!(path, @cmd_wrapper)
     File.chmod!(path, 0o700)
@@ -65,7 +71,7 @@ defmodule Cake.Dir do
 
   @spec cmd_wrapper_path :: Path.t()
   def cmd_wrapper_path do
-    :persistent_term.get(:cake_cmd_wrapper_path)
+    :persistent_term.get({:cake, :cmd_wrapper_path})
   end
 
   # coveralls-ignore-stop
