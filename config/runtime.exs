@@ -7,3 +7,5 @@ config :logger, :default_handler, level: log_level
 config :logger, :default_formatter,
   format: "[$level] $metadata- $message\n",
   metadata: [:mfa, :pipeline]
+
+config :elixir, :ansi_enabled, true
