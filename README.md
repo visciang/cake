@@ -196,6 +196,12 @@ To run the `target_1` and `target_2` via the alias target `all`:
 
     $ cake run all
 
+### Default Target
+
+'all' is the default target that is executed if no target is provided to the run command:
+
+    $ cake run all
+
 ### DAG
 
 Targets collectively form the Directed Acyclic Graph (DAG) of the pipeline. The DAG represents the workflow of tasks and their dependencies, ensuring a structured execution flow without circular references.

@@ -49,7 +49,10 @@ defmodule Cake.Cli do
           }
   end
 
-  @type result :: {:ok, workdir :: Path.t(), Cmd.t()} | {:error, reason :: String.t()} | {:ignore, reason :: String.t()}
+  @type result ::
+          {:ok, workdir :: Path.t(), Cmd.t()}
+          | {:error, reason :: String.t()}
+          | {:ignore, reason :: String.t()}
 
   @version Mix.Project.config()[:version]
 
@@ -128,7 +131,8 @@ defmodule Cake.Cli do
           allow_unknown_args: true,
           args: [
             target: [
-              help: "The target of the pipeline"
+              help: "The target of the pipeline (default target: 'all')",
+              required: false
             ]
           ],
           flags: [
@@ -197,7 +201,7 @@ defmodule Cake.Cli do
           end
 
         run = %Run{
-          tgid: cli.args.target,
+          tgid: cli.args.target || "all",
           args: target_args,
           push: cli.flags.push,
           output: cli.flags.output,
