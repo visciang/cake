@@ -81,7 +81,7 @@ defmodule Cake.Reference do
         Reporter.job_notice(job_id, "using cached repository")
 
         # pull from remote (if on a branch)
-        _ = System.cmd("git", ["pull"], cmd_opts)
+        _ = System.cmd("git", ["pull", "--rebase"], cmd_opts)
 
         {:ok, checkout_cakefile_path}
       else
