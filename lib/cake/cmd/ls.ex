@@ -2,9 +2,9 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
   alias Cake.{Dag, Dir, Type}
   alias Cake.Cli.Ls
   alias Cake.Parser.Cakefile
-  alias Cake.Parser.Container.Arg
   alias Cake.Parser.Directive.{DevShell, Output}
-  alias Cake.Parser.{Alias, Target}
+  alias Cake.Parser.Target.Container.Arg
+  alias Cake.Parser.Target.{Alias, Container}
 
   @builtin_docker_args [
     "TARGETPLATFORM",
@@ -45,7 +45,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
     IO.puts("\nTargets:")
 
-    for %Target{tgid: tgid} <- targets do
+    for %Container{tgid: tgid} <- targets do
       target = ["  ", :green, tgid, ":", :reset, "\n"]
       devshell? = MapSet.member?(devshell_targets, tgid)
       devshell = if devshell?, do: [:blue, "    @devshell\n", :reset], else: ""
@@ -71,21 +71,21 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
   @spec target_args(Cakefile.t()) :: %{Type.tgid() => [Arg.t()]}
   defp target_args(%Cakefile{} = cakefile) do
-    for %Target{} = target <- cakefile.targets, into: %{} do
+    for %Container{} = target <- cakefile.targets, into: %{} do
       {target.tgid, for(%Arg{} = arg <- target.commands, not hidden_arg(arg.name), do: arg)}
     end
   end
 
   @spec target_outputs(Cakefile.t()) :: %{Type.tgid() => [Output.t()]}
   defp target_outputs(%Cakefile{} = cakefile) do
-    for %Target{} = target <- cakefile.targets, into: %{} do
+    for %Container{} = target <- cakefile.targets, into: %{} do
       {target.tgid, for(%Output{} = output <- target.directives, do: output.path)}
     end
   end
 
   @spec devshell_targets(Cakefile.t()) :: MapSet.t(Type.tgid())
   defp devshell_targets(%Cakefile{} = cakefile) do
-    for %Target{} = target <- cakefile.targets,
+    for %Container{} = target <- cakefile.targets,
         Enum.any?(target.directives, &match?(%DevShell{}, &1)),
         into: MapSet.new() do
       target.tgid

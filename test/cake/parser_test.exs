@@ -2,6 +2,7 @@ defmodule Test.Cake do
   use ExUnit.Case, async: true
 
   alias Cake.Parser
+  alias Cake.Parser.Target.{Alias, Container}
 
   @path "a/path"
 
@@ -57,61 +58,61 @@ defmodule Test.Cake do
         includes: [],
         args: [],
         targets: [
-          %Parser.Alias{
+          %Alias{
             tgid: "target_alias",
             tgids: ["target_with_only_from", "target_with_commands"]
           },
-          %Parser.Target{
+          %Container{
             tgid: "target_with_only_from",
             included_from_ref: nil,
             directives: [],
             commands: [
-              %Parser.Container.From{image: "image", as: nil}
+              %Container.From{image: "image", as: nil}
             ]
           },
-          %Parser.Target{
+          %Container{
             tgid: "target_with_commands",
             included_from_ref: nil,
             directives: [],
             commands: [
-              %Parser.Container.From{image: "image", as: nil},
-              %Parser.Container.Command{instruction: "RUN", options: [], arguments: "run_1"},
-              %Parser.Container.Command{instruction: "RUN", options: [], arguments: "run_2"}
+              %Container.From{image: "image", as: nil},
+              %Container.Command{instruction: "RUN", options: [], arguments: "run_1"},
+              %Container.Command{instruction: "RUN", options: [], arguments: "run_2"}
             ]
           },
-          %Parser.Target{
+          %Container{
             tgid: "target_with_command_options",
             included_from_ref: nil,
             directives: [],
             commands: [
-              %Parser.Container.From{image: "image", as: nil},
-              %Parser.Container.Command{
+              %Container.From{image: "image", as: nil},
+              %Container.Command{
                 instruction: "COPY",
-                options: [%Parser.Container.Command.Option{name: "from", value: "copy_from"}],
+                options: [%Container.Command.Option{name: "from", value: "copy_from"}],
                 arguments: "/xxx ."
               }
             ]
           },
-          %Parser.Target{
+          %Container{
             tgid: "target_with_args",
             included_from_ref: nil,
             directives: [],
             commands: [
-              %Parser.Container.From{image: "image", as: nil},
-              %Parser.Container.Arg{name: "arg_1", default_value: "arg_default_value_1"},
-              %Parser.Container.Arg{name: "arg_2", default_value: "arg_default_value_2 quoted"}
+              %Container.From{image: "image", as: nil},
+              %Container.Arg{name: "arg_1", default_value: "arg_default_value_1"},
+              %Container.Arg{name: "arg_2", default_value: "arg_default_value_2 quoted"}
             ]
           },
-          %Parser.Target{
+          %Container{
             tgid: "target_command_with_continuation",
             included_from_ref: nil,
             directives: [],
             commands: [
-              %Parser.Container.From{image: "image", as: nil},
-              %Parser.Container.Command{instruction: "RUN", arguments: "aaa         bbb", options: []}
+              %Container.From{image: "image", as: nil},
+              %Container.Command{instruction: "RUN", arguments: "aaa         bbb", options: []}
             ]
           },
-          %Parser.Target{
+          %Container{
             tgid: "target_with_directives",
             included_from_ref: nil,
             directives: [
@@ -119,7 +120,7 @@ defmodule Test.Cake do
               %Parser.Directive.Push{},
               %Parser.Directive.Output{path: "output"}
             ],
-            commands: [%Parser.Container.From{image: "image", as: nil}]
+            commands: [%Container.From{image: "image", as: nil}]
           }
         ]
       }
@@ -141,18 +142,18 @@ defmodule Test.Cake do
           %Parser.Directive.Include{
             ref: "include_ref",
             args: [
-              %Parser.Container.Arg{name: "ARG1", default_value: "1"},
-              %Parser.Container.Arg{name: "ARG2", default_value: "2"}
+              %Container.Arg{name: "ARG1", default_value: "1"},
+              %Container.Arg{name: "ARG2", default_value: "2"}
             ]
           }
         ],
         path: "a/path",
         targets: [
-          %Parser.Target{
+          %Container{
             tgid: "target",
             included_from_ref: nil,
             directives: [],
-            commands: [%Parser.Container.From{image: "image", as: nil}]
+            commands: [%Container.From{image: "image", as: nil}]
           }
         ]
       }

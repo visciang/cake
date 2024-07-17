@@ -4,10 +4,11 @@ end
 
 defmodule Cake.Pipeline do
   alias Cake.Cli.Run
-  alias Cake.Parser.Container.{Arg, Command, Fmt, From}
-  alias Cake.Parser.{Alias, Cakefile, Target}
-  alias Cake.Parser.Directive.{DevShell, Output, Push}
   alias Cake.{Dag, Dir, Reporter, Type}
+  alias Cake.Parser.Cakefile
+  alias Cake.Parser.Directive.{DevShell, Output, Push}
+  alias Cake.Parser.Target.{Alias, Container}
+  alias Cake.Parser.Target.Container.{Arg, Command, Fmt, From}
 
   require Cake.Reporter.Status
   require Logger
@@ -63,7 +64,7 @@ defmodule Cake.Pipeline do
         %Alias{} ->
           :ok
 
-        %Target{} = target ->
+        %Container{} = target ->
           dask_job(run, cakefile, target, tgid, pipeline_uuid)
       end
 
@@ -99,8 +100,8 @@ defmodule Cake.Pipeline do
     Dask.job(dask, tgid, job_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec dask_job(Run.t(), Cakefile.t(), Target.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
-  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Target{} = target, tgid, pipeline_uuid) do
+  @spec dask_job(Run.t(), Cakefile.t(), Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
+  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Container{} = target, tgid, pipeline_uuid) do
     Logger.info("start for #{inspect(tgid)}", pipeline: pipeline_uuid)
 
     job_uuid = to_string(System.unique_integer([:positive]))
@@ -165,7 +166,7 @@ defmodule Cake.Pipeline do
   end
 
   @spec push_target?(Cakefile.target()) :: boolean()
-  defp push_target?(%Target{} = target), do: Enum.any?(target.directives, &match?(%Push{}, &1))
+  defp push_target?(%Container{} = target), do: Enum.any?(target.directives, &match?(%Push{}, &1))
   defp push_target?(_target), do: false
 
   @spec validate_cmd(Run.t(), Cakefile.target()) :: :ok | no_return()
@@ -193,8 +194,8 @@ defmodule Cake.Pipeline do
     }
   end
 
-  @spec insert_builtin_container_args(Target.t(), Path.t()) :: Target.t()
-  defp insert_builtin_container_args(%Target{} = target, include_ctx_dir) do
+  @spec insert_builtin_container_args(Container.t(), Path.t()) :: Container.t()
+  defp insert_builtin_container_args(%Container{} = target, include_ctx_dir) do
     from_idx = Enum.find_index(target.commands, &match?(%From{}, &1))
     {pre_from_cmds, [%From{} = from | post_from_cmds]} = Enum.split(target.commands, from_idx)
 
@@ -202,11 +203,11 @@ defmodule Cake.Pipeline do
       pre_from_cmds ++
         [from, %Arg{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
 
-    %Target{target | commands: commands}
+    %Container{target | commands: commands}
   end
 
-  @spec write_containerfile([Arg.t()], Target.t(), Path.t()) :: :ok
-  defp write_containerfile(args, %Target{} = target, path) do
+  @spec write_containerfile([Arg.t()], Container.t(), Path.t()) :: :ok
+  defp write_containerfile(args, %Container{} = target, path) do
     containerfile = Enum.map_join(args ++ target.commands, "\n", &Fmt.fmt(&1))
     File.write!(path, containerfile)
 
@@ -222,7 +223,7 @@ defmodule Cake.Pipeline do
         cakefile,
         [
           Access.key!(:targets),
-          Access.filter(&match?(%Target{}, &1)),
+          Access.filter(&match?(%Container{}, &1)),
           Access.key!(:commands),
           Access.filter(&match?(%From{image: "+" <> _}, &1)),
           Access.key!(:image)
@@ -234,7 +235,7 @@ defmodule Cake.Pipeline do
       cakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Target{}, &1)),
+        Access.filter(&match?(%Container{}, &1)),
         Access.key!(:commands),
         Access.filter(&match?(%Command{instruction: "COPY"}, &1)),
         Access.key!(:options),

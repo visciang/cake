@@ -4,8 +4,8 @@ defimpl Cake.Cmd, for: Cake.Cli.DevShell do
   alias Cake.{Cmd, Dag, Type}
   alias Cake.Cli.{DevShell, Run}
   alias Cake.Parser.Cakefile
-  alias Cake.Parser.Target
   alias Cake.Parser.Directive
+  alias Cake.Parser.Target.Container
 
   @spec exec(DevShell.t(), Cakefile.t(), Dag.graph()) :: :ok
   def exec(%DevShell{} = devshell, %Cakefile{} = cakefile, graph) do
@@ -62,7 +62,7 @@ defimpl Cake.Cmd, for: Cake.Cli.DevShell do
 
   @spec devshell_targets(Cakefile.t()) :: MapSet.t(Type.tgid())
   defp devshell_targets(%Cakefile{} = cakefile) do
-    for %Target{} = target <- cakefile.targets,
+    for %Container{} = target <- cakefile.targets,
         Enum.any?(target.directives, &match?(%Directive.DevShell{}, &1)),
         into: MapSet.new() do
       target.tgid

@@ -1,7 +1,8 @@
 defmodule Cake.Validator do
   alias Cake.Dag
-  alias Cake.Parser.{Alias, Cakefile, Container, Target}
+  alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.Push
+  alias Cake.Parser.Target.{Alias, Container}
 
   @type result() :: :ok | {:error, reason :: term()}
 
@@ -22,7 +23,7 @@ defmodule Cake.Validator do
           do: tgid
 
     all_commands =
-      for %Target{commands: commands} <- cakefile.targets,
+      for %Container{commands: commands} <- cakefile.targets,
           command <- commands,
           do: command
 
@@ -53,7 +54,7 @@ defmodule Cake.Validator do
   @spec check_push_targets(Cakefile.t(), Dag.graph()) :: result()
   defp check_push_targets(%Cakefile{} = cakefile, graph) do
     push_targets =
-      for %Target{directives: directives} = target <- cakefile.targets,
+      for %Container{directives: directives} = target <- cakefile.targets,
           Enum.any?(directives, &match?(%Push{}, &1)),
           do: target
 
@@ -70,9 +71,9 @@ defmodule Cake.Validator do
   @spec check_from(Cakefile.t(), Dag.graph()) :: result()
   defp check_from(%Cakefile{} = cakefile, _graph) do
     cakefile.targets
-    |> Enum.filter(&match?(%Target{commands: [_ | _]}, &1))
+    |> Enum.filter(&match?(%Container{commands: [_ | _]}, &1))
     |> Enum.reduce_while(:ok, fn
-      %Target{tgid: tgid, commands: commands}, :ok ->
+      %Container{tgid: tgid, commands: commands}, :ok ->
         case commands do
           [%Container.From{as: as} | _] when as != nil ->
             {:halt, {:error, "'FROM .. AS ..' form is not allowed, please remove the AS argument under #{tgid}"}}

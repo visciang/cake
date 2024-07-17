@@ -1,9 +1,32 @@
-defprotocol Cake.Parser.Container.Fmt do
+defprotocol Cake.Parser.Target.Container.Fmt do
   @spec fmt(t()) :: String.t()
   def fmt(data)
 end
 
-defmodule Cake.Parser.Container do
+defmodule Cake.Parser.Target.Container do
+  # target:
+  #     @output output/
+  #     FROM image
+  #     ARG X=1
+  #     RUN ...
+
+  alias Cake.Parser.Target.Container.{Arg, Command, From}
+  alias Cake.Parser.Directive.{Output, Push}
+  alias Cake.Type
+
+  @enforce_keys [:tgid]
+  defstruct @enforce_keys ++ [included_from_ref: nil, directives: [], commands: []]
+
+  @type directive :: Output.t() | Push.t()
+  @type command :: Arg.t() | From.t() | Command.t()
+
+  @type t :: %__MODULE__{
+          tgid: Type.tgid(),
+          directives: [directive()],
+          commands: [command()],
+          included_from_ref: nil | Path.t()
+        }
+
   defmodule From do
     # Container `FROM <image> [AS <as>]`
 
@@ -53,7 +76,7 @@ defmodule Cake.Parser.Container do
           }
   end
 
-  defimpl Cake.Parser.Container.Fmt, for: From do
+  defimpl Cake.Parser.Target.Container.Fmt, for: From do
     @spec fmt(From.t()) :: String.t()
     def fmt(%From{} = from) do
       if from.as do
@@ -66,7 +89,7 @@ defmodule Cake.Parser.Container do
     end
   end
 
-  defimpl Cake.Parser.Container.Fmt, for: Arg do
+  defimpl Cake.Parser.Target.Container.Fmt, for: Arg do
     @spec fmt(Arg.t()) :: String.t()
     def fmt(%Arg{} = arg) do
       if arg.default_value do
@@ -77,7 +100,7 @@ defmodule Cake.Parser.Container do
     end
   end
 
-  defimpl Cake.Parser.Container.Fmt, for: Command do
+  defimpl Cake.Parser.Target.Container.Fmt, for: Command do
     @spec fmt(Command.t()) :: String.t()
     def fmt(%Command{} = command) do
       options = Enum.map_join(command.options, " ", &"--#{&1.name}=#{&1.value}")

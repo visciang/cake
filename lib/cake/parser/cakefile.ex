@@ -1,10 +1,10 @@
 defmodule Cake.Parser.Cakefile do
-  alias Cake.Parser.{Alias, Container, Target}
   alias Cake.Parser.Directive.Include
+  alias Cake.Parser.Target.{Alias, Container}
 
   defstruct path: ".", includes: [], args: [], targets: []
 
-  @type target :: Alias.t() | Target.t()
+  @type target :: Alias.t() | Container.t()
 
   @type t :: %__MODULE__{
           path: Path.t(),

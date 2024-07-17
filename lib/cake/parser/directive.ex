@@ -26,7 +26,7 @@ defmodule Cake.Parser.Directive do
 
     @type t :: %__MODULE__{
             ref: String.t(),
-            args: [Cake.Parser.Container.Arg.t()]
+            args: [Cake.Parser.Target.Container.Arg.t()]
           }
   end
 

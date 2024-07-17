@@ -2,7 +2,7 @@ ARG ELIXIR_VERSION=1.17.2
 ARG ELIXIR_ERLANG_VERSION=27.0.1
 ARG ELIXIR_ALPINE_VERSION=3.20.1
 
-FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} as build
+FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} AS build
 # ERL_FLAGS="+JPperf true" is a workaround to "fix" the problem of docker cross-platform builds via QEMU.
 # REF:  https://elixirforum.com/t/mix-deps-get-memory-explosion-when-doing-cross-platform-docker-build/57157
 ENV ERL_FLAGS="+JPperf true"
@@ -19,9 +19,10 @@ COPY .*.exs ./
 ARG CAKE_VERSION=0.0.0
 RUN CAKE_VERSION=${CAKE_VERSION} mix escript.build
 
-FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} as cake.app
+FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} AS cake.app
 RUN apk add --no-cache bash git openssh-client docker-cli docker-cli-buildx
-RUN mkdir -p -m 0700 ~/.ssh \
-    && ssh-keyscan github.com gitlab.com bitbucket.com >> ~/.ssh/known_hosts
+RUN mkdir -p -m 0700 ~/.ssh && \
+    ssh-keyscan github.com gitlab.com bitbucket.com >> ~/.ssh/known_hosts && \
+    ssh-keyscan gitlab.lan.athonet.com >> ~/.ssh/known_hosts
 COPY --from=build /code/cake /cake
 ENTRYPOINT [ "/cake" ]

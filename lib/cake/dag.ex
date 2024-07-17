@@ -3,8 +3,9 @@ defmodule Cake.Dag do
     defexception [:message]
   end
 
-  alias Cake.Parser.{Alias, Cakefile, Target}
-  alias Cake.Parser.Container.{Command, From}
+  alias Cake.Parser.Cakefile
+  alias Cake.Parser.Target.{Alias, Container}
+  alias Cake.Parser.Target.Container.{Command, From}
   alias Cake.Type
 
   @opaque graph :: :digraph.graph()
@@ -49,7 +50,7 @@ defmodule Cake.Dag do
   defp add_vertices(graph, %Cakefile{} = cakefile) do
     for target <- cakefile.targets do
       case target do
-        %Target{tgid: tgid} -> :digraph.add_vertex(graph, tgid)
+        %Container{tgid: tgid} -> :digraph.add_vertex(graph, tgid)
         %Alias{tgid: tgid} -> :digraph.add_vertex(graph, tgid)
       end
     end
@@ -61,7 +62,7 @@ defmodule Cake.Dag do
   defp add_edges(graph, %Cakefile{} = cakefile) do
     for target <- cakefile.targets do
       case target do
-        %Target{tgid: downstream_tgid, commands: commands} ->
+        %Container{tgid: downstream_tgid, commands: commands} ->
           add_command_edges(graph, commands, downstream_tgid)
 
         %Alias{tgid: downstream_tgid, tgids: upstream_tgids} ->
@@ -74,7 +75,7 @@ defmodule Cake.Dag do
     :ok
   end
 
-  @spec add_command_edges(:digraph.graph(), [Target.command()], Type.tgid()) :: :ok
+  @spec add_command_edges(:digraph.graph(), [Container.command()], Type.tgid()) :: :ok
   defp add_command_edges(graph, commands, downstream_tgid) do
     for %From{image: "+" <> upstream_tgid} <- commands do
       add_edge(graph, upstream_tgid, downstream_tgid)

@@ -1,4 +1,4 @@
-defmodule Cake.Parser.Alias do
+defmodule Cake.Parser.Target.Alias do
   # Alias target group `alias: <target>+`
 
   alias Cake.Type

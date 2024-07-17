@@ -1,6 +1,7 @@
 defmodule Cake.Preprocessor do
-  alias Cake.Parser.{Cakefile, Target}
+  alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{Include, Output}
+  alias Cake.Parser.Target.Container
   alias Cake.Reference
 
   require Logger
@@ -72,7 +73,7 @@ defmodule Cake.Preprocessor do
       cakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Target{}, &1)),
+        Access.filter(&match?(%Container{}, &1)),
         Access.key!(:directives),
         Access.all()
       ],
@@ -101,7 +102,7 @@ defmodule Cake.Preprocessor do
       cakefile,
       [
         Access.key!(:targets),
-        Access.filter(&match?(%Target{}, &1)),
+        Access.filter(&match?(%Container{}, &1)),
         Access.key!(:included_from_ref)
       ],
       cakefile_path

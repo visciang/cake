@@ -1,8 +1,9 @@
 defmodule Cake.Parser do
   import NimbleParsec
 
-  alias Cake.Parser.{Alias, Cakefile, Container, Target}
+  alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{DevShell, Include, Output, Push}
+  alias Cake.Parser.Target.{Alias, Container}
 
   @type result ::
           {:ok, Cakefile.t()}
@@ -190,7 +191,7 @@ defmodule Cake.Parser do
     )
     |> optional(tag(target_commands, :commands))
     |> wrap()
-    |> map({:cast, [Target]})
+    |> map({:cast, [Container]})
 
   alias_targets =
     target_id
