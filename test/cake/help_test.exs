@@ -1,4 +1,4 @@
-defmodule Test.Cake.Cmd.Help do
+defmodule Test.Cake.Help do
   use ExUnit.Case, async: false
 
   import Mox

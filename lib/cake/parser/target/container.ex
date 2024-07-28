@@ -4,7 +4,7 @@ defprotocol Cake.Parser.Target.Container.Fmt do
 end
 
 defmodule Cake.Parser.Target.Container do
-  # target:
+  # target: dep1 dep2
   #     @output output/
   #     FROM image
   #     ARG X=1
@@ -14,16 +14,17 @@ defmodule Cake.Parser.Target.Container do
   alias Cake.Parser.Directive.{Output, Push}
   alias Cake.Type
 
-  @enforce_keys [:tgid]
-  defstruct @enforce_keys ++ [included_from_ref: nil, directives: [], commands: []]
+  @enforce_keys [:tgid, :commands]
+  defstruct @enforce_keys ++ [deps_tgids: [], included_from_ref: nil, directives: []]
 
   @type directive :: Output.t() | Push.t()
   @type command :: Arg.t() | From.t() | Command.t()
 
   @type t :: %__MODULE__{
           tgid: Type.tgid(),
+          deps_tgids: [Type.tgid()],
           directives: [directive()],
-          commands: [command()],
+          commands: [command(), ...],
           included_from_ref: nil | Path.t()
         }
 
@@ -41,6 +42,18 @@ defmodule Cake.Parser.Target.Container do
 
   defmodule Arg do
     # Container `ARG <name>[=<default_value>]`
+
+    @enforce_keys [:name]
+    defstruct @enforce_keys ++ [:default_value]
+
+    @type t :: %__MODULE__{
+            name: String.t(),
+            default_value: nil | String.t()
+          }
+  end
+
+  defmodule Env do
+    # Container `ENV <name>[=<default_value>]`
 
     @enforce_keys [:name]
     defstruct @enforce_keys ++ [:default_value]

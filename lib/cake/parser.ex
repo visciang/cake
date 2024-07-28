@@ -3,7 +3,7 @@ defmodule Cake.Parser do
 
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{DevShell, Include, Output, Push}
-  alias Cake.Parser.Target.{Alias, Container}
+  alias Cake.Parser.Target.{Alias, Container, Local}
 
   @type result ::
           {:ok, Cakefile.t()}
@@ -20,7 +20,13 @@ defmodule Cake.Parser do
     |> concat(line)
 
   ignorable_line =
-    choice([nl, comment])
+    choice([nl, concat(comment, nl)])
+
+  target_ignorable_line =
+    choice([
+      nl,
+      indent |> optional(comment) |> concat(nl)
+    ])
 
   quoted_literal_value =
     ignore(string("\""))
@@ -123,21 +129,26 @@ defmodule Cake.Parser do
     |> wrap()
     |> map({:cast, [Container.Arg]})
 
-  target_body_command =
-    ignore(indent)
-    |> choice([
-      arg,
-      from,
-      command,
-      ignore(comment),
-      ignore(empty())
-    ])
+  env =
+    ignore(string("ENV"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(arg_name, :name)
+    |> optional(unwrap_and_tag(arg_value, :default_value))
+    |> wrap()
+    |> map({:cast, [Container.Env]})
 
-  target_commands =
-    target_body_command
+  target_container_commands =
+    ignore(indent)
+    |> concat(from)
     |> repeat(
       ignore(nl)
-      |> concat(target_body_command)
+      |> choice([
+        ignore(indent) |> concat(arg),
+        ignore(indent) |> concat(command),
+        ignore(indent) |> ignore(comment),
+        ignore(indent) |> lookahead(nl),
+        lookahead(nl)
+      ])
     )
 
   output_directive =
@@ -151,15 +162,6 @@ defmodule Cake.Parser do
     ignore(string("@push"))
     |> wrap()
     |> map({:cast, [Push]})
-
-  include_args =
-    repeat(
-      ignore(spaces)
-      |> unwrap_and_tag(arg_name, :name)
-      |> optional(unwrap_and_tag(arg_value, :default_value))
-      |> wrap()
-      |> map({:cast, [Container.Arg]})
-    )
 
   devshell_directive =
     ignore(string("@devshell"))
@@ -175,59 +177,110 @@ defmodule Cake.Parser do
     ])
 
   target_directives =
-    target_directive
-    |> repeat(
-      ignore(nl)
-      |> concat(target_directive)
-    )
-
-  target_container =
-    unwrap_and_tag(target_id, :tgid)
-    |> ignore(string(":"))
-    |> ignore(nl)
-    |> optional(
-      tag(target_directives, :directives)
+    repeat(
+      target_directive
       |> ignore(nl)
+      |> ignore(repeat(target_ignorable_line))
     )
-    |> optional(tag(target_commands, :commands))
-    |> wrap()
-    |> map({:cast, [Container]})
 
-  alias_targets =
+  deps_targets =
     target_id
     |> repeat(
       ignore(spaces)
       |> concat(target_id)
     )
 
-  target_alias =
+  target_head =
     unwrap_and_tag(target_id, :tgid)
     |> ignore(string(":"))
-    |> ignore(spaces)
-    |> tag(alias_targets, :tgids)
+    |> optional(
+      ignore(spaces)
+      |> tag(deps_targets, :deps_tgids)
+    )
+
+  target_container =
+    target_head
+    |> ignore(nl)
+    |> ignore(repeat(target_ignorable_line))
+    |> tag(target_directives, :directives)
+    |> tag(target_container_commands, :commands)
+    |> wrap()
+    |> map({:cast, [Container]})
+
+  target_alias =
+    target_head
     |> wrap()
     |> map({:cast, [Alias]})
 
+  target_local_interpreter =
+    ignore(string("LOCAL"))
+    |> ignore(spaces)
+    |> concat(line)
+
+  target_local_commands =
+    ignore(indent)
+    |> unwrap_and_tag(target_local_interpreter, :interpreter)
+    |> tag(
+      repeat(
+        ignore(nl)
+        |> choice([
+          ignore(indent) |> concat(env),
+          ignore(indent) |> ignore(comment),
+          ignore(indent) |> lookahead(nl),
+          lookahead(nl)
+        ])
+      ),
+      :env
+    )
+    |> unwrap_and_tag(
+      repeat(
+        nl
+        |> choice([
+          ignore(indent) |> concat(line),
+          ignore(indent) |> lookahead(nl),
+          lookahead(nl)
+        ])
+      )
+      |> reduce({Enum, :join, []}),
+      :script
+    )
+
+  target_local =
+    target_head
+    |> ignore(nl)
+    |> ignore(repeat(target_ignorable_line))
+    |> concat(target_local_commands)
+    |> wrap()
+    |> map({:cast, [Local]})
+
   target =
     choice([
-      target_alias,
-      target_container
+      target_local,
+      target_container,
+      target_alias
     ])
 
   global_args =
-    arg
-    |> repeat(
-      ignore(nl)
+    repeat(
+      arg
+      |> ignore(nl)
       |> ignore(repeat(ignorable_line))
-      |> concat(arg)
     )
 
   targets =
-    target
-    |> repeat(
-      ignore(nl)
+    repeat(
+      target
+      |> ignore(nl)
       |> ignore(repeat(ignorable_line))
-      |> concat(target)
+    )
+
+  include_args =
+    repeat(
+      ignore(spaces)
+      |> unwrap_and_tag(arg_name, :name)
+      |> optional(unwrap_and_tag(arg_value, :default_value))
+      |> wrap()
+      |> map({:cast, [Container.Arg]})
     )
 
   include_directive =
@@ -239,32 +292,22 @@ defmodule Cake.Parser do
     |> map({:cast, [Include]})
 
   include_directives =
-    include_directive
-    |> repeat(
-      ignore(nl)
+    repeat(
+      include_directive
+      |> ignore(nl)
       |> ignore(repeat(ignorable_line))
-      |> concat(include_directive)
     )
 
   cakefile =
     ignore(repeat(ignorable_line))
-    |> optional(tag(global_args, :args))
-    |> ignore(repeat(ignorable_line))
-    |> optional(
-      tag(
-        include_directives
-        |> ignore(nl),
-        :includes
-      )
-    )
-    |> ignore(repeat(ignorable_line))
-    |> optional(tag(targets, :targets))
-    |> ignore(repeat(ignorable_line))
+    |> tag(global_args, :args)
+    |> tag(include_directives, :includes)
+    |> tag(targets, :targets)
     |> eos()
     |> wrap()
     |> map({:cast, [Cakefile]})
 
-  defparsec :cakefile, cakefile
+  defparsec(:cakefile, cakefile)
 
   @spec parse(String.t(), Path.t()) :: result()
   def parse(content, path) do

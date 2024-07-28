@@ -88,10 +88,8 @@ defmodule Test.Cake.Include do
              arg
              inc_arg
 
-           Aliases:
-             all: inc_target_1 inc_target_2
-
            Targets:
+             all: inc_target_1 inc_target_2
              inc_target_1:
              inc_target_2:
              target:
@@ -138,10 +136,8 @@ defmodule Test.Cake.Include do
              arg
              inc_arg
 
-           Aliases:
-             all: inc_target_1 inc_target_2
-
            Targets:
+             all: inc_target_1 inc_target_2
              inc_target_1:
              inc_target_2:
              target:

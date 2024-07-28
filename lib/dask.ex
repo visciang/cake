@@ -134,7 +134,7 @@ defmodule Dask do
       {:error, {:bad_vertex, %Job{id: job_id}}} ->
         raise Error, "Bad job: #{inspect(job_id)}"
 
-      # coveralls-ignore-end
+      # coveralls-ignore-stop
 
       _ ->
         :ok

@@ -4,7 +4,7 @@ defmodule Cake.Pipeline.Docker do
   alias Cake.{Dir, Reporter, Type}
   require Logger
 
-  @behaviour Cake.Pipeline.ContainerManager
+  @behaviour Cake.Pipeline.Behaviour.Container
 
   @impl true
   def fq_image(tgid, pipeline_uuid), do: "#{tgid}:#{pipeline_uuid}"
