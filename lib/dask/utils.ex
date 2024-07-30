@@ -35,5 +35,5 @@ defmodule Dask.Utils do
     :ok
   end
 
-  # coveralls-ignore-end
+  # coveralls-ignore-stop
 end

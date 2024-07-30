@@ -3,8 +3,8 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
   alias Cake.Cli.Ls
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{DevShell, Output}
-  alias Cake.Parser.Target.Container.Arg
-  alias Cake.Parser.Target.{Alias, Container}
+  alias Cake.Parser.Target.Container.{Arg, Env}
+  alias Cake.Parser.Target.{Alias, Container, Local}
 
   @builtin_docker_args [
     "TARGETPLATFORM",
@@ -18,6 +18,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
   ]
 
   @spec exec(Ls.t(), Cakefile.t(), Dag.graph()) :: :ok
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def exec(%Ls{}, %Cakefile{} = cakefile, _graph) do
     Dir.setup_cake_dirs()
 
@@ -35,30 +36,40 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
           do: IO.ANSI.format_fragment(["  ", fmt_arg(arg), "\n"]) |> IO.write()
     end
 
-    IO.puts("\nAliases:")
-
-    for %Alias{tgid: tgid, tgids: tgids} <- targets do
-      alias_ = ["  ", :green, tgid, ": ", :faint, Enum.join(tgids, " "), "\n", :reset]
-
-      IO.ANSI.format(alias_) |> IO.write()
-    end
-
     IO.puts("\nTargets:")
 
-    for %Container{tgid: tgid} <- targets do
-      target = ["  ", :green, tgid, ":", :reset, "\n"]
-      devshell? = MapSet.member?(devshell_targets, tgid)
-      devshell = if devshell?, do: [:blue, "    @devshell\n", :reset], else: ""
+    for %{tgid: tgid, deps_tgids: deps_tgids} = target <- targets do
+      target_header = ["  ", :green, tgid, ":", fmt_deps_tgids(deps_tgids), :reset, "\n"]
 
-      outputs =
-        for output <- Map.get(target_outputs, tgid, []),
-            do: [:blue, "    @output ", :faint, output, "\n", :reset]
+      case target do
+        %Alias{} ->
+          ["  ", :green, tgid, ":", fmt_deps_tgids(deps_tgids), "\n", :reset]
 
-      args =
-        for arg <- Map.get(target_args, tgid, []),
-            do: ["    ", fmt_arg(arg), "\n", :reset]
+        %Local{interpreter: interpreter, env: env} ->
+          env =
+            for e <- env,
+                do: ["    ", fmt_env(e), "\n", :reset]
 
-      IO.ANSI.format([target, devshell, outputs, args]) |> IO.write()
+          local = [:blue, "    LOCAL ", :faint, interpreter, "\n", :reset]
+
+          [target_header, local, env]
+
+        %Container{} ->
+          devshell? = MapSet.member?(devshell_targets, tgid)
+          devshell = if devshell?, do: [:blue, "    @devshell\n", :reset], else: ""
+
+          outputs =
+            for output <- Map.get(target_outputs, tgid, []),
+                do: [:blue, "    @output ", :faint, output, "\n", :reset]
+
+          args =
+            for arg <- Map.get(target_args, tgid, []),
+                do: ["    ", fmt_arg(arg), "\n", :reset]
+
+          [target_header, devshell, outputs, args]
+      end
+      |> IO.ANSI.format()
+      |> IO.write()
     end
 
     :ok
@@ -92,7 +103,15 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
     end
   end
 
+  @spec fmt_deps_tgids([String.t()]) :: IO.ANSI.ansidata()
+  defp fmt_deps_tgids([]), do: []
+  defp fmt_deps_tgids(tgids), do: [" ", :faint, Enum.join(tgids, " ")]
+
   @spec fmt_arg(Arg.t()) :: IO.ANSI.ansidata()
   defp fmt_arg(%Arg{default_value: nil} = arg), do: [:blue, arg.name]
   defp fmt_arg(%Arg{} = arg), do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
+
+  @spec fmt_env(Env.t()) :: IO.ANSI.ansidata()
+  defp fmt_env(%Env{default_value: nil} = arg), do: [:blue, arg.name]
+  defp fmt_env(%Env{} = arg), do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
 end

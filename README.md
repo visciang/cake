@@ -2,25 +2,26 @@
 
 [![.github/workflows/ci.yml](https://github.com/visciang/cake/actions/workflows/ci.yml/badge.svg)](https://github.com/visciang/cake/actions/workflows/ci.yml)
 
-> [!WARNING]  
+> [!WARNING]
 > This is a POC, for personal use. It works on my machine!
 
 Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI framework to
 define and execute "reproducible" pipelines that can run on any host with docker support.
 
-![cake](./docs/cake.png)
-
 ## Features and characteristics
 
-- DAG pipeline definition with a Dockerfile-like syntax
-- Not a Buildkit frontend
-- Implicit docker-like caching
+- DAG pipeline definition with a Makefile / Dockerfile inspired syntax
 - Parallel jobs execution
 - Parametrizable pipelines and jobs (ref. `ARGS`)
-- Jobs can output artifacts to the host filesystem (ref. `@output`)
-- Jobs can be declared as non-cacheable (ref. `@push`)
+- Job can be executed as a docker build or a local script
+- (*) Jobs can output artifacts to the host filesystem (ref. `@output`)
+- (*) Jobs can be declared as non-cacheable (ref. `@push`)
+- (*) Implicit docker-like caching
 - Pipelines can include pipeline templates (ref. `@include`)
 - Shell integration for debug and development
+- Not a Buildkit frontend
+
+(*) docker job type only
 
 ## Install cake
 
@@ -34,7 +35,7 @@ It show how to invoke the docker image with SSH forwarding, docker agent socket 
     curl -o /usr/local/bin/cake -L https://raw.githubusercontent.com/visciang/cake/main/priv/cake
     chmod +x /usr/local/bin/cake
 
-and pin a cake version (`vX.Y.Z`):
+then edit the script to pin a cake version (`vX.Y.Z`):
 
     sed -i '' "s/__PLEASE_PIN_A_CAKE_VERSION_HERE__/vX.Y.Z/" /usr/local/bin/cake
 
@@ -148,6 +149,26 @@ The image is available in the local docker registry:
 
     Hello Cake!
 
+Furthermore jobs can be define as `LOCAL` jobs. These kind of jobs are execute as local script on the running host.
+
+```Dockerfile
+hello_bash:
+    LOCAL /usr/bin/env bash -c
+
+    for idx in $(seq 10); do
+      echo "Hello $idx"
+    done
+
+hello_elixir:
+    LOCAL /usr/bin/env elixir -e
+
+    for idx <- 1..10 do
+      IO.puts("Hello #{idx}")
+    end
+```
+
+Docker and local jobs can be mixed together in the same pipeline.
+
 ## Cakefile
 
 Cake pipelines are defined via `Cakefile`.
@@ -158,7 +179,7 @@ The `Cakefile` of a project pipeline should sit at the root directory of the pro
 
 Targets in Cake represent the addressable and executable entities within a pipeline. They identify the jobs that build the Directed Acyclic Graph (DAG) of the pipeline.
 
-A target is defined as a logical step or action within the pipeline. Each target can encapsulate one or more jobs and typically corresponds to a specific task or operation to be performed. For instance, in the example Cakefile:
+A target is defined as a logical step or action within the pipeline. Each target typically corresponds to a specific task or operation to be performed. For instance, in the example Cakefile:
 
 ```Dockerfile
 compile:
@@ -209,6 +230,26 @@ Targets collectively form the Directed Acyclic Graph (DAG) of the pipeline. The 
 - **Dependencies**: targets can have dependencies on other targets. For example, the `app` target depends on the successful execution of the `compile` target in the example above.
 
 - **Execution Order**: Cake determines the execution order based on the DAG structure, ensuring that dependent targets are executed only after their dependencies successfully complete.
+
+#### Explicit Target Dependencies
+
+Within the Cakefile, target dependencies can be explicitly established
+
+```Dockerfile
+all: target_1 target_2
+
+target_1:
+    LOCAL /bin/sh -c
+    echo "target 1"
+
+target_2: target_1
+    FROM alpine
+    RUN echo "target 2"
+```
+
+In the above Cakefile `target_2` depends on `target_1` as per `target_2: target_1` definition.
+
+Note: the alias target `all` can be thought as a special case of an empty target that explicitely depends on `target_1` and `target_2`.
 
 #### Implicit Target Dependencies
 
@@ -331,7 +372,7 @@ The conventions for directives follow the format `@directive_name`.
 
 Format: `@output <dir>`
 
-Used to output artifacts from a target to the host filesystem.
+Used to output artifacts from a docker target to the host filesystem.
 
 Example:
 
@@ -348,7 +389,7 @@ Note: output take effect only if the run command includes the `--output` flag.
 
 Format: `@push`
 
-Identifies non-cacheable targets, primarily used for side-effects (e.g. deployments).
+Identifies non-cacheable docker targets, primarily used for side-effects (e.g. deployments).
 
 Note: push targets can only be executed if the run commands include the `--push` flag
 
@@ -380,7 +421,7 @@ Example:
 
 `@devshell`
 
-Tag the target as a "devshell" - a target that can be used a development container.
+Tag the docker target as a "devshell" - a docker target that can be used a development container.
 
 Equivalent to `cake run --shell <devshell target>`.
 

@@ -2,23 +2,29 @@ defmodule Cake.Validator do
   alias Cake.Dag
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.Push
-  alias Cake.Parser.Target.{Alias, Container}
+  alias Cake.Parser.Target.{Alias, Container, Local}
 
   @type result() :: :ok | {:error, reason :: term()}
 
   @spec check(Cakefile.t(), Dag.graph()) :: result()
   def check(%Cakefile{} = cakefile, graph) do
-    with :ok <- check_alias_targets(cakefile, graph),
+    with :ok <- check_targets_references(cakefile, graph),
          :ok <- check_push_targets(cakefile, graph),
          :ok <- check_from(cakefile, graph) do
       :ok
     end
   end
 
-  @spec check_alias_targets(Cakefile.t(), Dag.graph()) :: result()
-  defp check_alias_targets(%Cakefile{} = cakefile, _graph) do
+  @spec check_targets_references(Cakefile.t(), Dag.graph()) :: result()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  defp check_targets_references(%Cakefile{} = cakefile, _graph) do
     alias_tgids =
       for %Alias{tgid: tgid} <- cakefile.targets,
+          into: MapSet.new(),
+          do: tgid
+
+    local_tgids =
+      for %Local{tgid: tgid} <- cakefile.targets,
           into: MapSet.new(),
           do: tgid
 
@@ -41,13 +47,20 @@ defmodule Cake.Validator do
           into: MapSet.new(),
           do: ref
 
-    bad_tgids = MapSet.intersection(alias_tgids, tgids_referenced)
+    bad_alias_tgids = MapSet.intersection(alias_tgids, tgids_referenced)
+    bad_local_tgids = MapSet.intersection(local_tgids, tgids_referenced)
 
-    if MapSet.size(bad_tgids) == 0 do
-      :ok
-    else
-      bad_tgids = Enum.to_list(bad_tgids)
-      {:error, "alias targets #{inspect(bad_tgids)} cannot be referenced in FROM/COPY instructions"}
+    cond do
+      MapSet.size(bad_alias_tgids) != 0 ->
+        bad_alias_tgids = Enum.to_list(bad_alias_tgids)
+        {:error, "alias targets #{inspect(bad_alias_tgids)} cannot be referenced in FROM/COPY instructions"}
+
+      MapSet.size(bad_local_tgids) != 0 ->
+        bad_local_tgids = Enum.to_list(bad_local_tgids)
+        {:error, "local targets #{inspect(bad_local_tgids)} cannot be referenced in FROM/COPY instructions"}
+
+      true ->
+        :ok
     end
   end
 
@@ -80,9 +93,6 @@ defmodule Cake.Validator do
 
           [%Container.From{} | _] ->
             {:cont, :ok}
-
-          _ ->
-            {:halt, {:error, "#{tgid} doesn't start with a FROM command"}}
         end
     end)
   end

@@ -1,4 +1,4 @@
-defmodule Test.Cake.Cmd.Ls do
+defmodule Test.Cake.Ls do
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
@@ -23,6 +23,12 @@ defmodule Test.Cake.Cmd.Ls do
         FROM scratch
         ARG target_arg_1
         ARG target_arg_2="default"
+        
+    target_3:
+        LOCAL /bin/sh -c
+        ENV A
+        ENV B=1
+        echo "Hello ${A} ${B}"
     """)
 
     expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
@@ -42,16 +48,16 @@ defmodule Test.Cake.Cmd.Ls do
            Global arguments:
              global_arg_1="default"
 
-           Aliases:
-             all: target_1 target_2
-
            Targets:
+             all: target_1 target_2
              target_1:
                @output output
              target_2:
                @devshell
                target_arg_1
                target_arg_2="default"
+             target_3:
+               LOCAL /bin/sh -c
            """
   end
 end

@@ -4,7 +4,7 @@ defmodule Cake.Dag do
   end
 
   alias Cake.Parser.Cakefile
-  alias Cake.Parser.Target.{Alias, Container}
+  alias Cake.Parser.Target.Container
   alias Cake.Parser.Target.Container.{Command, From}
   alias Cake.Type
 
@@ -48,11 +48,8 @@ defmodule Cake.Dag do
 
   @spec add_vertices(:digraph.graph(), Cakefile.t()) :: :ok
   defp add_vertices(graph, %Cakefile{} = cakefile) do
-    for target <- cakefile.targets do
-      case target do
-        %Container{tgid: tgid} -> :digraph.add_vertex(graph, tgid)
-        %Alias{tgid: tgid} -> :digraph.add_vertex(graph, tgid)
-      end
+    for %{tgid: tgid} <- cakefile.targets do
+      :digraph.add_vertex(graph, tgid)
     end
 
     :ok
@@ -60,15 +57,17 @@ defmodule Cake.Dag do
 
   @spec add_edges(:digraph.graph(), Cakefile.t()) :: :ok
   defp add_edges(graph, %Cakefile{} = cakefile) do
-    for target <- cakefile.targets do
+    for %{tgid: downstream_tgid, deps_tgids: upstream_tgids} = target <- cakefile.targets do
+      for upstream_tgid <- upstream_tgids do
+        add_edge(graph, upstream_tgid, downstream_tgid)
+      end
+
       case target do
         %Container{tgid: downstream_tgid, commands: commands} ->
           add_command_edges(graph, commands, downstream_tgid)
 
-        %Alias{tgid: downstream_tgid, tgids: upstream_tgids} ->
-          for upstream_tgid <- upstream_tgids do
-            add_edge(graph, upstream_tgid, downstream_tgid)
-          end
+        _ ->
+          :ok
       end
     end
 

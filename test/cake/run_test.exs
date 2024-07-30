@@ -1,6 +1,8 @@
-defmodule Test.Cake.Cmd.Run do
+defmodule Test.Cake.Run do
   use ExUnit.Case, async: false
 
+  require Logger
+  alias Cake.Parser.Target.Local
   alias Cake.Pipeline.Docker
 
   import ExUnit.CaptureIO
@@ -11,15 +13,15 @@ defmodule Test.Cake.Cmd.Run do
   setup {Test.Support, :setup_cake_run}
 
   setup do
-    stub(Test.ContainerManagerMock, :fq_image, fn tgid, pipeline_uuid ->
+    stub(Test.ContainerMock, :fq_image, fn tgid, pipeline_uuid ->
       Docker.fq_image(tgid, pipeline_uuid)
     end)
 
-    stub(Test.ContainerManagerMock, :fq_output_container, fn tgid, pipeline_uuid ->
+    stub(Test.ContainerMock, :fq_output_container, fn tgid, pipeline_uuid ->
       Docker.fq_output_container(tgid, pipeline_uuid)
     end)
 
-    stub(Test.ContainerManagerMock, :cleanup, fn _ ->
+    stub(Test.ContainerMock, :cleanup, fn _ ->
       :ok
     end)
 
@@ -95,6 +97,28 @@ defmodule Test.Cake.Cmd.Run do
     assert result == :error
   end
 
+  test "target not present -> did you mean?" do
+    Test.Support.write_cakefile("""
+    foo:
+        FROM scratch
+
+    bar:
+        FROM scratch
+    """)
+
+    expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+      assert exit_status == :error
+      assert msg == "Did you mean 'foo'?'"
+      raise "HALT"
+    end)
+
+    assert_raise RuntimeError, "HALT", fn ->
+      with_io(fn ->
+        Cake.main(["run", "foi"])
+      end)
+    end
+  end
+
   describe "push target" do
     test "ok" do
       Test.Support.write_cakefile("""
@@ -129,6 +153,79 @@ defmodule Test.Cake.Cmd.Run do
       assert_raise RuntimeError, "HALT", fn ->
         with_io(fn ->
           Cake.main(["run", "target"])
+        end)
+      end
+    end
+  end
+
+  describe "local target" do
+    test "ok" do
+      Test.Support.write_cakefile("""
+      ARG global_arg1
+      ARG global_arg2=default
+
+      target:
+          LOCAL /bin/sh -c
+          ARG target_arg1
+          ARG target_arg2=default
+          echo "Test"
+      """)
+
+      expect_local_run(fn %{
+                            local: %Local{tgid: "target"},
+                            env: %{
+                              "global_arg1" => "g1",
+                              "global_arg2" => "default",
+                              "target_arg1" => "t1"
+                            }
+                          } ->
+        :ok
+      end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target", "global_arg1=g1", "target_arg1=t1"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "incompatible run flag: --shell" do
+      Test.Support.write_cakefile("""
+      foo:
+          LOCAL /bin/sh -c
+          echo "test"
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == "Flag --shell is not allowed for LOCAL targets"
+        raise "HALT"
+      end)
+
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "--shell", "foo"])
+        end)
+      end
+    end
+
+    test "incompatible run options: --tag" do
+      Test.Support.write_cakefile("""
+      foo:
+          LOCAL /bin/sh -c
+          echo "test"
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
+        assert exit_status == :error
+        assert msg == "Option --tag is not allowed for LOCAL targets"
+        raise "HALT"
+      end)
+
+      assert_raise RuntimeError, "HALT", fn ->
+        with_io(fn ->
+          Cake.main(["run", "--tag", "tag-test", "foo"])
         end)
       end
     end
@@ -300,6 +397,26 @@ defmodule Test.Cake.Cmd.Run do
       assert result == :ok
     end
 
+    test "explicit target dep" do
+      Test.Support.write_cakefile("""
+      target_1:
+          FROM scratch
+
+      target_2: target_1
+          FROM scratch
+      """)
+
+      expect_container_build(fn %{target: "target_1"} -> :ok end)
+      expect_container_build(fn %{target: "target_2"} -> :ok end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target_2"])
+        end)
+
+      assert result == :ok
+    end
+
     test "with alias target" do
       test_pid = self()
 
@@ -342,7 +459,7 @@ defmodule Test.Cake.Cmd.Run do
 
       expect_container_build(fn %{target: "target"} -> :ok end)
 
-      expect(Test.ContainerManagerMock, :output, fn
+      expect(Test.ContainerMock, :output, fn
         "target", _pipeline_uuid, ["/output_1", "/output_2"], _output_dir ->
           :ok
       end)
@@ -364,7 +481,7 @@ defmodule Test.Cake.Cmd.Run do
 
       expect_container_build(fn %{target: "target"} -> :ok end)
 
-      expect(Test.ContainerManagerMock, :output, fn
+      expect(Test.ContainerMock, :output, fn
         "target", _pipeline_uuid, ["/arg_1/arg_2/output"], _output_dir ->
           :ok
       end)
@@ -447,7 +564,7 @@ defmodule Test.Cake.Cmd.Run do
   end
 
   defp expect_container_build(n \\ 1, fun) do
-    expect(Test.ContainerManagerMock, :build, n, fn
+    expect(Test.ContainerMock, :build, n, fn
       target, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid ->
         args = %{
           target: target,
@@ -460,7 +577,34 @@ defmodule Test.Cake.Cmd.Run do
           pipeline_uuid: pipeline_uuid
         }
 
-        fun.(args)
+        require Logger
+
+        try do
+          fun.(args)
+        rescue
+          exception ->
+            Logger.error("expect_container_build FAILED - args: #{inspect(args)}")
+            reraise exception, __STACKTRACE__
+        end
+    end)
+  end
+
+  defp expect_local_run(n \\ 1, fun) do
+    expect(Test.LocalMock, :run, n, fn
+      %Local{} = local, env, pipeline_uuid ->
+        args = %{
+          local: local,
+          env: env,
+          pipeline_uuid: pipeline_uuid
+        }
+
+        try do
+          fun.(args)
+        rescue
+          exception ->
+            Logger.error("expect_local_run FAILED - args: #{inspect(args)}")
+            reraise exception, __STACKTRACE__
+        end
     end)
   end
 end

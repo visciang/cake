@@ -7,14 +7,17 @@ defmodule Cake.Pipeline do
   alias Cake.{Dag, Dir, Reporter, Type}
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{DevShell, Output, Push}
-  alias Cake.Parser.Target.{Alias, Container}
-  alias Cake.Parser.Target.Container.{Arg, Command, Fmt, From}
+  alias Cake.Parser.Target.{Alias, Container, Local}
+  alias Cake.Parser.Target.Container.{Arg, Command, Env, Fmt, From}
 
   require Cake.Reporter.Status
   require Logger
 
-  @spec container :: module()
-  defp container, do: Application.get_env(:cake, :container_manager, Cake.Pipeline.Docker)
+  @spec container_impl :: module()
+  defp container_impl, do: Application.get_env(:cake, :container_behaviour, Cake.Pipeline.Docker)
+
+  @spec local_impl :: module()
+  defp local_impl, do: Application.get_env(:cake, :local_behaviour, Cake.Pipeline.Local)
 
   @spec build(Run.t(), Cakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Cakefile{} = cakefile, graph) do
@@ -40,7 +43,7 @@ defmodule Cake.Pipeline do
       for tgid <- pipeline_tgids, reduce: Dask.new() do
         dask ->
           target = Map.fetch!(targets_map, tgid)
-          build_dask_job(run, cakefile, dask, tgid, target, pipeline_uuid)
+          build_dask_job(run, cakefile, dask, target, pipeline_uuid)
       end
 
     dask =
@@ -54,33 +57,35 @@ defmodule Cake.Pipeline do
     Dask.flow(dask, run.tgid, :cleanup)
   end
 
-  @spec build_dask_job(Run.t(), Cakefile.t(), Dask.t(), Type.tgid(), Cakefile.target(), Type.pipeline_uuid()) ::
-          Dask.t()
-  defp build_dask_job(%Run{} = run, %Cakefile{} = cakefile, dask, tgid, target, pipeline_uuid) do
-    job_fn = fn ^tgid, _upstream_jobs_status ->
-      Reporter.job_start(tgid)
+  @spec build_dask_job(Run.t(), Cakefile.t(), Dask.t(), Cakefile.target(), Type.pipeline_uuid()) :: Dask.t()
+  defp build_dask_job(%Run{} = run, %Cakefile{} = cakefile, dask, target, pipeline_uuid) do
+    job_fn = fn _tgid, _upstream_jobs_status ->
+      Reporter.job_start(target.tgid)
 
       case target do
         %Alias{} ->
           :ok
 
         %Container{} = target ->
-          dask_job(run, cakefile, target, tgid, pipeline_uuid)
+          dask_job(run, cakefile, target, pipeline_uuid)
+
+        %Local{} = target ->
+          dask_job(run, cakefile, target, pipeline_uuid)
       end
 
       :ok
     end
 
-    job_on_exit_fn = fn ^tgid, _upstream_results, job_exec_result ->
+    job_on_exit_fn = fn _tgid, _upstream_results, job_exec_result ->
       case job_exec_result do
         {:job_ok, :ok} ->
-          Reporter.job_end(tgid, Reporter.Status.ok())
+          Reporter.job_end(target.tgid, Reporter.Status.ok())
 
         # We do not apply a timeout on single jobs, only a global pipeline timeout:
         # See Dask.job(_, _, _, :infinity, _) below
         #
         # :job_timeout ->
-        #   Reporter.job_end(tgid, Reporter.Status.timeout())
+        #   Reporter.job_end(target.tgid, Reporter.Status.timeout())
 
         # coveralls-ignore-start
 
@@ -88,21 +93,41 @@ defmodule Cake.Pipeline do
           :ok
 
         {:job_error, %Cake.Pipeline.Error{} = err, _stacktrace} ->
-          Reporter.job_end(tgid, Reporter.Status.error(err.message, nil))
+          Reporter.job_end(target.tgid, Reporter.Status.error(err.message, nil))
 
         # coveralls-ignore-stop
 
         {:job_error, reason, stacktrace} ->
-          Reporter.job_end(tgid, Reporter.Status.error(reason, stacktrace))
+          Reporter.job_end(target.tgid, Reporter.Status.error(reason, stacktrace))
       end
     end
 
-    Dask.job(dask, tgid, job_fn, :infinity, job_on_exit_fn)
+    Dask.job(dask, target.tgid, job_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec dask_job(Run.t(), Cakefile.t(), Container.t(), Type.tgid(), Type.pipeline_uuid()) :: :ok
-  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Container{} = target, tgid, pipeline_uuid) do
-    Logger.info("start for #{inspect(tgid)}", pipeline: pipeline_uuid)
+  @spec dask_job(Run.t(), Cakefile.t(), Container.t() | Local.t(), Type.pipeline_uuid()) :: :ok
+  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Local{} = target, pipeline_uuid) do
+    Logger.info("start for #{inspect(target.tgid)}", pipeline: pipeline_uuid)
+
+    build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
+
+    cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
+    target = insert_builtin_args(target, build_relative_include_ctx_dir)
+
+    global_args =
+      for %Container.Arg{name: name, default_value: value} <- cakefile.args do
+        {name, value}
+      end
+
+    env = Map.new(global_args ++ run.args)
+
+    local_impl().run(target, env, pipeline_uuid)
+
+    :ok
+  end
+
+  defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Container{} = target, pipeline_uuid) do
+    Logger.info("start for #{inspect(target.tgid)}", pipeline: pipeline_uuid)
 
     job_uuid = to_string(System.unique_integer([:positive]))
     container_build_ctx_dir = Path.dirname(cakefile.path)
@@ -110,19 +135,19 @@ defmodule Cake.Pipeline do
     build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
 
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
-    target = insert_builtin_container_args(target, build_relative_include_ctx_dir)
+    target = insert_builtin_args(target, build_relative_include_ctx_dir)
 
-    containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{tgid}.Dockerfile")
+    containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{target.tgid}.Dockerfile")
     write_containerfile(cakefile.args, target, containerfile_path)
 
-    tags = if tgid == run.tgid and run.tag, do: [run.tag], else: []
-    tags = [container().fq_image(tgid, pipeline_uuid) | tags]
+    tags = if target.tgid == run.tgid and run.tag, do: [run.tag], else: []
+    tags = [container_impl().fq_image(target.tgid, pipeline_uuid) | tags]
     build_args = run.args
     no_cache = run.push and push_target?(target)
     secrets = run.secrets
 
-    container().build(
-      tgid,
+    container_impl().build(
+      target.tgid,
       tags,
       build_args,
       containerfile_path,
@@ -134,19 +159,19 @@ defmodule Cake.Pipeline do
 
     # coveralls-ignore-start
 
-    if run.shell and tgid == run.tgid do
+    if run.shell and target.tgid == run.tgid do
       devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
 
-      Reporter.job_shell_start(run.tgid)
-      container().shell(tgid, pipeline_uuid, devshell?)
-      Reporter.job_shell_end(run.tgid)
+      Reporter.job_shell_start(target.tgid)
+      container_impl().shell(target.tgid, pipeline_uuid, devshell?)
+      Reporter.job_shell_end(target.tgid)
     end
 
     # coveralls-ignore-stop
 
     if run.output do
       output_paths = for %Output{path: path} <- target.directives, do: path
-      container().output(tgid, pipeline_uuid, output_paths, run.output_dir)
+      container_impl().output(target.tgid, pipeline_uuid, output_paths, run.output_dir)
     end
 
     :ok
@@ -159,7 +184,7 @@ defmodule Cake.Pipeline do
     end
 
     job_on_exit_fn = fn _, _, _ ->
-      container().cleanup(pipeline_uuid)
+      container_impl().cleanup(pipeline_uuid)
     end
 
     Dask.job(dask, cleanup_job_id, job_passthrough_fn, :infinity, job_on_exit_fn)
@@ -194,8 +219,12 @@ defmodule Cake.Pipeline do
     }
   end
 
-  @spec insert_builtin_container_args(Container.t(), Path.t()) :: Container.t()
-  defp insert_builtin_container_args(%Container{} = target, include_ctx_dir) do
+  @spec insert_builtin_args(Container.t() | Local.t(), Path.t()) :: Container.t()
+  defp insert_builtin_args(%Local{} = target, include_ctx_dir) do
+    %Local{target | env: [%Env{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir} | target.env]}
+  end
+
+  defp insert_builtin_args(%Container{} = target, include_ctx_dir) do
     from_idx = Enum.find_index(target.commands, &match?(%From{}, &1))
     {pre_from_cmds, [%From{} = from | post_from_cmds]} = Enum.split(target.commands, from_idx)
 
@@ -216,7 +245,7 @@ defmodule Cake.Pipeline do
 
   @spec fq_targets_image_ref(Type.pipeline_uuid(), Cakefile.t()) :: Cakefile.t()
   defp fq_targets_image_ref(pipeline_uuid, %Cakefile{} = cakefile) do
-    update_fn = fn "+" <> tgid -> container().fq_image(tgid, pipeline_uuid) end
+    update_fn = fn "+" <> tgid -> container_impl().fq_image(tgid, pipeline_uuid) end
 
     cakefile =
       update_in(

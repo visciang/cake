@@ -1,4 +1,4 @@
-defmodule Test.Cake.Cmd.Error do
+defmodule Test.Cake.Error do
   use ExUnit.Case, async: false
 
   import Mox
