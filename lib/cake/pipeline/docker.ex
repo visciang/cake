@@ -34,11 +34,11 @@ defmodule Cake.Pipeline.Docker do
       end
 
     args = [System.find_executable("docker"), "build" | args]
-    into = Reporter.collector(tgid, :log)
+    into_reporter = Reporter.into(tgid, :log)
 
     Logger.info("target #{inspect(tgid)} #{inspect(args)}", pipeline: pipeline_uuid)
 
-    case System.cmd(Dir.cmd_wrapper_path(), args, stderr_to_stdout: true, into: into) do
+    case System.cmd(Dir.cmd_wrapper_path(), args, [stderr_to_stdout: true] ++ into_reporter) do
       {_, 0} -> :ok
       {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} failed"
     end
@@ -82,9 +82,9 @@ defmodule Cake.Pipeline.Docker do
 
     for output <- outputs do
       container_cp_cmd = ["container", "cp", "#{tmp_container}:#{output}", output_dir]
-      into = Reporter.collector(tgid, :log)
+      into_reporter = Reporter.into(tgid, :log)
 
-      case System.cmd("docker", container_cp_cmd, stderr_to_stdout: true, into: into) do
+      case System.cmd("docker", container_cp_cmd, [stderr_to_stdout: true] ++ into_reporter) do
         {_, 0} -> :ok
         {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} output copy failed"
       end

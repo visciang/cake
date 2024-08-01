@@ -106,9 +106,9 @@ defmodule Cake.Reporter do
     :ok
   end
 
-  @spec collector(String.t(), Collector.report_type()) :: Collectable.t()
-  def collector(job_id, type) do
-    %Collector{job_id: job_id, type: type}
+  @spec into(String.t(), Collector.report_type()) :: system_cmd_opts :: [into: Collectable.t(), lines: pos_integer()]
+  def into(job_id, type) do
+    [into: %Collector{job_id: job_id, type: type}, lines: 1024]
   end
 
   @impl GenServer
@@ -160,31 +160,19 @@ defmodule Cake.Reporter do
     {:noreply, state}
   end
 
-  def handle_cast({:job_log, job_id, message}, %State{} = state) do
+  def handle_cast({:job_log, job_id, line}, %State{} = state) do
     log_file = get_log_file(job_id, state)
 
-    reporter_state =
-      for line <- String.split(message, ~r/\R/), reduce: state.reporter_state do
-        reporter_state ->
-          {ansidata, reporter_state} = state.reporter.job_log(job_id, line, reporter_state)
-          log_to_file(state.logs_to_file, log_file, ansidata)
-
-          reporter_state
-      end
+    {ansidata, reporter_state} = state.reporter.job_log(job_id, line, state.reporter_state)
+    log_to_file(state.logs_to_file, log_file, ansidata)
 
     state = put_in(state.reporter_state, reporter_state)
 
     {:noreply, state}
   end
 
-  def handle_cast({:job_notice, job_id, message}, %State{} = state) do
-    reporter_state =
-      for line <- String.split(message, ~r/\R/), reduce: state.reporter_state do
-        reporter_state ->
-          {_ansidata, reporter_state} = state.reporter.job_notice(job_id, line, reporter_state)
-
-          reporter_state
-      end
+  def handle_cast({:job_notice, job_id, line}, %State{} = state) do
+    {_ansidata, reporter_state} = state.reporter.job_notice(job_id, line, state.reporter_state)
 
     state = put_in(state.reporter_state, reporter_state)
 

@@ -10,7 +10,7 @@ defmodule Cake.Pipeline.Local do
 
   @impl true
   def run(%Local{tgid: tgid, interpreter: interpreter, script: script, env: env}, run_env, pipeline_uuid) do
-    into = Reporter.collector(tgid, :log)
+    into_reporter = Reporter.into(tgid, :log)
 
     Logger.info("target #{inspect(tgid)}", pipeline: pipeline_uuid)
 
@@ -19,7 +19,7 @@ defmodule Cake.Pipeline.Local do
     env = Map.new(env, fn %Env{} = e -> {e.name, e.default_value} end)
     env = Map.merge(env, run_env)
 
-    case System.cmd(Dir.cmd_wrapper_path(), args, stderr_to_stdout: true, into: into, env: env) do
+    case System.cmd(Dir.cmd_wrapper_path(), args, [stderr_to_stdout: true, env: env] ++ into_reporter) do
       {_, 0} -> :ok
       {_, _exit_status} -> raise Cake.Pipeline.Error, "Target #{tgid} failed"
     end
