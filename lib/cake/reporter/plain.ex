@@ -23,7 +23,7 @@ defmodule Cake.Reporter.Plain do
 
   @impl Reporter
   def job_start(job_id, %State{} = state) do
-    ansidata = report_line("+", [:faint, job_id, :reset], nil, nil)
+    ansidata = report_line("+", [:faint, job_id, :reset], nil, " | #{DateTime.utc_now(:second)}")
     ansi_puts(ansidata)
 
     {ansidata, state}
@@ -45,7 +45,7 @@ defmodule Cake.Reporter.Plain do
           {[:red, job_id, :reset], Icon.timeout(), nil}
       end
 
-    ansidata = report_line(status_icon, job_id, duration, nil)
+    ansidata = report_line(status_icon, job_id, duration, " | #{DateTime.utc_now(:second)}")
 
     ansidata =
       if status_info == nil do
@@ -109,19 +109,12 @@ defmodule Cake.Reporter.Plain do
           status_icon :: ansidata(),
           job_id :: ansidata(),
           duration :: nil | ansidata(),
-          description :: nil | String.t()
+          description :: String.t()
         ) :: ansidata()
   defp report_line(status_icon, job_id, duration, description) do
     line = [status_icon, :reset, "  ", :bright, job_id, :reset]
+    line = [line, :faint, "  ", String.replace_invalid(description), :reset]
     line = if duration, do: [line, ["   (#{duration})  "]], else: line
-
-    line =
-      if description do
-        description = String.replace_invalid(description)
-        [line, :faint, "  ", description, :reset]
-      else
-        line
-      end
 
     line
   end
