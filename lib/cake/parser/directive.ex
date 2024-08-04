@@ -37,4 +37,15 @@ defmodule Cake.Parser.Directive do
 
     @type t :: %__MODULE__{}
   end
+
+  defmodule When do
+    # `@when <condition>`
+
+    @enforce_keys [:condition]
+    defstruct @enforce_keys
+
+    @type t :: %__MODULE__{
+            condition: String.t()
+          }
+  end
 end

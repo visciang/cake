@@ -1,7 +1,7 @@
 # coveralls-ignore-start
 
 defmodule Cake.Reporter.Status do
-  @type t :: :ok | :timeout | {:error, reason :: term(), stacktrace :: nil | String.t()}
+  @type t :: :ok | :timeout | :ignore | {:error, reason :: term(), stacktrace :: nil | String.t()}
 
   defmacro ok do
     quote do: :ok
@@ -9,6 +9,10 @@ defmodule Cake.Reporter.Status do
 
   defmacro timeout do
     quote do: :timeout
+  end
+
+  defmacro ignore do
+    quote do: :ignore
   end
 
   defmacro error(reason, stacktrace) do

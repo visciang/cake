@@ -4,9 +4,9 @@ end
 
 defmodule Cake.Pipeline do
   alias Cake.Cli.Run
-  alias Cake.{Dag, Dir, Reporter, Type}
+  alias Cake.{Dag, Dir, Reporter, Type, UUID}
   alias Cake.Parser.Cakefile
-  alias Cake.Parser.Directive.{DevShell, Output, Push}
+  alias Cake.Parser.Directive.{DevShell, Output, Push, When}
   alias Cake.Parser.Target.{Alias, Container, Local}
   alias Cake.Parser.Target.Container.{Arg, Command, Env, Fmt, From}
 
@@ -21,7 +21,7 @@ defmodule Cake.Pipeline do
 
   @spec build(Run.t(), Cakefile.t(), Dag.graph()) :: Dask.t()
   def build(%Run{} = run, %Cakefile{} = cakefile, graph) do
-    pipeline_uuid = pipeline_uuid()
+    pipeline_uuid = UUID.new()
 
     Logger.info("#{inspect(cakefile.path)}", pipeline: pipeline_uuid)
 
@@ -59,27 +59,36 @@ defmodule Cake.Pipeline do
 
   @spec build_dask_job(Run.t(), Cakefile.t(), Dask.t(), Cakefile.target(), Type.pipeline_uuid()) :: Dask.t()
   defp build_dask_job(%Run{} = run, %Cakefile{} = cakefile, dask, target, pipeline_uuid) do
-    job_fn = fn _tgid, _upstream_jobs_status ->
+    job_fn = fn _tgid, upstream_jobs_status ->
       Reporter.job_start(target.tgid)
 
-      case target do
-        %Alias{} ->
-          :ok
+      upstream_ignore? =
+        upstream_jobs_status
+        |> Map.values()
+        |> Enum.any?(&(&1 == :ignore))
 
-        %Container{} = target ->
-          dask_job(run, cakefile, target, pipeline_uuid)
+      if upstream_ignore? do
+        :ignore
+      else
+        # credo:disable-for-next-line Credo.Check.Refactor.Nesting
+        case target do
+          %Alias{} ->
+            :ok
 
-        %Local{} = target ->
-          dask_job(run, cakefile, target, pipeline_uuid)
+          %s{} = target when s in [Container, Local] ->
+            dask_job(run, cakefile, target, pipeline_uuid)
+        end
       end
-
-      :ok
     end
 
     job_on_exit_fn = fn _tgid, _upstream_results, job_exec_result ->
       case job_exec_result do
         {:job_ok, :ok} ->
           Reporter.job_end(target.tgid, Reporter.Status.ok())
+
+        {:job_ok, :ignore} ->
+          Reporter.job_end(target.tgid, Reporter.Status.ignore())
+          :ignore
 
         # We do not apply a timeout on single jobs, only a global pipeline timeout:
         # See Dask.job(_, _, _, :infinity, _) below
@@ -105,7 +114,7 @@ defmodule Cake.Pipeline do
     Dask.job(dask, target.tgid, job_fn, :infinity, job_on_exit_fn)
   end
 
-  @spec dask_job(Run.t(), Cakefile.t(), Container.t() | Local.t(), Type.pipeline_uuid()) :: :ok
+  @spec dask_job(Run.t(), Cakefile.t(), Container.t() | Local.t(), Type.pipeline_uuid()) :: :ok | :ignore
   defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Local{} = target, pipeline_uuid) do
     Logger.info("start for #{inspect(target.tgid)}", pipeline: pipeline_uuid)
 
@@ -115,21 +124,24 @@ defmodule Cake.Pipeline do
     target = insert_builtin_args(target, build_relative_include_ctx_dir)
 
     global_args =
-      for %Container.Arg{name: name, default_value: value} <- cakefile.args do
+      Map.new(cakefile.args, fn %Container.Arg{name: name, default_value: value} ->
         {name, value}
-      end
+      end)
 
-    env = Map.new(global_args ++ run.args)
+    args = Map.merge(global_args, Map.new(run.args)) |> Enum.to_list()
 
-    local_impl().run(target, env, pipeline_uuid)
-
-    :ok
+    if when_eval(target, args, pipeline_uuid) do
+      local_impl().run(target, args, pipeline_uuid)
+      :ok
+    else
+      :ignore
+    end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Container{} = target, pipeline_uuid) do
     Logger.info("start for #{inspect(target.tgid)}", pipeline: pipeline_uuid)
 
-    job_uuid = to_string(System.unique_integer([:positive]))
     container_build_ctx_dir = Path.dirname(cakefile.path)
 
     build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
@@ -137,7 +149,7 @@ defmodule Cake.Pipeline do
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     target = insert_builtin_args(target, build_relative_include_ctx_dir)
 
-    containerfile_path = Path.join(Dir.tmp(), "#{job_uuid}-#{target.tgid}.Dockerfile")
+    containerfile_path = Path.join(Dir.tmp(), "#{pipeline_uuid}-#{target.tgid}.Dockerfile")
     write_containerfile(cakefile.args, target, containerfile_path)
 
     tags = if target.tgid == run.tgid and run.tag, do: [run.tag], else: []
@@ -146,35 +158,39 @@ defmodule Cake.Pipeline do
     no_cache = run.push and push_target?(target)
     secrets = run.secrets
 
-    container_impl().build(
-      target.tgid,
-      tags,
-      build_args,
-      containerfile_path,
-      no_cache,
-      secrets,
-      container_build_ctx_dir,
-      pipeline_uuid
-    )
+    if when_eval(target, build_args, pipeline_uuid) do
+      container_impl().build(
+        target.tgid,
+        tags,
+        build_args,
+        containerfile_path,
+        no_cache,
+        secrets,
+        container_build_ctx_dir,
+        pipeline_uuid
+      )
 
-    # coveralls-ignore-start
+      # coveralls-ignore-start
 
-    if run.shell and target.tgid == run.tgid do
-      devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
+      if run.shell and target.tgid == run.tgid do
+        devshell? = Enum.any?(target.directives, &match?(%DevShell{}, &1))
 
-      Reporter.job_shell_start(target.tgid)
-      container_impl().shell(target.tgid, pipeline_uuid, devshell?)
-      Reporter.job_shell_end(target.tgid)
+        Reporter.job_shell_start(target.tgid)
+        container_impl().shell(target.tgid, pipeline_uuid, devshell?)
+        Reporter.job_shell_end(target.tgid)
+      end
+
+      # coveralls-ignore-stop
+
+      if run.output do
+        output_paths = for %Output{path: path} <- target.directives, do: path
+        container_impl().output(target.tgid, pipeline_uuid, output_paths, run.output_dir)
+      end
+
+      :ok
+    else
+      :ignore
     end
-
-    # coveralls-ignore-stop
-
-    if run.output do
-      output_paths = for %Output{path: path} <- target.directives, do: path
-      container_impl().output(target.tgid, pipeline_uuid, output_paths, run.output_dir)
-    end
-
-    :ok
   end
 
   @spec build_dask_job_cleanup(Dask.t(), Dask.Job.id(), Type.pipeline_uuid()) :: Dask.t()
@@ -235,6 +251,36 @@ defmodule Cake.Pipeline do
     %Container{target | commands: commands}
   end
 
+  @spec when_eval(Container.t() | Local.t(), [Cake.Pipeline.Behaviour.arg()], Type.pipeline_uuid()) :: boolean()
+  defp when_eval(target, args, pipeline_uuid) do
+    conds =
+      for %When{} = when_ <- target.directives do
+        tmp_script_path = Path.join(Dir.tmp(), "#{pipeline_uuid}-when-#{target.tgid}") |> Path.absname()
+        File.write!(tmp_script_path, when_.condition)
+
+        cmd_args =
+          [
+            Cake.System.find_executable("docker"),
+            "run",
+            "--rm",
+            "--volume",
+            "#{tmp_script_path}:#{tmp_script_path}",
+            for({arg_name, arg_value} <- args, do: ["--env", "#{arg_name}=#{arg_value}"]),
+            "alpine",
+            "sh",
+            tmp_script_path
+          ]
+          |> List.flatten()
+
+        case Cake.System.cmd(Dir.cmd_wrapper_path(), cmd_args, stderr_to_stdout: true) do
+          {_, 0} -> true
+          {_, _exit_status} -> false
+        end
+      end
+
+    Enum.all?(conds)
+  end
+
   @spec write_containerfile([Arg.t()], Container.t(), Path.t()) :: :ok
   defp write_containerfile(args, %Container{} = target, path) do
     containerfile = Enum.map_join(args ++ target.commands, "\n", &Fmt.fmt(&1))
@@ -273,10 +319,5 @@ defmodule Cake.Pipeline do
       ],
       update_fn
     )
-  end
-
-  @spec pipeline_uuid :: Type.pipeline_uuid()
-  defp pipeline_uuid do
-    Base.encode32(:crypto.strong_rand_bytes(16), case: :lower, padding: false)
   end
 end

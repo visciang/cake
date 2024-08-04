@@ -50,7 +50,7 @@ defmodule Test.Cake.Run do
     assert result == :ok
   end
 
-  test "timeout" do
+  test "run timeout" do
     Test.Support.write_cakefile("""
     target:
         FROM scratch
@@ -73,7 +73,7 @@ defmodule Test.Cake.Run do
     end
   end
 
-  test "crash" do
+  test "target crash" do
     Test.Support.write_cakefile("""
     target:
         FROM scratch
@@ -120,7 +120,7 @@ defmodule Test.Cake.Run do
   end
 
   describe "push target" do
-    test "ok" do
+    test "run ok" do
       Test.Support.write_cakefile("""
       target:
           @push
@@ -137,7 +137,7 @@ defmodule Test.Cake.Run do
       assert result == :ok
     end
 
-    test "without --push" do
+    test "run without --push" do
       Test.Support.write_cakefile("""
       target:
           @push
@@ -159,7 +159,7 @@ defmodule Test.Cake.Run do
   end
 
   describe "local target" do
-    test "ok" do
+    test "run ok" do
       Test.Support.write_cakefile("""
       ARG global_arg1
       ARG global_arg2=default
@@ -171,14 +171,10 @@ defmodule Test.Cake.Run do
           echo "Test"
       """)
 
-      expect_local_run(fn %{
-                            local: %Local{tgid: "target"},
-                            env: %{
-                              "global_arg1" => "g1",
-                              "global_arg2" => "default",
-                              "target_arg1" => "t1"
-                            }
-                          } ->
+      expect_local_run(fn %{local: %Local{tgid: "target"}, env: env} ->
+        assert List.keyfind(env, "global_arg1", 0) == {"global_arg1", "g1"}
+        assert List.keyfind(env, "global_arg2", 0) == {"global_arg2", "default"}
+        assert List.keyfind(env, "target_arg1", 0) == {"target_arg1", "t1"}
         :ok
       end)
 
@@ -190,7 +186,7 @@ defmodule Test.Cake.Run do
       assert result == :ok
     end
 
-    test "incompatible run flag: --shell" do
+    test "reports error for incompatible run flag --shell" do
       Test.Support.write_cakefile("""
       foo:
           LOCAL /bin/sh -c
@@ -210,7 +206,7 @@ defmodule Test.Cake.Run do
       end
     end
 
-    test "incompatible run options: --tag" do
+    test "reports error for incompatible run options --tag" do
       Test.Support.write_cakefile("""
       foo:
           LOCAL /bin/sh -c
@@ -232,7 +228,7 @@ defmodule Test.Cake.Run do
   end
 
   describe "target with ARGS" do
-    test "ok" do
+    test "run ok" do
       Test.Support.write_cakefile("""
       ARG global_arg1
       ARG global_arg2=default
@@ -255,7 +251,7 @@ defmodule Test.Cake.Run do
       assert result == :ok
     end
 
-    test "arguments bad_format" do
+    test "run reports error for arguments bad_format" do
       Test.Support.write_cakefile("""
       target:
           FROM scratch
@@ -397,7 +393,7 @@ defmodule Test.Cake.Run do
       assert result == :ok
     end
 
-    test "explicit target dep" do
+    test "via explicit target dep" do
       Test.Support.write_cakefile("""
       target_1:
           FROM scratch
@@ -443,6 +439,64 @@ defmodule Test.Cake.Run do
       assert result == :ok
       assert_received {:container_build, "target_1"}
       assert_received {:container_build, "target_2"}
+    end
+  end
+
+  describe "conditional target" do
+    test "with a falsy @when is skipped and all downstream targets are also skipped" do
+      Test.Support.write_cakefile("""
+      target_1:
+          @when false
+          FROM scratch
+
+      target_1a:
+          FROM +target_1
+
+      target_1b:
+          FROM +target_1a
+      """)
+
+      expect_container_build(0, fn %{target: _} -> :ok end)
+
+      expect(Test.SystemBehaviourMock, :find_executable, fn "docker" ->
+        "test"
+      end)
+
+      expect(Test.SystemBehaviourMock, :cmd, fn _, _, _ ->
+        {"", 1}
+      end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target_1b"])
+        end)
+
+      assert result == :ok
+    end
+
+    test "with a truthy @when runs" do
+      Test.Support.write_cakefile("""
+      target:
+          @when true
+          FROM scratch
+      """)
+
+      expect_container_build(1, fn %{target: "target"} -> :ok end)
+
+      expect(Test.SystemBehaviourMock, :find_executable, fn "docker" ->
+        "test"
+      end)
+
+      expect(Test.SystemBehaviourMock, :cmd, fn _, _, _ ->
+        {"", 0}
+      end)
+
+      {result, _output} =
+        with_io(fn ->
+          Cake.main(["run", "target"])
+        end)
+
+      assert result == :ok
     end
   end
 
@@ -583,7 +637,7 @@ defmodule Test.Cake.Run do
           fun.(args)
         rescue
           exception ->
-            Logger.error("expect_container_build FAILED - args: #{inspect(args)}")
+            Logger.error("expect_container_build FAILED - args: #{inspect(args)}\n#{inspect(exception)}")
             reraise exception, __STACKTRACE__
         end
     end)
@@ -602,7 +656,7 @@ defmodule Test.Cake.Run do
           fun.(args)
         rescue
           exception ->
-            Logger.error("expect_local_run FAILED - args: #{inspect(args)}")
+            Logger.error("expect_local_run FAILED - args: #{inspect(args)}\n#{inspect(exception)}")
             reraise exception, __STACKTRACE__
         end
     end)

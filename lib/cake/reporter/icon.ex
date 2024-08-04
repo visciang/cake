@@ -3,6 +3,7 @@
 defmodule Cake.Reporter.Icon do
   def ok, do: [:green, "✔", :reset]
   def error, do: [:red, "✘", :reset]
+  def ignore, do: [:faint, "✔", :reset]
   def timeout, do: "⏰"
   def output, do: [:yellow, "←", :reset]
   def log, do: "…"

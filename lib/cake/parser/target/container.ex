@@ -11,13 +11,13 @@ defmodule Cake.Parser.Target.Container do
   #     RUN ...
 
   alias Cake.Parser.Target.Container.{Arg, Command, From}
-  alias Cake.Parser.Directive.{Output, Push}
+  alias Cake.Parser.Directive.{DevShell, Output, Push, When}
   alias Cake.Type
 
   @enforce_keys [:tgid, :commands]
   defstruct @enforce_keys ++ [deps_tgids: [], included_from_ref: nil, directives: []]
 
-  @type directive :: Output.t() | Push.t()
+  @type directive :: DevShell.t() | Output.t() | Push.t() | When.t()
   @type command :: Arg.t() | From.t() | Command.t()
 
   @type t :: %__MODULE__{

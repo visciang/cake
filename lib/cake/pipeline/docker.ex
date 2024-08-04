@@ -16,15 +16,16 @@ defmodule Cake.Pipeline.Docker do
   # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def build(tgid, tags, build_args, containerfile_path, no_cache, secrets, build_ctx, pipeline_uuid) do
     args =
-      Enum.concat([
+      [
         ["--progress", "plain"],
         ["--file", containerfile_path],
         if(no_cache, do: ["--no-cache"], else: []),
-        Enum.flat_map(tags, fn tag -> ["--tag", tag] end),
-        Enum.flat_map(build_args, fn {name, value} -> ["--build-arg", "#{name}=#{value}"] end),
-        Enum.flat_map(secrets, fn secret -> ["--secret", secret] end),
+        for(tag <- tags, do: ["--tag", tag]),
+        for({name, value} <- build_args, do: ["--build-arg", "#{name}=#{value}"]),
+        for(secret <- secrets, do: ["--secret", secret]),
         [build_ctx]
-      ])
+      ]
+      |> List.flatten()
 
     args =
       if System.get_env("SSH_AUTH_SOCK", "") != "" do
