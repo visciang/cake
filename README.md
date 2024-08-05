@@ -13,6 +13,7 @@ define and execute pipelines that can run on any host with docker support.
 - DAG pipeline definition with a Makefile / Dockerfile inspired syntax
 - Parallel jobs execution
 - Parametrizable pipelines and jobs ([ARGS](#pipeline-parametrization))
+- conditional job ([@when](#when))
 - Job can be executed as a docker build or a local script
 - (*) Jobs can output artifacts to the host filesystem ([@output](#output))
 - (*) Jobs can be declared as non-cacheable ([@push](#push))
@@ -376,6 +377,8 @@ Used to define a conditional target.
 
 A conditional target is executed only if the `<condition>` is satisfied.
 `<condition>` can be defined using a `sh` expression and can reference any global/local target `ARG`; if it succeed the condition is satified.
+
+Note: if a target is excluded all dependant targets are excluded too.
 
 Example:
 
