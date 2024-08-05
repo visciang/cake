@@ -6,19 +6,19 @@
 > This is a POC, for personal use. It works on my machine!
 
 Cake (**C**ontainerized m**AKE**) is a portable pipeline executor - a CI framework to
-define and execute "reproducible" pipelines that can run on any host with docker support.
+define and execute pipelines that can run on any host with docker support.
 
 ## Features and characteristics
 
 - DAG pipeline definition with a Makefile / Dockerfile inspired syntax
 - Parallel jobs execution
-- Parametrizable pipelines and jobs (ref. `ARGS`)
+- Parametrizable pipelines and jobs ([ARGS](#pipeline-parametrization))
 - Job can be executed as a docker build or a local script
-- (*) Jobs can output artifacts to the host filesystem (ref. `@output`)
-- (*) Jobs can be declared as non-cacheable (ref. `@push`)
+- (*) Jobs can output artifacts to the host filesystem ([@output](#output))
+- (*) Jobs can be declared as non-cacheable ([@push](#push))
 - (*) Implicit docker-like caching
-- Pipelines can include pipeline templates (ref. `@include`)
-- Shell integration for debug and development
+- Pipelines can include pipeline templates ([@include](#include))
+- Shell integration for debug and development ([@shell](#development-shell))
 - Not a Buildkit frontend
 
 (*) docker job type only
@@ -45,7 +45,7 @@ You can install Cake as an elixir [escript](https://hexdocs.pm/mix/main/Mix.Task
 
     mix escript.install github visciang/cake tag vX.Y.Z
 
-## A taste of cake
+## Quick start
 
 The following example is available in the [cake-helloworld](https://github.com/visciang/cake-helloworld) repository.
 You can clone it and follow the example.
@@ -153,14 +153,14 @@ Furthermore jobs can be define as `LOCAL` jobs. These kind of jobs are execute a
 
 ```Dockerfile
 hello_bash:
-    LOCAL /usr/bin/env bash -c
+    LOCAL /usr/bin/env bash
 
     for idx in $(seq 10); do
       echo "Hello $idx"
     done
 
 hello_elixir:
-    LOCAL /usr/bin/env elixir -e
+    LOCAL /usr/bin/env elixir
 
     for idx <- 1..10 do
       IO.puts("Hello #{idx}")
@@ -367,6 +367,28 @@ The distinction between global and local parameters grants flexibility in managi
 Directives in Cake are declarations that enforce the underlying Docker-like semantics, enhancing pipeline integration within CI while promoting composability and reusability.
 
 The conventions for directives follow the format `@directive_name`.
+
+#### When
+
+Format: `@when <condition>`
+
+Used to define a conditional target.
+
+A conditional target is executed only if the `<condition>` is satisfied.
+`<condition>` can be defined using a `sh` expression and can reference any global/local target `ARG`; if it succeed the condition is satified.
+
+Example:
+
+```Dockerfile
+
+conditional_target:
+    @when [ "$XXX" = "x" ] && [ "$YYY" = "y" ]
+    FROM scratch
+    ARG XXX
+    ARG YYY
+```
+
+The above `target` runs if it is called with: `cake run conditional_target XXX=x YYY=y`.
 
 #### Output
 

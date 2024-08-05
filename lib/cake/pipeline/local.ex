@@ -14,10 +14,15 @@ defmodule Cake.Pipeline.Local do
 
     Logger.info("target #{inspect(tgid)}", pipeline: pipeline_uuid)
 
-    args = String.split(interpreter) ++ [script]
+    tmp_script_path = Path.join(Dir.tmp(), "#{pipeline_uuid}-local-script-#{tgid}")
+    File.write!(tmp_script_path, script)
 
-    env = Map.new(env, fn %Env{} = e -> {e.name, e.default_value} end)
-    env = Map.merge(env, run_env)
+    args = String.split(interpreter) ++ [tmp_script_path]
+
+    env =
+      env
+      |> Map.new(fn %Env{} = e -> {e.name, e.default_value} end)
+      |> Map.merge(Map.new(run_env))
 
     case System.cmd(Dir.cmd_wrapper_path(), args, [stderr_to_stdout: true, env: env] ++ into_reporter) do
       {_, 0} -> :ok

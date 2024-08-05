@@ -2,7 +2,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
   alias Cake.{Dag, Dir, Type}
   alias Cake.Cli.Ls
   alias Cake.Parser.Cakefile
-  alias Cake.Parser.Directive.{DevShell, Output}
+  alias Cake.Parser.Directive.{DevShell, Output, When}
   alias Cake.Parser.Target.Container.{Arg, Env}
   alias Cake.Parser.Target.{Alias, Container, Local}
 
@@ -25,6 +25,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
     global_args = cakefile.args
     targets = cakefile.targets |> Enum.sort_by(& &1.tgid)
     target_args = target_args(cakefile)
+    target_when = target_when(cakefile)
     target_outputs = target_outputs(cakefile)
     devshell_targets = devshell_targets(cakefile)
 
@@ -50,13 +51,21 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
             for e <- env,
                 do: ["    ", fmt_env(e), "\n", :reset]
 
+          when_ =
+            for condition <- Map.get(target_when, tgid, []),
+                do: [:blue, "    @when ", :faint, condition, "\n", :reset]
+
           local = [:blue, "    LOCAL ", :faint, interpreter, "\n", :reset]
 
-          [target_header, local, env]
+          [target_header, when_, local, env]
 
         %Container{} ->
           devshell? = MapSet.member?(devshell_targets, tgid)
           devshell = if devshell?, do: [:blue, "    @devshell\n", :reset], else: ""
+
+          when_ =
+            for condition <- Map.get(target_when, tgid, []),
+                do: [:blue, "    @when ", :faint, condition, "\n", :reset]
 
           outputs =
             for output <- Map.get(target_outputs, tgid, []),
@@ -66,7 +75,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
             for arg <- Map.get(target_args, tgid, []),
                 do: ["    ", fmt_arg(arg), "\n", :reset]
 
-          [target_header, devshell, outputs, args]
+          [target_header, devshell, when_, outputs, args]
       end
       |> IO.ANSI.format()
       |> IO.write()
@@ -87,7 +96,14 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
     end
   end
 
-  @spec target_outputs(Cakefile.t()) :: %{Type.tgid() => [Output.t()]}
+  @spec target_when(Cakefile.t()) :: %{Type.tgid() => [when_condition :: String.t()]}
+  defp target_when(%Cakefile{} = cakefile) do
+    for %s{} = target when s in [Container, Local] <- cakefile.targets, into: %{} do
+      {target.tgid, for(%When{} = when_ <- target.directives, do: when_.condition)}
+    end
+  end
+
+  @spec target_outputs(Cakefile.t()) :: %{Type.tgid() => [output_path :: String.t()]}
   defp target_outputs(%Cakefile{} = cakefile) do
     for %Container{} = target <- cakefile.targets, into: %{} do
       {target.tgid, for(%Output{} = output <- target.directives, do: output.path)}
@@ -109,9 +125,13 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
   @spec fmt_arg(Arg.t()) :: IO.ANSI.ansidata()
   defp fmt_arg(%Arg{default_value: nil} = arg), do: [:blue, arg.name]
-  defp fmt_arg(%Arg{} = arg), do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
+
+  defp fmt_arg(%Arg{} = arg),
+    do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
 
   @spec fmt_env(Env.t()) :: IO.ANSI.ansidata()
   defp fmt_env(%Env{default_value: nil} = arg), do: [:blue, arg.name]
-  defp fmt_env(%Env{} = arg), do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
+
+  defp fmt_env(%Env{} = arg),
+    do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
 end

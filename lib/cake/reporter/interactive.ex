@@ -106,6 +106,9 @@ defmodule Cake.Reporter.Interactive do
         Reporter.Status.error(_reason, _stacktrace) ->
           {[:red, job_id, :reset], Icon.error()}
 
+        Reporter.Status.ignore() ->
+          {[:faint, job_id, :reset], Icon.ignore()}
+
         Reporter.Status.timeout() ->
           {[:red, job_id, :reset], Icon.timeout()}
       end

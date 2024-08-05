@@ -41,6 +41,9 @@ defmodule Cake.Reporter.Plain do
           reason_str = if stacktrace != nil, do: [reason_str, "\n", stacktrace], else: reason_str
           {[:red, job_id, :reset], Icon.error(), reason_str}
 
+        Reporter.Status.ignore() ->
+          {[:faint, job_id, :reset], Icon.ignore(), nil}
+
         Status.timeout() ->
           {[:red, job_id, :reset], Icon.timeout(), nil}
       end

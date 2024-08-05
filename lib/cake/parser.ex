@@ -2,7 +2,7 @@ defmodule Cake.Parser do
   import NimbleParsec
 
   alias Cake.Parser.Cakefile
-  alias Cake.Parser.Directive.{DevShell, Include, Output, Push}
+  alias Cake.Parser.Directive.{DevShell, Include, Output, Push, When}
   alias Cake.Parser.Target.{Alias, Container, Local}
 
   @type result ::
@@ -151,6 +151,13 @@ defmodule Cake.Parser do
       ])
     )
 
+  when_directive =
+    ignore(string("@when"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(line, :condition)
+    |> wrap()
+    |> map({:cast, [When]})
+
   output_directive =
     ignore(string("@output"))
     |> ignore(spaces)
@@ -171,6 +178,7 @@ defmodule Cake.Parser do
   target_directive =
     ignore(indent)
     |> choice([
+      when_directive,
       output_directive,
       push_directive,
       devshell_directive
@@ -249,6 +257,7 @@ defmodule Cake.Parser do
     target_head
     |> ignore(nl)
     |> ignore(repeat(target_ignorable_line))
+    |> tag(target_directives, :directives)
     |> concat(target_local_commands)
     |> wrap()
     |> map({:cast, [Local]})

@@ -270,14 +270,15 @@ defmodule Cake.Reporter do
       |> Enum.frequencies_by(fn
         Status.ok() -> :ok
         Status.error(_, _) -> :error
+        Status.ignore() -> :ignore
         Status.timeout() -> :timeout
         {:running, _} -> :running
       end)
 
-    freq_by_status = Map.merge(%{ok: 0, error: 0, timeout: 0}, freq_by_status)
+    freq_by_status = Map.merge(%{ok: 0, error: 0, ignore: 0, timeout: 0}, freq_by_status)
 
     res =
-      for status <- [:ok, :error, :timeout] do
+      for status <- [:ok, :error, :ignore, :timeout] do
         count = Map.get(freq_by_status, status, 0)
         [apply(Icon, status, []), " ", to_string(count)]
       end

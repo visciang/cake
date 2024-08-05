@@ -16,6 +16,7 @@ defmodule Test.Cake.Ls do
 
     target_1:
         @output output
+        @when test "$global_arg_1" = "1"
         FROM scratch
 
     target_2:
@@ -25,6 +26,7 @@ defmodule Test.Cake.Ls do
         ARG target_arg_2="default"
         
     target_3:
+        @when test "$global_arg_1" = "3"
         LOCAL /bin/sh -c
         ENV A
         ENV B=1
@@ -51,12 +53,14 @@ defmodule Test.Cake.Ls do
            Targets:
              all: target_1 target_2
              target_1:
+               @when test "$global_arg_1" = "1"
                @output output
              target_2:
                @devshell
                target_arg_1
                target_arg_2="default"
              target_3:
+               @when test "$global_arg_1" = "3"
                LOCAL /bin/sh -c
            """
   end
