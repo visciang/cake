@@ -85,15 +85,19 @@ defmodule Cake.Validator do
   defp check_from(%Cakefile{} = cakefile, _graph) do
     cakefile.targets
     |> Enum.filter(&match?(%Container{commands: [_ | _]}, &1))
-    |> Enum.reduce_while(:ok, fn
-      %Container{tgid: tgid, commands: commands}, :ok ->
+    |> Enum.reduce([], fn
+      %Container{tgid: tgid, commands: commands}, errors ->
         case commands do
           [%Container.From{as: as} | _] when as != nil ->
-            {:halt, {:error, "'FROM .. AS ..' form is not allowed, please remove the AS argument under #{tgid}"}}
+            ["'FROM .. AS ..' form is not allowed, please remove the AS argument under #{tgid}" | errors]
 
           [%Container.From{} | _] ->
-            {:cont, :ok}
+            errors
         end
     end)
+    |> case do
+      [] -> :ok
+      errors -> {:error, errors}
+    end
   end
 end
