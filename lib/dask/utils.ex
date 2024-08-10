@@ -22,18 +22,4 @@ defmodule Dask.Utils do
     |> Enum.reject(fn {n, _} -> n == "0" end)
     |> Enum.map_join(" ", fn {n, unit} -> "#{n}#{unit}" end)
   end
-
-  # coveralls-ignore-start
-
-  @spec dot_to_svg(iodata(), Path.t()) :: :ok
-  def dot_to_svg(dot, out_file) do
-    dot_tmp_file = "#{Path.rootname(out_file)}.dot"
-    File.write!(dot_tmp_file, dot, [:utf8])
-    {_, 0} = System.cmd("dot", ["-Tsvg", dot_tmp_file], into: File.stream!(out_file))
-    File.rm!(dot_tmp_file)
-
-    :ok
-  end
-
-  # coveralls-ignore-stop
 end
