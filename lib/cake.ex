@@ -10,10 +10,8 @@ defmodule Cake do
     Dir.install_cmd_wrapper_script()
 
     res =
-      with {:ok, workdir, cmd} <- Cli.parse(cli_args) do
-        File.cd!(workdir, fn ->
-          cmd(cmd)
-        end)
+      with {:ok, workdir, cakefile_path, cmd} <- Cli.parse(cli_args) do
+        File.cd!(workdir, fn -> cmd(cakefile_path, cmd) end)
       end
 
     case res do
@@ -24,11 +22,9 @@ defmodule Cake do
     end
   end
 
-  @spec cmd(Cmd.t()) :: Cmd.result()
-  def cmd(cmd) do
-    cakefile_path = "Cakefile"
-
-    with {:parse, {:ok, cakefile}} <- {:parse, load_and_parse_cakefile(cakefile_path)},
+  @spec cmd(cakefile :: Path.t(), Cmd.t()) :: Cmd.result()
+  def cmd(cakefile_path, cmd) do
+    with {:parse, {:ok, cakefile}} <- {:parse, parse_cakefile(cakefile_path)},
          {:preprocess, {:ok, cakefile}} <- {:preprocess, Preprocessor.expand(cakefile, args(cmd))},
          {:dag, {:ok, graph}} <- {:dag, Dag.extract(cakefile)},
          {:validator, :ok} <- {:validator, Validator.check(cakefile, graph)} do
@@ -48,8 +44,8 @@ defmodule Cake do
     end
   end
 
-  @spec load_and_parse_cakefile(Path.t()) :: {:ok, Cakefile.t()} | {:error, reason :: String.t()}
-  def load_and_parse_cakefile(path) do
+  @spec parse_cakefile(Path.t()) :: {:ok, Cakefile.t()} | {:error, reason :: String.t()}
+  def parse_cakefile(path) do
     with {:read, {:ok, file}} <- {:read, File.read(path)},
          {:parse, {:ok, cakefile}} <- {:parse, Parser.parse(file, path)} do
       {:ok, cakefile}
@@ -66,7 +62,7 @@ defmodule Cake do
   @spec args(Cmd.t()) :: Preprocessor.args()
   defp args(cmd) do
     case cmd do
-      %Cli.Run{} -> Map.new(cmd.args)
+      %Cli.Run{args: args} -> Map.new(args)
       _ -> %{}
     end
   end

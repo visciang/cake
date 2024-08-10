@@ -50,7 +50,7 @@ defmodule Cake.Cli do
   end
 
   @type result ::
-          {:ok, workdir :: Path.t(), Cmd.t()}
+          {:ok, workdir :: Path.t(), cakefile :: Path.t(), Cmd.t()}
           | {:error, reason :: String.t()}
           | {:ignore, reason :: String.t()}
 
@@ -68,12 +68,12 @@ defmodule Cake.Cli do
       # coveralls-ignore-start
 
       {:ok, [:devshell], cli} ->
-        {:ok, cli.options.workdir, %DevShell{tgid: cli.args.target}}
+        {:ok, cli.options.workdir, cli.options.file, %DevShell{tgid: cli.args.target}}
 
       # coveralls-ignore-stop
 
       {:ok, [:ls], cli} ->
-        {:ok, cli.options.workdir, %Ls{}}
+        {:ok, cli.options.workdir, cli.options.file, %Ls{}}
 
       {:ok, [:run], cli} ->
         parse_run(cli)
@@ -107,6 +107,12 @@ defmodule Cake.Cli do
           long: "--workdir",
           help: "Working directory",
           default: ".",
+          global: true
+        ],
+        file: [
+          long: "--file",
+          help: "Name of the Cakefile",
+          default: "Cakefile",
           global: true
         ]
       ],
@@ -214,7 +220,7 @@ defmodule Cake.Cli do
           secrets: cli.options.secret
         }
 
-        {:ok, cli.options.workdir, run}
+        {:ok, cli.options.workdir, cli.options.file, run}
 
       {:error, _} = error ->
         error
