@@ -44,7 +44,7 @@ defmodule Cake.SystemImpl do
   @impl true
   def halt(exit_status, message) do
     if message != nil do
-      message = if is_binary(message), do: message, else: inspect(message)
+      message = if is_binary(message), do: message, else: inspect(message, pretty: true)
       IO.puts(:stderr, "\n#{message}")
     end
 
