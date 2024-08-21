@@ -13,12 +13,12 @@ define and execute pipelines that can run on any host with docker support.
 - DAG pipeline definition with a Makefile / Dockerfile inspired syntax
 - Parallel jobs execution
 - Parametrizable pipelines and jobs ([ARGS](#pipeline-parametrization))
-- conditional job ([@when](#when))
-- Job can be executed as a docker build or a local script
+- Conditional jobs ([@when](#when))
+- Jobs can be executed as a docker build or a local script
 - (*) Jobs can output artifacts to the host filesystem ([@output](#output))
 - (*) Jobs can be declared as non-cacheable ([@push](#push))
 - (*) Implicit docker-like caching
-- Pipelines can include pipeline templates ([@include](#include))
+- Pipelines composition via namespaced includes ([@include](#include))
 - Shell integration for debug and development ([@shell](#development-shell))
 - Not a Buildkit frontend
 
@@ -150,7 +150,7 @@ The image is available in the local docker registry:
 
     Hello Cake!
 
-Furthermore jobs can be define as `LOCAL` jobs. These kind of jobs are execute as local script on the running host.
+Furthermore jobs can be define as `LOCAL`. These kind of jobs are execute as local script on the running host.
 
 ```Dockerfile
 hello_bash:
@@ -240,7 +240,7 @@ Within the Cakefile, target dependencies can be explicitly established
 all: target_1 target_2
 
 target_1:
-    LOCAL /bin/sh -c
+    LOCAL /bin/sh
     echo "target 1"
 
 target_2: target_1
@@ -341,8 +341,18 @@ Local parameters are defined within individual targets and are specific to those
 
 ```Dockerfile
 target:
-    ARG SOME_PARAMETER=default_value
-    # Target-specific instructions using SOME_PARAMETER
+    FROM alpine
+    ARG SOME_PARAMETER1
+    ARG SOME_PARAMETER2=default_value
+    # Target-specific instructions using SOME_PARAMETER1 SOME_PARAMETER2
+```
+
+```Dockerfile
+target:
+    LOCAL /bin/sh
+    ENV SOME_PARAMETER1
+    ENV SOME_PARAMETER2=default_value
+    # Target-specific instructions using SOME_PARAMETER1 SOME_PARAMETER2
 ```
 
 #### Overriding Parameters
@@ -355,7 +365,7 @@ Command line override:
 cake run app ALPINE_VERSION=3.15.2
 ```
 
-Parameters override can be defined also on `@include` directives.
+Parameters override can be defined also on [`@include`](#include) directives.
 
 #### Enhancing Flexibility
 
@@ -420,9 +430,14 @@ Note: push targets can only be executed if the run commands include the `--push`
 
 #### Include
 
-`@include <ref> [<arg>, ...]`
+`@include <ref> NAMESPACE <namespace> [ARGS <arg>, ...]`
 
 Includes an external Cakefile "template". The directive should be defined before any target.
+
+Target defined in the remote `ref` are included under the specified `NAMESPACE`.
+The namespace qualifies targets as `<NAMESPACE>.target_id` and `ARG` as `<UPCASE_NAMESPACE>_ARGID`.
+
+Nested includes are namespaced with the conjunction of the `NAMESPACES`:
 
 The reference to the Cakefile can be a:
 - local path: `./local_dir`
@@ -439,7 +454,8 @@ Example:
 
 ```Dockerfile
 @include git+https://github.com/visciang/cake-elixir.git#main \
-         ELIXIR_ESCRIPT_EXTRA_APK="bash git"
+         NAMESPACE elixir \
+         ARGS ELIXIR_ESCRIPT_EXTRA_APK="bash git"
 ```
 
 #### Development Shell

@@ -7,7 +7,7 @@ defimpl Cake.Cmd, for: Cake.Cli.DevShell do
   alias Cake.Parser.Directive
   alias Cake.Parser.Target.Container
 
-  @spec exec(DevShell.t(), Cakefile.t(), Dag.graph()) :: :ok
+  @spec exec(DevShell.t(), Cakefile.t(), Dag.graph()) :: Cmd.result()
   def exec(%DevShell{} = devshell, %Cakefile{} = cakefile, graph) do
     case default_target(devshell.tgid, cakefile) do
       {:ok, tgid} ->
@@ -28,10 +28,8 @@ defimpl Cake.Cmd, for: Cake.Cli.DevShell do
         Cmd.exec(run_cmd, cakefile, graph)
 
       {:error, reason} ->
-        Cake.System.halt(:error, reason)
+        {:error, reason}
     end
-
-    :ok
   end
 
   @spec default_target(nil | Type.tgid(), Cakefile.t()) :: {:ok, Type.tgid()} | {:error, String.t()}

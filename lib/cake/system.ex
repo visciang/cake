@@ -11,17 +11,17 @@ defmodule Cake.System do
     system.cmd(cmd, args, opts)
   end
 
-  @spec halt(:ok | :error, nil | String.t() | term()) :: no_return()
-  def halt(exit_status, message \\ nil) do
+  @spec halt(:ok | :error, exit_info :: nil | term()) :: no_return()
+  def halt(exit_status, exit_info) do
     system = Application.get_env(:cake, :system_behaviour, Cake.SystemImpl)
-    system.halt(exit_status, message)
+    system.halt(exit_status, exit_info)
   end
 end
 
 defmodule Cake.SystemBehaviour do
   @callback find_executable(program :: String.t()) :: String.t() | nil
   @callback cmd(String.t(), [String.t()], keyword()) :: {Collectable.t(), exit_status :: non_neg_integer()}
-  @callback halt(:ok | :error, nil | String.t() | term()) :: no_return()
+  @callback halt(:ok | :error, exit_info :: nil | term()) :: no_return()
 end
 
 # coveralls-ignore-start
@@ -42,10 +42,10 @@ defmodule Cake.SystemImpl do
   end
 
   @impl true
-  def halt(exit_status, message) do
-    if message != nil do
-      message = if is_binary(message), do: message, else: inspect(message, pretty: true)
-      IO.puts(:stderr, "\n#{message}")
+  def halt(exit_status, exit_info) do
+    if exit_info != nil do
+      exit_info = if is_binary(exit_info), do: exit_info, else: inspect(exit_info, pretty: true)
+      IO.puts(:stderr, "\n#{exit_info}")
     end
 
     case exit_status do

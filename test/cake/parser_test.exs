@@ -148,7 +148,7 @@ defmodule Test.Cake.Parser do
 
     test "include directives" do
       cakefile = """
-      @include include_ref ARG1=1 ARG2=2
+      @include include_ref NAMESPACE t ARGS ARG1=1 ARG2=2
 
       target:
           FROM image
@@ -162,7 +162,8 @@ defmodule Test.Cake.Parser do
             args: [
               %Container.Arg{name: "ARG1", default_value: "1"},
               %Container.Arg{name: "ARG2", default_value: "2"}
-            ]
+            ],
+            namespace: "t"
           }
         ],
         path: @path,

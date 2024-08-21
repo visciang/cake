@@ -15,7 +15,7 @@ defmodule Cake do
       end
 
     case res do
-      :ok -> Cake.System.halt(:ok)
+      {:ok, info} -> Cake.System.halt(:ok, info)
       :timeout -> Cake.System.halt(:error, "timeout")
       {:ignore, reason} -> Cake.System.halt(:ok, reason)
       {:error, reason} -> Cake.System.halt(:error, reason)
@@ -63,6 +63,7 @@ defmodule Cake do
   defp args(cmd) do
     case cmd do
       %Cli.Run{args: args} -> Map.new(args)
+      %Cli.Ast{args: args} -> Map.new(args)
       _ -> %{}
     end
   end

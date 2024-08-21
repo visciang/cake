@@ -47,9 +47,27 @@ defmodule Cake.Pipeline.Docker do
 
   @impl true
   def shell(tgid, pipeline_uuid, devshell?) do
+    docker_desktop_socket = "/run/host-services/ssh-auth.sock"
+
+    ssh_sock =
+      cond do
+        :os.type() == {:unix, :darwin} ->
+          IO.puts(">>> detected Darwin OS - assuming docker desktop for SSH socket forwarding")
+          docker_desktop_socket
+
+        System.get_env("SSH_AUTH_SOCK") == nil ->
+          IO.puts(">>> SSH socket NOT forwarded")
+          nil
+
+        true ->
+          ssh_auth_sock = System.get_env("SSH_AUTH_SOCK", "")
+          IO.puts(">>> forwarding SSH socket via #{inspect(ssh_auth_sock)}")
+          ssh_auth_sock
+      end
+
     run_ssh_args =
-      case System.get_env("SSH_AUTH_SOCK", "") do
-        "" -> []
+      case ssh_sock do
+        nil -> []
         sock -> ["-e", "SSH_AUTH_SOCK=#{sock}", "-v", "#{sock}:#{sock}"]
       end
 

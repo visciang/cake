@@ -244,7 +244,7 @@ defmodule Cake.Reporter do
   @spec end_message(Cake.Cmd.result(), State.job_status()) :: nil | ansidata()
   defp end_message(workflow_status, jobs_status) do
     case workflow_status do
-      :ok ->
+      {:ok, _} ->
         [:green, "Run completed: ", :reset, status_count_message(jobs_status)]
 
       {:error, _} ->

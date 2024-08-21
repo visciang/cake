@@ -58,7 +58,7 @@ defmodule Test.Cake.Validator do
     test "FROM instructions" do
       Test.Support.write_cakefile("""
       local_target:
-          LOCAL /bin/sh -c
+          LOCAL /bin/sh
           echoi "Hello"
 
       target_2:
@@ -79,7 +79,7 @@ defmodule Test.Cake.Validator do
     test "COPY instructions" do
       Test.Support.write_cakefile("""
       local_target:
-          LOCAL /bin/sh -c
+          LOCAL /bin/sh
           echo "Hello"
 
       target_2:

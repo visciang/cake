@@ -1,6 +1,6 @@
 defmodule Cake.Parser.Target.Local do
   # target: dep
-  #     LOCAL /bin/sh -c
+  #     LOCAL /bin/sh
   #     ENV XXX=default_val
   #     echo "Hello ${XXX}"
 

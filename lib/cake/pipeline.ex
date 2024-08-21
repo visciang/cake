@@ -123,12 +123,7 @@ defmodule Cake.Pipeline do
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     target = insert_builtin_args(target, build_relative_include_ctx_dir)
 
-    global_args =
-      Map.new(cakefile.args, fn %Container.Arg{name: name, default_value: value} ->
-        {name, value}
-      end)
-
-    args = Map.merge(global_args, Map.new(run.args)) |> Enum.to_list()
+    args = when_eval_args(run, cakefile, target)
 
     if when_eval(target, args, pipeline_uuid) do
       local_impl().run(target, args, pipeline_uuid)
@@ -158,7 +153,9 @@ defmodule Cake.Pipeline do
     no_cache = run.push and push_target?(target)
     secrets = run.secrets
 
-    if when_eval(target, build_args, pipeline_uuid) do
+    args = when_eval_args(run, cakefile, target)
+
+    if when_eval(target, args, pipeline_uuid) do
       container_impl().build(
         target.tgid,
         tags,
@@ -235,7 +232,7 @@ defmodule Cake.Pipeline do
     }
   end
 
-  @spec insert_builtin_args(Container.t() | Local.t(), Path.t()) :: Container.t()
+  @spec insert_builtin_args(Container.t() | Local.t(), Path.t()) :: Container.t() | Local.t()
   defp insert_builtin_args(%Local{} = target, include_ctx_dir) do
     %Local{target | env: [%Env{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir} | target.env]}
   end
@@ -249,6 +246,20 @@ defmodule Cake.Pipeline do
         [from, %Arg{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
 
     %Container{target | commands: commands}
+  end
+
+  @spec when_eval_args(Run.t(), Cakefile.t(), Container.t() | Local.t()) :: [Cake.Pipeline.Behaviour.arg()]
+  defp when_eval_args(%Run{} = run, %Cakefile{} = cakefile, target) do
+    target_args =
+      case target do
+        %Container{} -> for %Arg{} = arg <- target.commands, do: %{name: arg.name, default_value: arg.default_value}
+        %Local{} -> for %Env{} = env <- target.env, do: %{name: env.name, default_value: env.default_value}
+      end
+
+    (cakefile.args ++ target_args)
+    |> Map.new(&{&1.name, &1.default_value})
+    |> Map.merge(Map.new(run.args))
+    |> Map.to_list()
   end
 
   @spec when_eval(Container.t() | Local.t(), [Cake.Pipeline.Behaviour.arg()], Type.pipeline_uuid()) :: boolean()

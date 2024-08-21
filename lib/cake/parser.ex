@@ -292,11 +292,24 @@ defmodule Cake.Parser do
       |> map({:cast, [Container.Arg]})
     )
 
+  namespace =
+    utf8_char([?a..?z, ?A..?Z])
+    |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
+    |> reduce({List, :to_string, []})
+
   include_directive =
     ignore(string("@include"))
     |> ignore(spaces)
     |> unwrap_and_tag(literal_value, :ref)
-    |> optional(tag(include_args, :args))
+    |> ignore(spaces)
+    |> ignore(string("NAMESPACE"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(namespace, :namespace)
+    |> optional(
+      ignore(spaces)
+      |> ignore(string("ARGS"))
+      |> tag(include_args, :args)
+    )
     |> wrap()
     |> map({:cast, [Include]})
 

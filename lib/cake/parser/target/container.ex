@@ -50,6 +50,20 @@ defmodule Cake.Parser.Target.Container do
             name: String.t(),
             default_value: nil | String.t()
           }
+
+    @spec builtin_docker_args() :: [String.t()]
+    def builtin_docker_args do
+      [
+        "TARGETPLATFORM",
+        "TARGETOS",
+        "TARGETARCH",
+        "TARGETVARIANT",
+        "BUILDPLATFORM",
+        "BUILDOS",
+        "BUILDARCH",
+        "BUILDVARIANT"
+      ]
+    end
   end
 
   defmodule Env do
@@ -84,7 +98,7 @@ defmodule Cake.Parser.Target.Container do
 
     @type t :: %__MODULE__{
             instruction: String.t(),
-            options: [Option.t(), ...],
+            options: [Option.t()],
             arguments: String.t()
           }
   end
@@ -108,7 +122,9 @@ defmodule Cake.Parser.Target.Container do
       if arg.default_value do
         "ARG #{arg.name}=#{inspect(arg.default_value)}"
       else
+        # coveralls-ignore-start
         "ARG #{arg.name}"
+        # coveralls-ignore-stop
       end
     end
   end

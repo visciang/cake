@@ -10,7 +10,6 @@ TODO
 - run against a private buildkit instance (implies the use of an external registry)
 - include / import cycles
 - matrix
-- local task
 - Cakefile FROM DOCKERFILE
 - dot
 ? private targets (.target)

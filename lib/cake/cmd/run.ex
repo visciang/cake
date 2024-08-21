@@ -13,27 +13,18 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
 
     with :ok <- check_target_exists(run, graph),
          :ok <- check_target_run_args(run, cakefile) do
-      :ok
-    else
-      {:error, msg} ->
-        Cake.System.halt(:error, msg)
-    end
+      {:ok, limiter} = Limiter.start_link(run.parallelism)
 
-    {:ok, limiter} = Limiter.start_link(run.parallelism)
-
-    res =
       Pipeline.build(run, cakefile, graph)
       |> Dask.async(limiter)
       |> Dask.await(run.timeout)
       |> case do
-        {:ok, _} -> :ok
+        {:ok, _} -> {:ok, nil}
         {:error, _} = error -> error
         :timeout -> :timeout
       end
-
-    Reporter.stop(res)
-
-    res
+      |> tap(&Reporter.stop/1)
+    end
   end
 
   @spec check_target_exists(Run.t(), Dag.graph()) :: :ok | {:error, msg :: String.t()}

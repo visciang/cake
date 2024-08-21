@@ -11,7 +11,7 @@ defmodule Test.Cake.Help do
     expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
       assert exit_status == :ok
       assert msg =~ "cake (Container-mAKE pipeline) 0.0.0"
-      :ok
+      {:ok, nil}
     end)
 
     expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
