@@ -52,16 +52,16 @@ defmodule Cake.Pipeline.Docker do
     ssh_sock =
       cond do
         :os.type() == {:unix, :darwin} ->
-          IO.puts(">>> detected Darwin OS - assuming docker desktop for SSH socket forwarding")
+          Reporter.job_notice(tgid, ">>> detected Darwin OS - assuming docker desktop for SSH socket forwarding")
           docker_desktop_socket
 
         System.get_env("SSH_AUTH_SOCK") == nil ->
-          IO.puts(">>> SSH socket NOT forwarded")
+          Reporter.job_notice(tgid, ">>> SSH socket NOT forwarded")
           nil
 
         true ->
           ssh_auth_sock = System.get_env("SSH_AUTH_SOCK", "")
-          IO.puts(">>> forwarding SSH socket via #{inspect(ssh_auth_sock)}")
+          Reporter.job_notice(tgid, ">>> forwarding SSH socket via #{inspect(ssh_auth_sock)}")
           ssh_auth_sock
       end
 

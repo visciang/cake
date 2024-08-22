@@ -344,7 +344,7 @@ target:
     FROM alpine
     ARG SOME_PARAMETER1
     ARG SOME_PARAMETER2=default_value
-    # Target-specific instructions using SOME_PARAMETER1 SOME_PARAMETER2
+    # Target-specific instructions using $SOME_PARAMETER1 $SOME_PARAMETER2
 ```
 
 ```Dockerfile
@@ -352,7 +352,7 @@ target:
     LOCAL /bin/sh
     ENV SOME_PARAMETER1
     ENV SOME_PARAMETER2=default_value
-    # Target-specific instructions using SOME_PARAMETER1 SOME_PARAMETER2
+    # Target-specific instructions using $SOME_PARAMETER1 $SOME_PARAMETER2
 ```
 
 #### Overriding Parameters
@@ -453,9 +453,9 @@ If the included Cakefile has parameter they can be specified via args
 Example:
 
 ```Dockerfile
-@include git+https://github.com/visciang/cake-elixir.git#main \
+@include git+https://github.com/username/repository.git#main \
          NAMESPACE elixir \
-         ARGS ELIXIR_ESCRIPT_EXTRA_APK="bash git"
+         ARGS ELIXIR_COMPILE_OPT="--warnings-as-errors"
 ```
 
 #### Development Shell
@@ -492,6 +492,14 @@ TODO
 
 The cake CLI commands.
 
+### AST
+
+Print AST (debug only)
+
+### DEVSHELL
+
+Enter the project [@devshell](#development-shell) (if available).
+
 ### LS
 
 List targets.
@@ -506,32 +514,30 @@ The output includes details about:
 $ cake ls
 
 Global arguments:
-  ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
-
-Aliases:
-  all: elixir.lint elixir.test cake.app
-  elixir.lint: elixir.dialyzer elixir.format elixir.credo
+  ELIXIR_ALPINE_VERSION="3.20.1"
+  ELIXIR_ERLANG_VERSION="27.0.1"
+  ELIXIR_VERSION="1.17.2"
+  EX_ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
 
 Targets:
-  cake.app:
-  elixir.base:
-  elixir.compile:
-  elixir.credo:
+  all: lint test cake
+  base:
+  cake:
+  compile:
+  credo:
     ELIXIR_CREDO_OPTS="--strict --all"
-  elixir.deps:
-  elixir.dialyzer:
-  elixir.dialyzer-plt:
-  elixir.docs:
-    @output /code/doc
-  elixir.escript:
+  deps:
+  dialyzer:
+  dialyzer_plt:
+  escript:
     ELIXIR_ESCRIPT_EXTRA_APK
-  elixir.escript-build:
-  elixir.format:
-  elixir.release:
-  elixir.test:
+  escript_build:
+  format:
+  lint: dialyzer format credo
+  test:
     @output /code/cover
     ELIXIR_TEST_CMD="coveralls.html"
-  elixir.toolchain:
+  toolchain:
     @devshell
 ```
 
@@ -539,14 +545,25 @@ Targets:
 
 Run the pipeline.
 
-#### output artifacts
+#### Global options
+`--workdir` `--file`
+
 TODO
 
-#### entering a debug/dev shell
+#### Output artifacts (`--output`)
 TODO
 
-#### taggin a docker image
+#### Entering a debug/dev shell (`--shell`)
 TODO
 
-#### push targets
+#### Tagging a docker image (`--tag`)
+TODO
+
+#### Push targets (`--push`)
+TODO
+
+#### Saving logs (`--save-logs`)
+TODO
+
+#### Logs modes (`--progress`)
 TODO
