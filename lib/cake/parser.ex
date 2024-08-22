@@ -129,14 +129,6 @@ defmodule Cake.Parser do
     |> wrap()
     |> map({:cast, [Container.Arg]})
 
-  env =
-    ignore(string("ENV"))
-    |> ignore(spaces)
-    |> unwrap_and_tag(arg_name, :name)
-    |> optional(unwrap_and_tag(arg_value, :default_value))
-    |> wrap()
-    |> map({:cast, [Container.Env]})
-
   target_container_commands =
     ignore(indent)
     |> concat(from)
@@ -232,13 +224,13 @@ defmodule Cake.Parser do
       repeat(
         ignore(nl)
         |> choice([
-          ignore(indent) |> concat(env),
+          ignore(indent) |> concat(arg),
           ignore(indent) |> ignore(comment),
           ignore(indent) |> lookahead(nl),
           lookahead(nl)
         ])
       ),
-      :env
+      :args
     )
     |> unwrap_and_tag(
       repeat(

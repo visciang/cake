@@ -8,7 +8,7 @@ defmodule Cake.Pipeline do
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{DevShell, Output, Push, When}
   alias Cake.Parser.Target.{Alias, Container, Local}
-  alias Cake.Parser.Target.Container.{Arg, Command, Env, Fmt, From}
+  alias Cake.Parser.Target.Container.{Arg, Command, Fmt, From}
 
   require Cake.Reporter.Status
   require Logger
@@ -238,7 +238,7 @@ defmodule Cake.Pipeline do
 
   @spec insert_builtin_args(Container.t() | Local.t(), Path.t()) :: Container.t() | Local.t()
   defp insert_builtin_args(%Local{} = target, include_ctx_dir) do
-    %Local{target | env: [%Env{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir} | target.env]}
+    %Local{target | args: [%Arg{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir} | target.args]}
   end
 
   defp insert_builtin_args(%Container{} = target, include_ctx_dir) do
@@ -257,7 +257,7 @@ defmodule Cake.Pipeline do
     target_args =
       case target do
         %Container{} -> for %Arg{} = arg <- target.commands, do: %{name: arg.name, default_value: arg.default_value}
-        %Local{} -> for %Env{} = env <- target.env, do: %{name: env.name, default_value: env.default_value}
+        %Local{} -> for %Arg{} = arg <- target.args, do: %{name: arg.name, default_value: arg.default_value}
       end
 
     (cakefile.args ++ target_args)

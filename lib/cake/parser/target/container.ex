@@ -66,18 +66,6 @@ defmodule Cake.Parser.Target.Container do
     end
   end
 
-  defmodule Env do
-    # Container `ENV <name>[=<default_value>]`
-
-    @enforce_keys [:name]
-    defstruct @enforce_keys ++ [:default_value]
-
-    @type t :: %__MODULE__{
-            name: String.t(),
-            default_value: nil | String.t()
-          }
-  end
-
   defmodule Command do
     # Generic Container command `INSTRUCTION [--option=value]* arguments`
 

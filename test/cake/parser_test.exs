@@ -192,8 +192,8 @@ defmodule Test.Cake.Parser do
           # comment
           LOCAL /bin/sh
           # comment
-          ENV XXX
-          ENV YYY=123
+          ARG XXX
+          ARG YYY=123
           
           # comment
           echo "${XXX}"
@@ -230,9 +230,9 @@ defmodule Test.Cake.Parser do
               interpreter: "/bin/sh",
               script: "\necho \"${XXX}\"\n",
               deps_tgids: [],
-              env: [
-                %Container.Env{name: "XXX", default_value: nil},
-                %Container.Env{name: "YYY", default_value: "123"}
+              args: [
+                %Container.Arg{name: "XXX", default_value: nil},
+                %Container.Arg{name: "YYY", default_value: "123"}
               ],
               __included_from_ref: nil
             },

@@ -8,7 +8,7 @@ defmodule Test.Cake.Include do
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.When
   alias Cake.Parser.Target.{Alias, Container, Local}
-  alias Cake.Parser.Target.Container.{Arg, Command, Env, From}
+  alias Cake.Parser.Target.Container.{Arg, Command, From}
   alias Cake.Parser.Target.Container.Command.Option
 
   @moduletag :tmp_dir
@@ -284,7 +284,7 @@ defmodule Test.Cake.Include do
       target_l:
           @when [ "$F" = "" && "$TL" = "" ]
           LOCAL /bin/sh
-          ENV TL=$F
+          ARG TL=$F
           echo "$TL"
       """)
 
@@ -324,7 +324,7 @@ defmodule Test.Cake.Include do
                      directives: [
                        %When{condition: "[ \"$FOO1_F\" = \"\" && \"$FOO1_TL\" = \"\" ]"}
                      ],
-                     env: [%Env{name: "FOO1_TL", default_value: "$FOO1_F"}]
+                     args: [%Arg{name: "FOO1_TL", default_value: "$FOO1_F"}]
                    },
                    %Container{
                      tgid: "foo2.target_f",
@@ -350,7 +350,7 @@ defmodule Test.Cake.Include do
                      directives: [
                        %When{condition: "[ \"$FOO2_F\" = \"\" && \"$FOO2_TL\" = \"\" ]"}
                      ],
-                     env: [%Env{name: "FOO2_TL", default_value: "$FOO2_F"}]
+                     args: [%Arg{name: "FOO2_TL", default_value: "$FOO2_F"}]
                    },
                    %Container{
                      tgid: "foo3.target_f",
@@ -376,7 +376,7 @@ defmodule Test.Cake.Include do
                      directives: [
                        %When{condition: "[ \"$FOO3_F\" = \"\" && \"$FOO3_TL\" = \"\" ]"}
                      ],
-                     env: [%Env{name: "FOO3_TL", default_value: "$FOO3_F"}]
+                     args: [%Arg{name: "FOO3_TL", default_value: "$FOO3_F"}]
                    },
                    %Container{
                      tgid: "target",

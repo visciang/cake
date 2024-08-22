@@ -2,7 +2,7 @@ defmodule Cake.Preprocessor do
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{Include, Output, When}
   alias Cake.Parser.Target.{Container, Local}
-  alias Cake.Parser.Target.Container.{Arg, Command, Env, From}
+  alias Cake.Parser.Target.Container.{Arg, Command, From}
   alias Cake.{Reference, Type}
 
   require Logger
@@ -158,7 +158,7 @@ defmodule Cake.Preprocessor do
       [
         Access.key!(:targets),
         Access.filter(&match?(%Local{}, &1)),
-        Access.key!(:env),
+        Access.key!(:args),
         Access.all(),
         Access.key!(:name)
       ],
@@ -235,7 +235,7 @@ defmodule Cake.Preprocessor do
         Access.key!(:script)
       ],
       [
-        Access.key!(:env),
+        Access.key!(:args),
         Access.filter(&(&1.default_value != nil)),
         Access.key!(:default_value)
       ],
@@ -404,9 +404,9 @@ defmodule Cake.Preprocessor do
           args = for %Arg{name: name} <- commands, into: MapSet.new(), do: name
           {tgid, args}
 
-        %Local{tgid: tgid, env: env} ->
-          envs = for %Env{name: name} <- env, into: MapSet.new(), do: name
-          {tgid, envs}
+        %Local{tgid: tgid, args: args} ->
+          args = for %Arg{name: name} <- args, into: MapSet.new(), do: name
+          {tgid, args}
       end)
 
     {global_arg_names, target_arg_names}

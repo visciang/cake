@@ -350,8 +350,8 @@ target:
 ```Dockerfile
 target:
     LOCAL /bin/sh
-    ENV SOME_PARAMETER1
-    ENV SOME_PARAMETER2=default_value
+    ARG SOME_PARAMETER1
+    ARG SOME_PARAMETER2=default_value
     # Target-specific instructions using $SOME_PARAMETER1 $SOME_PARAMETER2
 ```
 
