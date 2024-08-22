@@ -46,10 +46,7 @@ defmodule Cake.Preprocessor do
   defp expand_included_cakefiles(%Cakefile{} = cakefile, namespace, base_path) do
     Enum.reduce_while(cakefile.includes, {:ok, []}, fn
       %Include{} = include, {:ok, included_cakefiles} ->
-        with {:ok, included_path} <- Reference.get_include(include, base_path),
-             included_cakefile_path = Path.join(included_path, "Cakefile"),
-             true <- File.exists?(included_cakefile_path),
-             Logger.info("cakefile=#{inspect(included_cakefile_path)}"),
+        with {:ok, included_cakefile_path} <- get_include(include, base_path),
              {:ok, included_cakefile} <- Cake.parse_cakefile(included_cakefile_path),
              included_cakefile = track_included_from(included_cakefile, included_cakefile_path),
              namespace = namespace ++ [include.namespace],
@@ -59,13 +56,27 @@ defmodule Cake.Preprocessor do
              {:ok, cakefile} <- expand(included_cakefile, included_cakefile_args, namespace, base_path) do
           {:cont, {:ok, included_cakefiles ++ [cakefile]}}
         else
-          false ->
-            {:halt, {:error, "Cannot find Cakefile in include from #{include.ref}"}}
-
           {:error, _} = error ->
             {:halt, error}
         end
     end)
+  end
+
+  @spec get_include(Include.t(), base_path :: Path.t()) ::
+          {:ok, included_cakefile_path :: Path.t()} | {:error, reason :: String.t()}
+  defp get_include(%Include{} = include, base_path) do
+    with {:ok, included_path} <- Reference.get_include(include, base_path),
+         included_cakefile_path = Path.join(included_path, "Cakefile"),
+         true <- File.exists?(included_cakefile_path) do
+      Logger.info("cakefile=#{inspect(included_cakefile_path)}")
+      {:ok, included_cakefile_path}
+    else
+      {:error, _} = error ->
+        error
+
+      false ->
+        {:error, "Cannot find Cakefile in include from #{include.ref}"}
+    end
   end
 
   @spec set_args(Cakefile.t(), args()) :: Cakefile.t()
