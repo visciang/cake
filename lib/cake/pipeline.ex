@@ -147,7 +147,7 @@ defmodule Cake.Pipeline do
     containerfile_path = Path.join(Dir.tmp(), "#{pipeline_uuid}-#{target.tgid}.Dockerfile")
     write_containerfile(cakefile.args, target, containerfile_path)
 
-    tags = if target.tgid == run.tgid and run.tag, do: [run.tag], else: []
+    tags = if run.tag != nil and target.tgid == run.tgid, do: [run.tag], else: []
     tags = [container_impl().fq_image(target.tgid, pipeline_uuid) | tags]
     build_args = run.args
     no_cache = run.push and push_target?(target)
@@ -178,6 +178,10 @@ defmodule Cake.Pipeline do
       end
 
       # coveralls-ignore-stop
+
+      if run.tag != nil and target.tgid == run.tgid do
+        Reporter.job_output(target.tgid, "'#{target.tgid}' tagged as '#{run.tag}'")
+      end
 
       if run.output do
         output_paths = for %Output{path: path} <- target.directives, do: path
