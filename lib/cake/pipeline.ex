@@ -118,7 +118,7 @@ defmodule Cake.Pipeline do
   defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Local{} = target, pipeline_uuid) do
     Logger.info("start for #{inspect(target.tgid)}", pipeline: pipeline_uuid)
 
-    build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
+    build_relative_include_ctx_dir = (target.__included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
 
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     target = insert_builtin_args(target, build_relative_include_ctx_dir)
@@ -139,7 +139,7 @@ defmodule Cake.Pipeline do
 
     container_build_ctx_dir = Path.dirname(cakefile.path)
 
-    build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
+    build_relative_include_ctx_dir = (target.__included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
 
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     target = insert_builtin_args(target, build_relative_include_ctx_dir)

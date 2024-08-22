@@ -97,8 +97,7 @@ defmodule Cake.Preprocessor do
       for path <- args_paths, reduce: cakefile do
         %Cakefile{} = cakefile ->
           update_in(cakefile, path, fn %Arg{} = arg ->
-            default_value = Map.fetch!(args, arg.name)
-            %Arg{arg | default_value: default_value}
+            %Arg{arg | default_value: Map.fetch!(args, arg.name)}
           end)
       end
 
@@ -119,7 +118,7 @@ defmodule Cake.Preprocessor do
       [
         Access.key!(:targets),
         Access.filter(&(match?(%Container{}, &1) or match?(%Local{}, &1))),
-        Access.key!(:included_from_ref)
+        Access.key!(:__included_from_ref)
       ],
       cakefile_path
     )

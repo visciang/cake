@@ -15,7 +15,7 @@ defmodule Cake.Parser.Target.Container do
   alias Cake.Type
 
   @enforce_keys [:tgid, :commands]
-  defstruct @enforce_keys ++ [deps_tgids: [], included_from_ref: nil, directives: []]
+  defstruct @enforce_keys ++ [deps_tgids: [], directives: [], __included_from_ref: nil]
 
   @type directive :: DevShell.t() | Output.t() | Push.t() | When.t()
   @type command :: Arg.t() | From.t() | Command.t()
@@ -25,7 +25,7 @@ defmodule Cake.Parser.Target.Container do
           deps_tgids: [Type.tgid()],
           directives: [directive()],
           commands: [command(), ...],
-          included_from_ref: nil | Path.t()
+          __included_from_ref: nil | Path.t()
         }
 
   defmodule From do
