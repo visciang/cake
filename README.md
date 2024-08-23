@@ -174,7 +174,7 @@ Docker and local jobs can be mixed together in the same pipeline.
 
 Cake pipelines are defined via `Cakefile`.
 
-The `Cakefile` of a project pipeline should sit at the root directory of the project.
+The `Cakefile` of a project pipeline can be placed the root directory of the project. A different path than the default one can be specified via [`--file`](#global-options).
 
 ### Targets
 
@@ -437,9 +437,9 @@ Includes an external Cakefile "template". The directive should be defined before
 Target defined in the remote `ref` are included under the specified `NAMESPACE`.
 The namespace qualifies targets as `<NAMESPACE>.target_id` and `ARG` as `<UPCASE_NAMESPACE>_ARGID`.
 
-Nested includes are namespaced with the conjunction of the `NAMESPACES`:
+Nested includes are namespaced with the concatenation of the `NAMESPACES`:
 
-The reference to the Cakefile can be a:
+Cakefile `ref` can be a:
 - local path: `./local_dir`
 - remote Git URL (via HTTPS): `git+https://github.com/username/repository.git#ref_branch_or_tag`
 - remote Git URL (via SSH): `git+git@github.com/username/repository.git#ref_branch_or_tag`
@@ -457,6 +457,45 @@ Example:
          NAMESPACE elixir \
          ARGS ELIXIR_COMPILE_OPT="--warnings-as-errors"
 ```
+
+##### Include Context
+
+When a `root` Cakefile includes another Cakefile the targets defined in the later are expanded in the former. The included targets are then evaluated in the `root` directory (the pipeline working directory).
+
+In other words the docker build context of a docker target is the `root` Cakefile directory.
+
+Sometimes we need to carry alongside with the recipe Cakefile some auxiliar files and reference them in the targets instructions.
+
+The following minimal example shows how to define auxiliar assets to me included together with the included Cakefile:
+
+Root Cakefile
+
+```
+@include dir/subdir NAMESPACE n
+```
+
+`dir/subdir` Cakefile
+
+```
+target:
+    FROM alpine
+    COPY ${CAKE_INCLUDE_CTX}/auxiliar_file.sh .
+    # ...
+```
+
+Filesystem view
+
+```
+/root
+  Cakefile
+  dir\
+    subdir\
+      Cakefile
+      ctx\
+        auxiliar_file.sh
+```
+
+Auxiliar files should be placed (by convention) under `ctx\` directory and referenced in the Cakefile with the `${CAKE_INCLUDE_CTX}` builtin variable.
 
 #### Development Shell
 
@@ -491,6 +530,12 @@ TODO
 ## Commands
 
 The cake CLI commands.
+
+### Global options
+
+`--workdir` `--file`
+
+TODO
 
 ### AST
 
@@ -544,11 +589,6 @@ Targets:
 ### RUN
 
 Run the pipeline.
-
-#### Global options
-`--workdir` `--file`
-
-TODO
 
 #### Output artifacts (`--output`)
 TODO
