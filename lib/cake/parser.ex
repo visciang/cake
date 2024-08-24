@@ -284,10 +284,20 @@ defmodule Cake.Parser do
       |> map({:cast, [Container.Arg]})
     )
 
-  namespace =
+  flat_namespace =
+    string("_")
+    |> replace("")
+
+  qualified_namespace =
     utf8_char([?a..?z, ?A..?Z])
     |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
     |> reduce({List, :to_string, []})
+
+  namespace =
+    choice([
+      qualified_namespace,
+      flat_namespace
+    ])
 
   include_directive =
     ignore(string("@include"))

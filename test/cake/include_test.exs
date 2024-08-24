@@ -466,7 +466,7 @@ defmodule Test.Cake.Include do
       Test.Support.write_cakefile("foo", """
       ARG ARG_1=1
 
-      @include ./bar NAMESPACE bar ARGS ARG_2=$ARG_1
+      @include ./bar NAMESPACE bar ARGS BAR_ARG_2=$ARG_1
 
       target_f:
           FROM scratch
@@ -657,6 +657,58 @@ defmodule Test.Cake.Include do
                    }
                  ]
                } = ast
+
+        :ok
+      end)
+
+      :ok = Cake.main(["ast"])
+    end
+  end
+
+  describe "conflicting" do
+    test "targets" do
+      Test.Support.write_cakefile("""
+      @include ./foo NAMESPACE foo
+
+      all: foo.all foo.target
+
+      foo.target:
+          FROM scratch
+      """)
+
+      Test.Support.write_cakefile("foo", """
+      target:
+          FROM scratch
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, exit_reason ->
+        assert exit_status == :error
+
+        assert exit_reason ==
+                 "Preprocessing error:\n\"target foo.target: defined in [\\\"Cakefile\\\", \\\"././foo/Cakefile\\\"]\""
+
+        :ok
+      end)
+
+      :ok = Cake.main(["ast"])
+    end
+
+    test "ARGS" do
+      Test.Support.write_cakefile("""
+      ARG FOO_A
+
+      @include ./foo NAMESPACE foo
+      """)
+
+      Test.Support.write_cakefile("foo", """
+      ARG A
+      """)
+
+      expect(Test.SystemBehaviourMock, :halt, fn exit_status, exit_reason ->
+        assert exit_status == :error
+
+        assert exit_reason ==
+                 "Preprocessing error:\n\"ARG FOO_A: defined in [\\\"Cakefile\\\", \\\"././foo/Cakefile\\\"]\""
 
         :ok
       end)

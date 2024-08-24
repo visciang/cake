@@ -63,7 +63,8 @@ defmodule Test.Cake.Parser do
         targets: [
           %Alias{
             tgid: "target_alias",
-            deps_tgids: ["target_with_only_from", "target_with_commands"]
+            deps_tgids: ["target_with_only_from", "target_with_commands"],
+            __included_from_ref: nil
           },
           %Container{
             tgid: "target_with_explicit_deps",
@@ -238,7 +239,8 @@ defmodule Test.Cake.Parser do
             },
             %Alias{
               tgid: "target_alias",
-              deps_tgids: ["target_with_only_from", "target_with_commands"]
+              deps_tgids: ["target_with_only_from", "target_with_commands"],
+              __included_from_ref: nil
             },
             %Container{
               tgid: "target_container",

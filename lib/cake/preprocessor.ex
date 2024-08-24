@@ -23,7 +23,9 @@ defmodule Cake.Preprocessor do
     base_path=#{inspect(base_path)}
     """)
 
-    with {:ok, included_cakefiles} <- expand_included_cakefiles(cakefile, namespace, base_path) do
+    with {:ok, included_cakefiles} <- expand_included_cakefiles(cakefile, namespace, base_path),
+         :ok <- check_targets_include_conflicts(cakefile, included_cakefiles),
+         :ok <- check_args_include_conflicts(cakefile, included_cakefiles) do
       included_args = Enum.flat_map(included_cakefiles, & &1.args)
       included_targets = Enum.flat_map(included_cakefiles, & &1.targets)
 
@@ -60,6 +62,57 @@ defmodule Cake.Preprocessor do
             {:halt, error}
         end
     end)
+  end
+
+  @spec check_targets_include_conflicts(Cakefile.t(), included :: [Cakefile.t()]) ::
+          :ok | {:error, reason :: String.t()}
+  defp check_targets_include_conflicts(%Cakefile{} = cakefile, included_cakefile) do
+    conflicting_targets =
+      [cakefile | included_cakefile]
+      |> Enum.flat_map(& &1.targets)
+      |> Enum.group_by(& &1.tgid)
+      |> Map.filter(fn {_tgid, targets} -> length(targets) > 1 end)
+
+    if map_size(conflicting_targets) == 0 do
+      :ok
+    else
+      conflicts =
+        Enum.map_join(conflicting_targets, "\n", fn {tgid, targets} ->
+          # credo:disable-for-lines:2 Credo.Check.Refactor.Nesting
+          defined_in =
+            Enum.map(targets, fn
+              %{__included_from_ref: nil} -> cakefile.path
+              %{__included_from_ref: included_from_ref} -> included_from_ref
+            end)
+
+          "target #{tgid}: defined in #{inspect(defined_in)}"
+        end)
+
+      {:error, conflicts}
+    end
+  end
+
+  @spec check_args_include_conflicts(Cakefile.t(), included :: [Cakefile.t()]) ::
+          :ok | {:error, reason :: String.t()}
+  defp check_args_include_conflicts(%Cakefile{} = cakefile, included_cakefile) do
+    conflicting_args =
+      [cakefile | included_cakefile]
+      |> Enum.flat_map(fn %Cakefile{path: path, args: args} ->
+        Enum.map(args, &{&1.name, path})
+      end)
+      |> Enum.group_by(fn {name, _path} -> name end, fn {_name, path} -> path end)
+      |> Map.filter(fn {_name, paths} -> length(paths) > 1 end)
+
+    if map_size(conflicting_args) == 0 do
+      :ok
+    else
+      conflicts =
+        Enum.map_join(conflicting_args, "\n", fn {name, paths} ->
+          "ARG #{name}: defined in #{inspect(paths)}"
+        end)
+
+      {:error, conflicts}
+    end
   end
 
   @spec get_include(Include.t(), base_path :: Path.t()) ::
@@ -128,7 +181,7 @@ defmodule Cake.Preprocessor do
       cakefile,
       [
         Access.key!(:targets),
-        Access.filter(&(match?(%Container{}, &1) or match?(%Local{}, &1))),
+        Access.all(),
         Access.key!(:__included_from_ref)
       ],
       cakefile_path
@@ -137,6 +190,8 @@ defmodule Cake.Preprocessor do
 
   @spec apply_namespace(Cakefile.t(), namespace()) :: Cakefile.t()
   defp apply_namespace(%Cakefile{} = cakefile, namespace) do
+    namespace = Enum.reject(namespace, &(&1 == ""))
+
     cakefile
     |> apply_namespace_to_variable_names(namespace)
     |> apply_namespace_to_variable_references(namespace)
@@ -378,8 +433,7 @@ defmodule Cake.Preprocessor do
       fn %Include{} = include ->
         args =
           for %Arg{} = arg <- include.args do
-            include_upcase_namespace = String.upcase(include.namespace)
-            name = prepend_namespace(arg.name, upcase_namespace ++ [include_upcase_namespace], "_")
+            name = prepend_namespace(arg.name, upcase_namespace, "_")
 
             %Arg{arg | name: name}
           end
@@ -437,7 +491,7 @@ defmodule Cake.Preprocessor do
   @spec apply_namespace_to_variable_name(
           full_match :: String.t(),
           variable :: String.t(),
-          default_value :: nil | String.t(),
+          default_value :: String.t(),
           namespace(),
           arg_names()
         ) :: String.t()
@@ -445,7 +499,7 @@ defmodule Cake.Preprocessor do
     fq_variable = prepend_namespace(variable, upcase_namespace, "_")
 
     if fq_variable in known_arg_names do
-      if default_value == nil do
+      if default_value == "" do
         "$#{fq_variable}"
       else
         "${#{fq_variable}:-#{default_value}}"
@@ -459,12 +513,12 @@ defmodule Cake.Preprocessor do
 
   @spec replace_vars(
           String.t(),
-          (full_match :: String.t(), variable :: String.t(), default_value :: nil | String.t() -> String.t())
+          (full_match :: String.t(), variable :: String.t(), default_value :: String.t() -> String.t())
         ) :: String.t()
   defp replace_vars(string, replacement_fn) do
     string =
       Regex.replace(~r/\$(\w+)/, string, fn full_match, variable ->
-        replacement_fn.(full_match, variable, nil)
+        replacement_fn.(full_match, variable, "")
       end)
 
     string =

@@ -1,7 +1,7 @@
 ARG ELIXIR_VERSION=1.17.2
 ARG ELIXIR_ERLANG_VERSION=27.0.1
 ARG ELIXIR_ALPINE_VERSION=3.20.1
-ARG EX_ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
+ARG ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
 ARG _WORKDIR=/code
 
 all: lint test cake

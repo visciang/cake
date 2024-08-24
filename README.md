@@ -176,6 +176,22 @@ Cake pipelines are defined via `Cakefile`.
 
 The `Cakefile` of a project pipeline can be placed the root directory of the project. A different path than the default one can be specified via [`--file`](#global-options).
 
+### Definition
+
+A Cakefile can be defined following the informal structure:
+
+```
+ARG*
+INCLUDE*
+TARGET*
+```
+
+that is: some global arguments, followed by some includes, followed by some targets.
+
+A `TARGET` can be either an ALIAS, a LOCAL or a DOCKER target.
+
+The following sections provide a more detailed definition of the above elements, their semantic alongside with some examples.
+
 ### Targets
 
 Targets in Cake represent the addressable and executable entities within a pipeline. They identify the jobs that build the Directed Acyclic Graph (DAG) of the pipeline.
@@ -430,14 +446,15 @@ Note: push targets can only be executed if the run commands include the `--push`
 
 #### Include
 
-`@include <ref> NAMESPACE <namespace> [ARGS <arg>, ...]`
+`@include <ref> NAMESPACE <namespace>|_ [ARGS <arg>, ...]`
 
-Includes an external Cakefile "template". The directive should be defined before any target.
+Includes an external Cakefile. The directive should be defined before any target.
 
 Target defined in the remote `ref` are included under the specified `NAMESPACE`.
-The namespace qualifies targets as `<NAMESPACE>.target_id` and `ARG` as `<UPCASE_NAMESPACE>_ARGID`.
+The namaspacing can be explicitely disabled declaring a flat `NAMESPACE _`.
 
-Nested includes are namespaced with the concatenation of the `NAMESPACES`:
+The namespace qualifies targets as `<NAMESPACE>.target_id` and `ARG` as `<UPCASE_NAMESPACE>_ARGID`.
+Nested includes are namespaced with the concatenation of the `NAMESPACES`.
 
 Cakefile `ref` can be a:
 - local path: `./local_dir`
@@ -562,7 +579,7 @@ Global arguments:
   ELIXIR_ALPINE_VERSION="3.20.1"
   ELIXIR_ERLANG_VERSION="27.0.1"
   ELIXIR_VERSION="1.17.2"
-  EX_ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
+  ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
 
 Targets:
   all: lint test cake
