@@ -90,7 +90,7 @@ defmodule Cake.Reporter.Plain do
 
   @impl Reporter
   def job_shell_start(job, %State{} = state) do
-    job_notice(job, "Starting interactive shell\n", state)
+    job_notice(job, "Starting interactive shell", state)
   end
 
   @impl Reporter

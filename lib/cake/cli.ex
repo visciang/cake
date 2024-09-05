@@ -49,6 +49,15 @@ defmodule Cake.Cli do
           }
   end
 
+  defmodule Ast do
+    @enforce_keys [:args]
+    defstruct @enforce_keys
+
+    @type t :: %__MODULE__{
+            args: [Run.arg()]
+          }
+  end
+
   @type result ::
           {:ok, workdir :: Path.t(), cakefile :: Path.t(), Cmd.t()}
           | {:error, reason :: String.t()}
@@ -64,6 +73,9 @@ defmodule Cake.Cli do
     case Optimus.parse(optimus, args) do
       {:ok, _cli} ->
         {:ignore, Optimus.help(optimus)}
+
+      {:ok, [:ast], cli} ->
+        parse_ast(cli)
 
       # coveralls-ignore-start
 
@@ -117,6 +129,11 @@ defmodule Cake.Cli do
         ]
       ],
       subcommands: [
+        ast: [
+          name: "ast",
+          about: "Print AST (debug only)",
+          allow_unknown_args: true
+        ],
         devshell: [
           name: "devshell",
           about: "Development shell",
@@ -195,7 +212,22 @@ defmodule Cake.Cli do
     )
   end
 
-  @spec parse_target_args(Optimus.ParseResult.t()) :: result()
+  @spec parse_ast(Optimus.ParseResult.t()) :: result()
+  defp parse_ast(cli) do
+    case parse_target_args(cli.unknown) do
+      {:ok, target_args} ->
+        ast = %Ast{args: target_args}
+
+        {:ok, cli.options.workdir, cli.options.file, ast}
+
+      # coveralls-ignore-start
+      {:error, _} = error ->
+        error
+        # coveralls-ignore-stop
+    end
+  end
+
+  @spec parse_run(Optimus.ParseResult.t()) :: result()
   defp parse_run(cli) do
     case parse_target_args(cli.unknown) do
       {:ok, target_args} ->

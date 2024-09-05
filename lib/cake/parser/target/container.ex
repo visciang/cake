@@ -15,7 +15,7 @@ defmodule Cake.Parser.Target.Container do
   alias Cake.Type
 
   @enforce_keys [:tgid, :commands]
-  defstruct @enforce_keys ++ [deps_tgids: [], included_from_ref: nil, directives: []]
+  defstruct @enforce_keys ++ [deps_tgids: [], directives: [], __included_from_ref: nil]
 
   @type directive :: DevShell.t() | Output.t() | Push.t() | When.t()
   @type command :: Arg.t() | From.t() | Command.t()
@@ -25,7 +25,7 @@ defmodule Cake.Parser.Target.Container do
           deps_tgids: [Type.tgid()],
           directives: [directive()],
           commands: [command(), ...],
-          included_from_ref: nil | Path.t()
+          __included_from_ref: nil | Path.t()
         }
 
   defmodule From do
@@ -50,18 +50,20 @@ defmodule Cake.Parser.Target.Container do
             name: String.t(),
             default_value: nil | String.t()
           }
-  end
 
-  defmodule Env do
-    # Container `ENV <name>[=<default_value>]`
-
-    @enforce_keys [:name]
-    defstruct @enforce_keys ++ [:default_value]
-
-    @type t :: %__MODULE__{
-            name: String.t(),
-            default_value: nil | String.t()
-          }
+    @spec builtin_docker_args() :: [String.t()]
+    def builtin_docker_args do
+      [
+        "TARGETPLATFORM",
+        "TARGETOS",
+        "TARGETARCH",
+        "TARGETVARIANT",
+        "BUILDPLATFORM",
+        "BUILDOS",
+        "BUILDARCH",
+        "BUILDVARIANT"
+      ]
+    end
   end
 
   defmodule Command do
@@ -84,7 +86,7 @@ defmodule Cake.Parser.Target.Container do
 
     @type t :: %__MODULE__{
             instruction: String.t(),
-            options: [Option.t(), ...],
+            options: [Option.t()],
             arguments: String.t()
           }
   end
@@ -108,7 +110,9 @@ defmodule Cake.Parser.Target.Container do
       if arg.default_value do
         "ARG #{arg.name}=#{inspect(arg.default_value)}"
       else
+        # coveralls-ignore-start
         "ARG #{arg.name}"
+        # coveralls-ignore-stop
       end
     end
   end

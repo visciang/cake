@@ -1,23 +1,12 @@
 defimpl Cake.Cmd, for: Cake.Cli.Ls do
-  alias Cake.{Dag, Dir, Type}
+  alias Cake.{Cmd, Dag, Dir, Type}
   alias Cake.Cli.Ls
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{DevShell, Output, When}
-  alias Cake.Parser.Target.Container.{Arg, Env}
+  alias Cake.Parser.Target.Container.Arg
   alias Cake.Parser.Target.{Alias, Container, Local}
 
-  @builtin_docker_args [
-    "TARGETPLATFORM",
-    "TARGETOS",
-    "TARGETARCH",
-    "TARGETVARIANT",
-    "BUILDPLATFORM",
-    "BUILDOS",
-    "BUILDARCH",
-    "BUILDVARIANT"
-  ]
-
-  @spec exec(Ls.t(), Cakefile.t(), Dag.graph()) :: :ok
+  @spec exec(Ls.t(), Cakefile.t(), Dag.graph()) :: Cmd.result()
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def exec(%Ls{}, %Cakefile{} = cakefile, _graph) do
     Dir.setup_cake_dirs()
@@ -46,10 +35,10 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
         %Alias{} ->
           ["  ", :green, tgid, ":", fmt_deps_tgids(deps_tgids), "\n", :reset]
 
-        %Local{interpreter: interpreter, env: env} ->
-          env =
-            for e <- env,
-                do: ["    ", fmt_env(e), "\n", :reset]
+        %Local{interpreter: interpreter, args: args} ->
+          args =
+            for arg <- args,
+                do: ["    ", fmt_arg(arg), "\n", :reset]
 
           when_ =
             for condition <- Map.get(target_when, tgid, []),
@@ -57,7 +46,7 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
 
           local = [:blue, "    LOCAL ", :faint, interpreter, "\n", :reset]
 
-          [target_header, when_, local, env]
+          [target_header, when_, local, args]
 
         %Container{} ->
           devshell? = MapSet.member?(devshell_targets, tgid)
@@ -81,12 +70,12 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
       |> IO.write()
     end
 
-    :ok
+    {:ok, nil}
   end
 
   @spec hidden_arg(String.t()) :: boolean()
   defp hidden_arg(name) do
-    String.starts_with?(name, "_") or name in @builtin_docker_args
+    String.starts_with?(name, "_") or name in Arg.builtin_docker_args()
   end
 
   @spec target_args(Cakefile.t()) :: %{Type.tgid() => [Arg.t()]}
@@ -127,11 +116,5 @@ defimpl Cake.Cmd, for: Cake.Cli.Ls do
   defp fmt_arg(%Arg{default_value: nil} = arg), do: [:blue, arg.name]
 
   defp fmt_arg(%Arg{} = arg),
-    do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
-
-  @spec fmt_env(Env.t()) :: IO.ANSI.ansidata()
-  defp fmt_env(%Env{default_value: nil} = arg), do: [:blue, arg.name]
-
-  defp fmt_env(%Env{} = arg),
     do: [:blue, arg.name, :faint, "=#{inspect(arg.default_value)}", :reset]
 end

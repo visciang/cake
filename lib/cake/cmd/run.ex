@@ -11,24 +11,19 @@ defimpl Cake.Cmd, for: Cake.Cli.Run do
 
     Reporter.start_link(run.progress, run.save_logs)
 
-    with :ok <- check_target_exists(run, graph),
-         :ok <- check_target_run_args(run, cakefile) do
-      :ok
-    else
-      {:error, msg} ->
-        Cake.System.halt(:error, msg)
-    end
-
-    {:ok, limiter} = Limiter.start_link(run.parallelism)
-
     res =
-      Pipeline.build(run, cakefile, graph)
-      |> Dask.async(limiter)
-      |> Dask.await(run.timeout)
-      |> case do
-        {:ok, _} -> :ok
-        {:error, _} = error -> error
-        :timeout -> :timeout
+      with :ok <- check_target_exists(run, graph),
+           :ok <- check_target_run_args(run, cakefile) do
+        {:ok, limiter} = Limiter.start_link(run.parallelism)
+
+        Pipeline.build(run, cakefile, graph)
+        |> Dask.async(limiter)
+        |> Dask.await(run.timeout)
+        |> case do
+          {:ok, _} -> {:ok, nil}
+          {:error, _} = error -> error
+          :timeout -> :timeout
+        end
       end
 
     Reporter.stop(res)

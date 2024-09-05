@@ -63,11 +63,12 @@ defmodule Test.Cake.Parser do
         targets: [
           %Alias{
             tgid: "target_alias",
-            deps_tgids: ["target_with_only_from", "target_with_commands"]
+            deps_tgids: ["target_with_only_from", "target_with_commands"],
+            __included_from_ref: nil
           },
           %Container{
             tgid: "target_with_explicit_deps",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [],
             commands: [
               %Cake.Parser.Target.Container.From{image: "image", as: nil}
@@ -76,7 +77,7 @@ defmodule Test.Cake.Parser do
           },
           %Container{
             tgid: "target_with_only_from",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [],
             commands: [
               %Container.From{image: "image", as: nil}
@@ -85,7 +86,7 @@ defmodule Test.Cake.Parser do
           },
           %Container{
             tgid: "target_with_commands",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [],
             commands: [
               %Container.From{image: "image", as: nil},
@@ -96,7 +97,7 @@ defmodule Test.Cake.Parser do
           },
           %Container{
             tgid: "target_with_command_options",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [],
             commands: [
               %Container.From{image: "image", as: nil},
@@ -110,7 +111,7 @@ defmodule Test.Cake.Parser do
           },
           %Container{
             tgid: "target_with_args",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [],
             commands: [
               %Container.From{image: "image", as: nil},
@@ -121,7 +122,7 @@ defmodule Test.Cake.Parser do
           },
           %Container{
             tgid: "target_command_with_continuation",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [],
             commands: [
               %Container.From{image: "image", as: nil},
@@ -131,7 +132,7 @@ defmodule Test.Cake.Parser do
           },
           %Container{
             tgid: "target_with_directives",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [
               %Parser.Directive.DevShell{},
               %Parser.Directive.Push{},
@@ -148,7 +149,7 @@ defmodule Test.Cake.Parser do
 
     test "include directives" do
       cakefile = """
-      @include include_ref ARG1=1 ARG2=2
+      @include include_ref NAMESPACE t ARGS ARG1=1 ARG2=2
 
       target:
           FROM image
@@ -162,14 +163,15 @@ defmodule Test.Cake.Parser do
             args: [
               %Container.Arg{name: "ARG1", default_value: "1"},
               %Container.Arg{name: "ARG2", default_value: "2"}
-            ]
+            ],
+            namespace: "t"
           }
         ],
         path: @path,
         targets: [
           %Container{
             tgid: "target",
-            included_from_ref: nil,
+            __included_from_ref: nil,
             directives: [],
             commands: [%Container.From{image: "image", as: nil}],
             deps_tgids: []
@@ -191,8 +193,8 @@ defmodule Test.Cake.Parser do
           # comment
           LOCAL /bin/sh
           # comment
-          ENV XXX
-          ENV YYY=123
+          ARG XXX
+          ARG YYY=123
           
           # comment
           echo "${XXX}"
@@ -229,15 +231,16 @@ defmodule Test.Cake.Parser do
               interpreter: "/bin/sh",
               script: "\necho \"${XXX}\"\n",
               deps_tgids: [],
-              env: [
-                %Container.Env{name: "XXX", default_value: nil},
-                %Container.Env{name: "YYY", default_value: "123"}
+              args: [
+                %Container.Arg{name: "XXX", default_value: nil},
+                %Container.Arg{name: "YYY", default_value: "123"}
               ],
-              included_from_ref: nil
+              __included_from_ref: nil
             },
             %Alias{
               tgid: "target_alias",
-              deps_tgids: ["target_with_only_from", "target_with_commands"]
+              deps_tgids: ["target_with_only_from", "target_with_commands"],
+              __included_from_ref: nil
             },
             %Container{
               tgid: "target_container",
@@ -250,7 +253,7 @@ defmodule Test.Cake.Parser do
                 }
               ],
               deps_tgids: [],
-              included_from_ref: nil,
+              __included_from_ref: nil,
               directives: [%Parser.Directive.Output{path: "./xxx"}]
             }
           ]

@@ -13,12 +13,12 @@ define and execute pipelines that can run on any host with docker support.
 - DAG pipeline definition with a Makefile / Dockerfile inspired syntax
 - Parallel jobs execution
 - Parametrizable pipelines and jobs ([ARGS](#pipeline-parametrization))
-- conditional job ([@when](#when))
-- Job can be executed as a docker build or a local script
+- Conditional jobs ([@when](#when))
+- Jobs can be executed as a docker build or a local script
 - (*) Jobs can output artifacts to the host filesystem ([@output](#output))
 - (*) Jobs can be declared as non-cacheable ([@push](#push))
 - (*) Implicit docker-like caching
-- Pipelines can include pipeline templates ([@include](#include))
+- Pipelines composition via namespaced includes ([@include](#include))
 - Shell integration for debug and development ([@shell](#development-shell))
 - Not a Buildkit frontend
 
@@ -150,7 +150,7 @@ The image is available in the local docker registry:
 
     Hello Cake!
 
-Furthermore jobs can be define as `LOCAL` jobs. These kind of jobs are execute as local script on the running host.
+Furthermore jobs can be define as `LOCAL`. These kind of jobs are execute as local script on the running host.
 
 ```Dockerfile
 hello_bash:
@@ -174,7 +174,23 @@ Docker and local jobs can be mixed together in the same pipeline.
 
 Cake pipelines are defined via `Cakefile`.
 
-The `Cakefile` of a project pipeline should sit at the root directory of the project.
+The `Cakefile` of a project pipeline can be placed the root directory of the project. A different path than the default one can be specified via [`--file`](#global-options).
+
+### Definition
+
+A Cakefile can be defined following the informal structure:
+
+```
+ARG*
+INCLUDE*
+TARGET*
+```
+
+that is: some global arguments, followed by some includes, followed by some targets.
+
+A `TARGET` can be either an ALIAS, a LOCAL or a DOCKER target.
+
+The following sections provide a more detailed definition of the above elements, their semantic alongside with some examples.
 
 ### Targets
 
@@ -240,7 +256,7 @@ Within the Cakefile, target dependencies can be explicitly established
 all: target_1 target_2
 
 target_1:
-    LOCAL /bin/sh -c
+    LOCAL /bin/sh
     echo "target 1"
 
 target_2: target_1
@@ -341,8 +357,18 @@ Local parameters are defined within individual targets and are specific to those
 
 ```Dockerfile
 target:
-    ARG SOME_PARAMETER=default_value
-    # Target-specific instructions using SOME_PARAMETER
+    FROM alpine
+    ARG SOME_PARAMETER1
+    ARG SOME_PARAMETER2=default_value
+    # Target-specific instructions using $SOME_PARAMETER1 $SOME_PARAMETER2
+```
+
+```Dockerfile
+target:
+    LOCAL /bin/sh
+    ARG SOME_PARAMETER1
+    ARG SOME_PARAMETER2=default_value
+    # Target-specific instructions using $SOME_PARAMETER1 $SOME_PARAMETER2
 ```
 
 #### Overriding Parameters
@@ -355,7 +381,7 @@ Command line override:
 cake run app ALPINE_VERSION=3.15.2
 ```
 
-Parameters override can be defined also on `@include` directives.
+Parameters override can be defined also on [`@include`](#include) directives.
 
 #### Enhancing Flexibility
 
@@ -420,11 +446,17 @@ Note: push targets can only be executed if the run commands include the `--push`
 
 #### Include
 
-`@include <ref> [<arg>, ...]`
+`@include <ref> NAMESPACE <namespace>|_ [ARGS <arg>, ...]`
 
-Includes an external Cakefile "template". The directive should be defined before any target.
+Includes an external Cakefile. The directive should be defined before any target.
 
-The reference to the Cakefile can be a:
+Target defined in the remote `ref` are included under the specified `NAMESPACE`.
+The namaspacing can be explicitely disabled declaring a flat `NAMESPACE _`.
+
+The namespace qualifies targets as `<NAMESPACE>.target_id` and `ARG` as `<UPCASE_NAMESPACE>_ARGID`.
+Nested includes are namespaced with the concatenation of the `NAMESPACES`.
+
+Cakefile `ref` can be a:
 - local path: `./local_dir`
 - remote Git URL (via HTTPS): `git+https://github.com/username/repository.git#ref_branch_or_tag`
 - remote Git URL (via SSH): `git+git@github.com/username/repository.git#ref_branch_or_tag`
@@ -438,9 +470,49 @@ If the included Cakefile has parameter they can be specified via args
 Example:
 
 ```Dockerfile
-@include git+https://github.com/visciang/cake-elixir.git#main \
-         ELIXIR_ESCRIPT_EXTRA_APK="bash git"
+@include git+https://github.com/username/repository.git#main \
+         NAMESPACE elixir \
+         ARGS ELIXIR_COMPILE_OPT="--warnings-as-errors"
 ```
+
+##### Include Context
+
+When a `root` Cakefile includes another Cakefile the targets defined in the later are expanded in the former. The included targets are then evaluated in the `root` directory (the pipeline working directory).
+
+In other words the docker build context of a docker target is the `root` Cakefile directory.
+
+Sometimes we need to carry alongside with the recipe Cakefile some auxiliar files and reference them in the targets instructions.
+
+The following minimal example shows how to define auxiliar assets to me included together with the included Cakefile:
+
+Root Cakefile
+
+```
+@include dir/subdir NAMESPACE n
+```
+
+`dir/subdir` Cakefile
+
+```
+target:
+    FROM alpine
+    COPY ${CAKE_INCLUDE_CTX}/auxiliar_file.sh .
+    # ...
+```
+
+Filesystem view
+
+```
+/root
+  Cakefile
+  dir\
+    subdir\
+      Cakefile
+      ctx\
+        auxiliar_file.sh
+```
+
+Auxiliar files should be placed (by convention) under `ctx\` directory and referenced in the Cakefile with the `${CAKE_INCLUDE_CTX}` builtin variable.
 
 #### Development Shell
 
@@ -476,6 +548,20 @@ TODO
 
 The cake CLI commands.
 
+### Global options
+
+`--workdir` `--file`
+
+TODO
+
+### AST
+
+Print AST (debug only)
+
+### DEVSHELL
+
+Enter the project [@devshell](#development-shell) (if available).
+
 ### LS
 
 List targets.
@@ -490,32 +576,30 @@ The output includes details about:
 $ cake ls
 
 Global arguments:
+  ELIXIR_ALPINE_VERSION="3.20.1"
+  ELIXIR_ERLANG_VERSION="27.0.1"
+  ELIXIR_VERSION="1.17.2"
   ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
 
-Aliases:
-  all: elixir.lint elixir.test cake.app
-  elixir.lint: elixir.dialyzer elixir.format elixir.credo
-
 Targets:
-  cake.app:
-  elixir.base:
-  elixir.compile:
-  elixir.credo:
+  all: lint test cake
+  base:
+  cake:
+  compile:
+  credo:
     ELIXIR_CREDO_OPTS="--strict --all"
-  elixir.deps:
-  elixir.dialyzer:
-  elixir.dialyzer-plt:
-  elixir.docs:
-    @output /code/doc
-  elixir.escript:
+  deps:
+  dialyzer:
+  dialyzer_plt:
+  escript:
     ELIXIR_ESCRIPT_EXTRA_APK
-  elixir.escript-build:
-  elixir.format:
-  elixir.release:
-  elixir.test:
+  escript_build:
+  format:
+  lint: dialyzer format credo
+  test:
     @output /code/cover
     ELIXIR_TEST_CMD="coveralls.html"
-  elixir.toolchain:
+  toolchain:
     @devshell
 ```
 
@@ -523,14 +607,20 @@ Targets:
 
 Run the pipeline.
 
-#### output artifacts
+#### Output artifacts (`--output`)
 TODO
 
-#### entering a debug/dev shell
+#### Entering a debug/dev shell (`--shell`)
 TODO
 
-#### taggin a docker image
+#### Tagging a docker image (`--tag`)
 TODO
 
-#### push targets
+#### Push targets (`--push`)
+TODO
+
+#### Saving logs (`--save-logs`)
+TODO
+
+#### Logs modes (`--progress`)
 TODO

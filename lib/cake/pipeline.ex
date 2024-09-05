@@ -8,7 +8,7 @@ defmodule Cake.Pipeline do
   alias Cake.Parser.Cakefile
   alias Cake.Parser.Directive.{DevShell, Output, Push, When}
   alias Cake.Parser.Target.{Alias, Container, Local}
-  alias Cake.Parser.Target.Container.{Arg, Command, Env, Fmt, From}
+  alias Cake.Parser.Target.Container.{Arg, Command, Fmt, From}
 
   require Cake.Reporter.Status
   require Logger
@@ -118,17 +118,12 @@ defmodule Cake.Pipeline do
   defp dask_job(%Run{} = run, %Cakefile{} = cakefile, %Local{} = target, pipeline_uuid) do
     Logger.info("start for #{inspect(target.tgid)}", pipeline: pipeline_uuid)
 
-    build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
+    build_relative_include_ctx_dir = (target.__included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
 
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     target = insert_builtin_args(target, build_relative_include_ctx_dir)
 
-    global_args =
-      Map.new(cakefile.args, fn %Container.Arg{name: name, default_value: value} ->
-        {name, value}
-      end)
-
-    args = Map.merge(global_args, Map.new(run.args)) |> Enum.to_list()
+    args = when_eval_args(run, cakefile, target)
 
     if when_eval(target, args, pipeline_uuid) do
       local_impl().run(target, args, pipeline_uuid)
@@ -144,7 +139,7 @@ defmodule Cake.Pipeline do
 
     container_build_ctx_dir = Path.dirname(cakefile.path)
 
-    build_relative_include_ctx_dir = (target.included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
+    build_relative_include_ctx_dir = (target.__included_from_ref || ".") |> Path.dirname() |> Path.join("ctx")
 
     cakefile = insert_builtin_global_args(cakefile, pipeline_uuid)
     target = insert_builtin_args(target, build_relative_include_ctx_dir)
@@ -152,13 +147,15 @@ defmodule Cake.Pipeline do
     containerfile_path = Path.join(Dir.tmp(), "#{pipeline_uuid}-#{target.tgid}.Dockerfile")
     write_containerfile(cakefile.args, target, containerfile_path)
 
-    tags = if target.tgid == run.tgid and run.tag, do: [run.tag], else: []
+    tags = if run.tag != nil and target.tgid == run.tgid, do: [run.tag], else: []
     tags = [container_impl().fq_image(target.tgid, pipeline_uuid) | tags]
     build_args = run.args
     no_cache = run.push and push_target?(target)
     secrets = run.secrets
 
-    if when_eval(target, build_args, pipeline_uuid) do
+    args = when_eval_args(run, cakefile, target)
+
+    if when_eval(target, args, pipeline_uuid) do
       container_impl().build(
         target.tgid,
         tags,
@@ -181,6 +178,10 @@ defmodule Cake.Pipeline do
       end
 
       # coveralls-ignore-stop
+
+      if run.tag != nil and target.tgid == run.tgid do
+        Reporter.job_output(target.tgid, "'#{target.tgid}' tagged as '#{run.tag}'")
+      end
 
       if run.output do
         output_paths = for %Output{path: path} <- target.directives, do: path
@@ -235,9 +236,9 @@ defmodule Cake.Pipeline do
     }
   end
 
-  @spec insert_builtin_args(Container.t() | Local.t(), Path.t()) :: Container.t()
+  @spec insert_builtin_args(Container.t() | Local.t(), Path.t()) :: Container.t() | Local.t()
   defp insert_builtin_args(%Local{} = target, include_ctx_dir) do
-    %Local{target | env: [%Env{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir} | target.env]}
+    %Local{target | args: [%Arg{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir} | target.args]}
   end
 
   defp insert_builtin_args(%Container{} = target, include_ctx_dir) do
@@ -249,6 +250,20 @@ defmodule Cake.Pipeline do
         [from, %Arg{name: "CAKE_INCLUDE_CTX", default_value: include_ctx_dir}] ++ post_from_cmds
 
     %Container{target | commands: commands}
+  end
+
+  @spec when_eval_args(Run.t(), Cakefile.t(), Container.t() | Local.t()) :: [Cake.Pipeline.Behaviour.arg()]
+  defp when_eval_args(%Run{} = run, %Cakefile{} = cakefile, target) do
+    target_args =
+      case target do
+        %Container{} -> for %Arg{} = arg <- target.commands, do: %{name: arg.name, default_value: arg.default_value}
+        %Local{} -> for %Arg{} = arg <- target.args, do: %{name: arg.name, default_value: arg.default_value}
+      end
+
+    (cakefile.args ++ target_args)
+    |> Map.new(&{&1.name, &1.default_value})
+    |> Map.merge(Map.new(run.args))
+    |> Map.to_list()
   end
 
   @spec when_eval(Container.t() | Local.t(), [Cake.Pipeline.Behaviour.arg()], Type.pipeline_uuid()) :: boolean()

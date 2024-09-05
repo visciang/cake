@@ -27,9 +27,9 @@ defmodule Test.Cake.Ls do
         
     target_3:
         @when test "$global_arg_1" = "3"
-        LOCAL /bin/sh -c
-        ENV A
-        ENV B=1
+        LOCAL /bin/sh
+        ARG A
+        ARG B=1
         echo "Hello ${A} ${B}"
     """)
 
@@ -61,7 +61,7 @@ defmodule Test.Cake.Ls do
                target_arg_2="default"
              target_3:
                @when test "$global_arg_1" = "3"
-               LOCAL /bin/sh -c
+               LOCAL /bin/sh
            """
   end
 end

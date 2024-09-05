@@ -9,4 +9,4 @@ docker build --file Dockerfile --target cake.app --tag visciang/cake:latest .
 cp priv/cake /tmp/cake
 sed -i '' "s/__PLEASE_PIN_A_CAKE_VERSION_HERE__/latest/" /tmp/cake
 /tmp/cake run --progress plain all
-/tmp/cake run --tag cake:latest cake.app
+/tmp/cake run --tag cake:latest cake

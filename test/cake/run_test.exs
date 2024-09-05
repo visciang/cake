@@ -165,7 +165,7 @@ defmodule Test.Cake.Run do
       ARG global_arg2=default
 
       target:
-          LOCAL /bin/sh -c
+          LOCAL /bin/sh
           ARG target_arg1
           ARG target_arg2=default
           echo "Test"
@@ -189,7 +189,7 @@ defmodule Test.Cake.Run do
     test "reports error for incompatible run flag --shell" do
       Test.Support.write_cakefile("""
       foo:
-          LOCAL /bin/sh -c
+          LOCAL /bin/sh
           echo "test"
       """)
 
@@ -209,7 +209,7 @@ defmodule Test.Cake.Run do
     test "reports error for incompatible run options --tag" do
       Test.Support.write_cakefile("""
       foo:
-          LOCAL /bin/sh -c
+          LOCAL /bin/sh
           echo "test"
       """)
 
@@ -476,9 +476,12 @@ defmodule Test.Cake.Run do
 
     test "with a truthy @when runs" do
       Test.Support.write_cakefile("""
+      ARG XXX
+
       target:
-          @when true
+          @when [ "$XXX" = "x" && "$YYY" = "y" ]
           FROM scratch
+          ARG YYY
       """)
 
       expect_container_build(1, fn %{target: "target"} -> :ok end)
@@ -487,13 +490,22 @@ defmodule Test.Cake.Run do
         "test"
       end)
 
-      expect(Test.SystemBehaviourMock, :cmd, fn _, _, _ ->
-        {"", 0}
+      expect(Test.SystemBehaviourMock, :cmd, fn _, args, _ ->
+        envs =
+          for ["--env", env] <- Enum.chunk_every(args, 2, 1), into: %{} do
+            String.split(env, "=", parts: 2) |> List.to_tuple()
+          end
+
+        if envs["XXX"] == "x" and envs["YYY"] == "y" do
+          {"", 0}
+        else
+          {"", 1}
+        end
       end)
 
       {result, _output} =
         with_io(fn ->
-          Cake.main(["run", "target"])
+          Cake.main(["run", "target", "XXX=x", "YYY=y"])
         end)
 
       assert result == :ok
@@ -597,7 +609,7 @@ defmodule Test.Cake.Run do
       """)
 
       Test.Support.write_cakefile("""
-      @include dir
+      @include dir NAMESPACE t
 
       target:
           FROM scratch
@@ -605,7 +617,7 @@ defmodule Test.Cake.Run do
 
       expect(Test.SystemBehaviourMock, :halt, fn exit_status, msg ->
         assert exit_status == :error
-        assert msg =~ "Cakefile syntax error at dir/Cakefile"
+        assert msg =~ "Cakefile syntax error at ./dir/Cakefile"
         raise "HALT"
       end)
 

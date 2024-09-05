@@ -19,13 +19,14 @@ defmodule Cake.Parser.Directive do
   end
 
   defmodule Include do
-    # `@include <ref> [<arg>, ...]`.
+    # `@include <ref> NAMESPACE <namespace> [ARGS <arg>, ...]`
 
-    @enforce_keys [:ref]
+    @enforce_keys [:ref, :namespace]
     defstruct @enforce_keys ++ [args: []]
 
     @type t :: %__MODULE__{
             ref: String.t(),
+            namespace: String.t(),
             args: [Cake.Parser.Target.Container.Arg.t()]
           }
   end

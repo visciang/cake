@@ -14,9 +14,9 @@ defmodule Cake.Reference do
     :ok
   end
 
-  @spec get_include(Directive.Include.t()) :: result()
-  def get_include(%Directive.Include{} = include) do
-    GenServer.call(@name, {:get_include, include}, :infinity)
+  @spec get_include(Directive.Include.t(), base_path :: Path.t()) :: result()
+  def get_include(%Directive.Include{} = include, base_path) do
+    GenServer.call(@name, {:get_include, include, base_path}, :infinity)
   end
 
   @impl GenServer
@@ -25,7 +25,7 @@ defmodule Cake.Reference do
   end
 
   @impl GenServer
-  def handle_call({:get_include, %Directive.Include{} = include}, _from, state) do
+  def handle_call({:get_include, %Directive.Include{} = include, base_path}, _from, state) do
     res =
       case include.ref do
         "git+" <> git_url ->
@@ -34,7 +34,7 @@ defmodule Cake.Reference do
 
         include_dir ->
           Reporter.job_notice("@include", "#{include_dir}")
-          include_local("@include", include_dir)
+          include_local("@include", Path.join(base_path, include_dir))
       end
       |> case do
         {:ok, _} = ok -> ok

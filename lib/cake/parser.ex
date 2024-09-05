@@ -129,14 +129,6 @@ defmodule Cake.Parser do
     |> wrap()
     |> map({:cast, [Container.Arg]})
 
-  env =
-    ignore(string("ENV"))
-    |> ignore(spaces)
-    |> unwrap_and_tag(arg_name, :name)
-    |> optional(unwrap_and_tag(arg_value, :default_value))
-    |> wrap()
-    |> map({:cast, [Container.Env]})
-
   target_container_commands =
     ignore(indent)
     |> concat(from)
@@ -232,13 +224,13 @@ defmodule Cake.Parser do
       repeat(
         ignore(nl)
         |> choice([
-          ignore(indent) |> concat(env),
+          ignore(indent) |> concat(arg),
           ignore(indent) |> ignore(comment),
           ignore(indent) |> lookahead(nl),
           lookahead(nl)
         ])
       ),
-      :env
+      :args
     )
     |> unwrap_and_tag(
       repeat(
@@ -292,11 +284,34 @@ defmodule Cake.Parser do
       |> map({:cast, [Container.Arg]})
     )
 
+  flat_namespace =
+    string("_")
+    |> replace("")
+
+  qualified_namespace =
+    utf8_char([?a..?z, ?A..?Z])
+    |> optional(utf8_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
+    |> reduce({List, :to_string, []})
+
+  namespace =
+    choice([
+      qualified_namespace,
+      flat_namespace
+    ])
+
   include_directive =
     ignore(string("@include"))
     |> ignore(spaces)
     |> unwrap_and_tag(literal_value, :ref)
-    |> optional(tag(include_args, :args))
+    |> ignore(spaces)
+    |> ignore(string("NAMESPACE"))
+    |> ignore(spaces)
+    |> unwrap_and_tag(namespace, :namespace)
+    |> optional(
+      ignore(spaces)
+      |> ignore(string("ARGS"))
+      |> tag(include_args, :args)
+    )
     |> wrap()
     |> map({:cast, [Include]})
 
