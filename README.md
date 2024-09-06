@@ -483,7 +483,7 @@ In other words the docker build context of a docker target is the `root` Cakefil
 
 Sometimes we need to carry alongside with the recipe Cakefile some auxiliar files and reference them in the targets instructions.
 
-The following minimal example shows how to define auxiliar assets to me included together with the included Cakefile:
+The following minimal example shows how to define auxiliar assets to be included together with the included Cakefile:
 
 Root Cakefile
 
