@@ -226,9 +226,17 @@ defmodule Cake.Preprocessor do
       ]
     ]
 
+    builtin_docker_args = Arg.builtin_docker_args()
+
     for path <- paths, reduce: cakefile do
       %Cakefile{} = cakefile ->
-        update_in(cakefile, path, fn name -> prepend_namespace(name, upcase_namespace, "_") end)
+        update_in(cakefile, path, fn name ->
+          if MapSet.member?(builtin_docker_args, name) do
+            name
+          else
+            prepend_namespace(name, upcase_namespace, "_")
+          end
+        end)
     end
   end
 
@@ -496,7 +504,6 @@ defmodule Cake.Preprocessor do
           arg_names()
         ) :: String.t()
   defp apply_namespace_to_variable_name(full_match, variable, default_value, upcase_namespace, known_arg_names) do
-    known_arg_names = MapSet.difference(known_arg_names, Arg.builtin_docker_args())
     fq_variable = prepend_namespace(variable, upcase_namespace, "_")
 
     if fq_variable in known_arg_names do
