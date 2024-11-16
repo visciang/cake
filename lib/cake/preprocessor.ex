@@ -496,6 +496,7 @@ defmodule Cake.Preprocessor do
           arg_names()
         ) :: String.t()
   defp apply_namespace_to_variable_name(full_match, variable, default_value, upcase_namespace, known_arg_names) do
+    known_arg_names = MapSet.difference(known_arg_names, Arg.builtin_docker_args())
     fq_variable = prepend_namespace(variable, upcase_namespace, "_")
 
     if fq_variable in known_arg_names do

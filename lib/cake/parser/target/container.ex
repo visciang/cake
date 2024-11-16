@@ -51,9 +51,9 @@ defmodule Cake.Parser.Target.Container do
             default_value: nil | String.t()
           }
 
-    @spec builtin_docker_args() :: [String.t()]
+    @spec builtin_docker_args() :: MapSet.t(String.t())
     def builtin_docker_args do
-      [
+      MapSet.new([
         "TARGETPLATFORM",
         "TARGETOS",
         "TARGETARCH",
@@ -62,7 +62,7 @@ defmodule Cake.Parser.Target.Container do
         "BUILDOS",
         "BUILDARCH",
         "BUILDVARIANT"
-      ]
+      ])
     end
   end
 
