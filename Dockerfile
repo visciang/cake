@@ -16,8 +16,7 @@ COPY config ./config
 COPY test ./test
 COPY lib ./lib
 COPY .*.exs ./
-ARG CAKE_VERSION=0.0.0
-RUN CAKE_VERSION=${CAKE_VERSION} mix escript.build
+RUN mix escript.build
 
 FROM docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${ELIXIR_ERLANG_VERSION}-alpine-${ELIXIR_ALPINE_VERSION} AS cake.app
 RUN apk add --no-cache bash git openssh-client docker-cli docker-cli-buildx

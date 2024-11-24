@@ -4,8 +4,8 @@ defmodule Cake.MixProject do
   def project do
     [
       app: :cake,
-      version: System.get_env("CAKE_VERSION", "0.0.0"),
-      elixir: "~> 1.15",
+      version: "0.0.0",
+      elixir: "~> 1.17",
       preferred_cli_env: [
         coveralls: :test,
         "coveralls.github": :test,
@@ -17,6 +17,7 @@ defmodule Cake.MixProject do
       test_coverage: [
         tool: ExCoveralls
       ],
+      aliases: aliases(),
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       escript: [
@@ -34,6 +35,19 @@ defmodule Cake.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp aliases, do: [compile: [&version_from_git/1, "compile"]]
+
+  defp version_from_git(_) do
+    {version, 0} = System.cmd("git", ["describe", "--tags"])
+
+    version =
+      version
+      |> String.trim_leading("v")
+      |> String.trim()
+
+    File.write!(".version", version)
+  end
 
   defp deps do
     [

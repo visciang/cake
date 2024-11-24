@@ -63,7 +63,8 @@ defmodule Cake.Cli do
           | {:error, reason :: String.t()}
           | {:ignore, reason :: String.t()}
 
-  @version Mix.Project.config()[:version]
+  @external_resource ".version"
+  @version File.read!(".version")
 
   @spec parse([String.t()]) :: result()
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

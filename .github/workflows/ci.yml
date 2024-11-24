@@ -49,4 +49,4 @@ jobs:
           target: cake.app
 
       - name: cake building cake
-        run: CAKE_VERSION=${{ steps.cake_version.outputs.version }} priv/cake run --progress plain all
+        run: priv/cake run --progress plain all
