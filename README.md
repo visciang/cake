@@ -576,9 +576,9 @@ The output includes details about:
 $ cake ls
 
 Global arguments:
-  ELIXIR_ALPINE_VERSION="3.20.3"
-  ELIXIR_ERLANG_VERSION="27.1.2"
-  ELIXIR_VERSION="1.17.3"
+  ELIXIR_ALPINE_VERSION="3.21.0"
+  ELIXIR_ERLANG_VERSION="27.2"
+  ELIXIR_VERSION="1.18.1"
   ELIXIR_ESCRIPT_EXTRA_APK="bash git openssh-client docker-cli docker-cli-buildx"
 
 Targets:
