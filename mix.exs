@@ -21,7 +21,7 @@ defmodule Cake.MixProject do
       deps: deps(),
       escript: [
         main_module: Cake,
-        emu_args: "-noinput"
+        emu_args: "-noinput +B"
       ]
     ]
   end
